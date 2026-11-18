@@ -5,6 +5,10 @@ import {
   GameType,
 } from "@openfront/engine-api/game/GameTypes";
 import type { GameConfig } from "@openfront/engine-api/Schemas";
+import {
+  PAID_MATCH_MAP,
+  PAID_MATCH_MINUTES,
+} from "@openfront/shared/PaidMatch";
 import { z } from "zod";
 import { ServerEnv } from "./ServerEnv";
 
@@ -119,7 +123,13 @@ export function paidGameConfig(
     gameType: GameType.Private,
     gameMode: GameMode.FFA,
     playerTeams: undefined,
+    gameMap: PAID_MATCH_MAP,
     gameMapSize: GameMapSize.Compact,
+    // Land held at the end is the payout, so the end is a known time.
+    maxTimerValue: PAID_MATCH_MINUTES,
+    // ...or earlier at the default 80%, never lowered by overtime.
+    winThresholdTenths: undefined,
+    overtime: undefined,
     publicGameModifiers: undefined,
     difficulty: Difficulty.Medium,
     maxPlayers,

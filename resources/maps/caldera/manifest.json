@@ -1,0 +1,104 @@
+{
+  "categories": ["featured", "fictional"],
+  "featured_rank": 1,
+  "id": "Caldera",
+  "map": {
+    "height": 1200,
+    "num_land_tiles": 715472,
+    "width": 1200
+  },
+  "map16x": {
+    "height": 300,
+    "num_land_tiles": 43844,
+    "width": 300
+  },
+  "map4x": {
+    "height": 600,
+    "num_land_tiles": 178868,
+    "width": 600
+  },
+  "name": "Caldera",
+  "nations": [
+    {
+      "coordinates": [924, 664],
+      "flag": "",
+      "name": "Emberfall"
+    },
+    {
+      "coordinates": [874, 783],
+      "flag": "",
+      "name": "Ashmoor"
+    },
+    {
+      "coordinates": [783, 874],
+      "flag": "",
+      "name": "Cinderreach"
+    },
+    {
+      "coordinates": [664, 924],
+      "flag": "",
+      "name": "Basaltine"
+    },
+    {
+      "coordinates": [536, 924],
+      "flag": "",
+      "name": "Obsidia"
+    },
+    {
+      "coordinates": [417, 874],
+      "flag": "",
+      "name": "Pumiceford"
+    },
+    {
+      "coordinates": [326, 783],
+      "flag": "",
+      "name": "Scoria"
+    },
+    {
+      "coordinates": [276, 664],
+      "flag": "",
+      "name": "Tuffhaven"
+    },
+    {
+      "coordinates": [276, 536],
+      "flag": "",
+      "name": "Lavenmark"
+    },
+    {
+      "coordinates": [326, 417],
+      "flag": "",
+      "name": "Magmora"
+    },
+    {
+      "coordinates": [417, 326],
+      "flag": "",
+      "name": "Solfatar"
+    },
+    {
+      "coordinates": [536, 276],
+      "flag": "",
+      "name": "Fumarel"
+    },
+    {
+      "coordinates": [664, 276],
+      "flag": "",
+      "name": "Calderan"
+    },
+    {
+      "coordinates": [783, 326],
+      "flag": "",
+      "name": "Vesuvine"
+    },
+    {
+      "coordinates": [874, 417],
+      "flag": "",
+      "name": "Sulphuria"
+    },
+    {
+      "coordinates": [924, 536],
+      "flag": "",
+      "name": "Kilnwick"
+    }
+  ],
+  "translation_key": "map.caldera"
+}

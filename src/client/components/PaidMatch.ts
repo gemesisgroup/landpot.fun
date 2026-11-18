@@ -1,4 +1,8 @@
 import type { UserMeResponse } from "@openfront/shared/ApiSchemas";
+import {
+  PAID_MATCH_MAP,
+  PAID_MATCH_MINUTES,
+} from "@openfront/shared/PaidMatch";
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { whenModalLoaded } from "../LazyModals";
@@ -18,8 +22,9 @@ import {
   type PotConfig,
   type PotStep,
 } from "../Pot";
+import { terrainMapFileLoader } from "../TerrainMapFileLoader";
 import { lastUserMeResponse } from "../UserMeBroadcast";
-import { translateText } from "../Utils";
+import { getMapName, translateText } from "../Utils";
 import { CONNECT_WALLET_EVENT } from "../Wallet";
 
 type Busy =
@@ -208,6 +213,36 @@ export class PaidMatch extends LitElement {
     });
   }
 
+  /** The map every paid match is played on, drawn like a lobby card. */
+  private mapTile() {
+    const url = terrainMapFileLoader.getMapData(PAID_MATCH_MAP).webpPath;
+    return html`<div class="group flex items-center gap-3">
+      <div
+        class="relative size-14 shrink-0 overflow-hidden rounded-lg bg-[#0b0d10]"
+      >
+        <img
+          src=${url}
+          alt=""
+          draggable="false"
+          class="lp-map-thumb pointer-events-none absolute inset-0 size-full object-contain select-none"
+        />
+        <div
+          aria-hidden="true"
+          class="lp-map-plates pointer-events-none absolute inset-0 size-full"
+          style="--lp-mask: url('${url}'); --lp-mask-fit: contain"
+        ></div>
+      </div>
+      <div class="flex flex-col">
+        <span class="lp-display text-sm font-semibold text-white">
+          ${getMapName(PAID_MATCH_MAP)}
+        </span>
+        <span class="lp-mono text-[11px] text-gray-400">
+          ${translateText("landpot.pot_match", { minutes: PAID_MATCH_MINUTES })}
+        </span>
+      </div>
+    </div>`;
+  }
+
   /** 16 plates, lit for each paid seat: the pot filling up. */
   private seats(lobby: PaidLobby) {
     return html`<div
@@ -301,7 +336,7 @@ export class PaidMatch extends LitElement {
               ? html`<div
                   class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2"
                 >
-                  ${this.seats(lobby)}
+                  ${this.mapTile()} ${this.seats(lobby)}
                   <div class="flex flex-col">
                     <span class="lp-display text-lg font-semibold text-white">
                       ${this.amount(BigInt(lobby.stake) * BigInt(lobby.deposited))}

@@ -1,0 +1,92 @@
+{
+  "$schema": "../../../info.schema.json",
+  "id": "Caldera",
+  "name": "Caldera",
+  "translation_key": "map.caldera",
+  "categories": ["featured", "fictional"],
+  "featured_rank": 1,
+  "author": "Landpot",
+  "description": "A volcanic island around a crater lake. Eight ridges and eight rivers cut it into sixteen identical plates, so no spawn is better than another.",
+  "nations": [
+    {
+      "coordinates": [924, 664],
+      "flag": "",
+      "name": "Emberfall"
+    },
+    {
+      "coordinates": [874, 783],
+      "flag": "",
+      "name": "Ashmoor"
+    },
+    {
+      "coordinates": [783, 874],
+      "flag": "",
+      "name": "Cinderreach"
+    },
+    {
+      "coordinates": [664, 924],
+      "flag": "",
+      "name": "Basaltine"
+    },
+    {
+      "coordinates": [536, 924],
+      "flag": "",
+      "name": "Obsidia"
+    },
+    {
+      "coordinates": [417, 874],
+      "flag": "",
+      "name": "Pumiceford"
+    },
+    {
+      "coordinates": [326, 783],
+      "flag": "",
+      "name": "Scoria"
+    },
+    {
+      "coordinates": [276, 664],
+      "flag": "",
+      "name": "Tuffhaven"
+    },
+    {
+      "coordinates": [276, 536],
+      "flag": "",
+      "name": "Lavenmark"
+    },
+    {
+      "coordinates": [326, 417],
+      "flag": "",
+      "name": "Magmora"
+    },
+    {
+      "coordinates": [417, 326],
+      "flag": "",
+      "name": "Solfatar"
+    },
+    {
+      "coordinates": [536, 276],
+      "flag": "",
+      "name": "Fumarel"
+    },
+    {
+      "coordinates": [664, 276],
+      "flag": "",
+      "name": "Calderan"
+    },
+    {
+      "coordinates": [783, 326],
+      "flag": "",
+      "name": "Vesuvine"
+    },
+    {
+      "coordinates": [874, 417],
+      "flag": "",
+      "name": "Sulphuria"
+    },
+    {
+      "coordinates": [924, 536],
+      "flag": "",
+      "name": "Kilnwick"
+    }
+  ]
+}

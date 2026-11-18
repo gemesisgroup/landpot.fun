@@ -27,20 +27,20 @@ Base. Do not put real money in it before an audit.
 
 ## Rules
 
-| Rule              | Value                                                                | Where                                                                                 |
-| ----------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Players per match | 8–16                                                                 | contract `open` (8 is the hard minimum); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
-| Entry             | equal for all                                                        | API `LANDPOT_POT_STAKE` (whole tokens)                                                |
-| No-show           | entry back less their fee share, floor(net ÷ depositors)             | `Payouts.ts`                                                                          |
-| Match             | FFA, humans only: no bots, no nations, no alliances                  | `paidGameConfig` in `src/server/PaidLobby.ts`                                         |
-| Burn              | 2% of the pot, floored, sent to `0x…dEaD`                            | deploy `LANDPOT_BURN_BPS`                                                             |
-| Treasury          | 3% of the pot, floored separately                                    | deploy `LANDPOT_TREASURY_BPS`                                                         |
-| Split             | the rest, in proportion to land held at the end                      | `src/api/pot/Payouts.ts`                                                              |
-| Rounding          | largest remainder; ties go to the lower keccak256(roundId ‖ address) | `Payouts.ts`                                                                          |
-| Review hold       | 24–48 h after a result is proposed                                   | deploy `LANDPOT_REVIEW_DELAY_SECONDS`                                                 |
-| Daily claim cap   | per wallet per UTC day                                               | deploy `LANDPOT_DAILY_CAP`                                                            |
-| Max pot           | per round                                                            | deploy `LANDPOT_MAX_BANK`                                                             |
-| Entries close     | 20 min after the lobby opens by default (at most 1 day)              | API `LANDPOT_POT_FUNDING_MINUTES`                                                     |
+| Rule              | Value                                                                      | Where                                                                                 |
+| ----------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Players per match | 8–16                                                                       | contract `open` (8 is the hard minimum); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
+| Entry             | equal for all                                                              | API `LANDPOT_POT_STAKE` (whole tokens)                                                |
+| No-show           | entry back less their fee share, floor(net ÷ depositors)                   | `Payouts.ts`                                                                          |
+| Match             | FFA on Caldera, 12 minutes; humans only: no bots, no nations, no alliances | `packages/shared/src/PaidMatch.ts`, `paidGameConfig` in `src/server/PaidLobby.ts`     |
+| Burn              | 2% of the pot, floored, sent to `0x…dEaD`                                  | deploy `LANDPOT_BURN_BPS`                                                             |
+| Treasury          | 3% of the pot, floored separately                                          | deploy `LANDPOT_TREASURY_BPS`                                                         |
+| Split             | the rest, in proportion to land held at the end                            | `src/api/pot/Payouts.ts`                                                              |
+| Rounding          | largest remainder; ties go to the lower keccak256(roundId ‖ address)       | `Payouts.ts`                                                                          |
+| Review hold       | 24–48 h after a result is proposed                                         | deploy `LANDPOT_REVIEW_DELAY_SECONDS`                                                 |
+| Daily claim cap   | per wallet per UTC day                                                     | deploy `LANDPOT_DAILY_CAP`                                                            |
+| Max pot           | per round                                                                  | deploy `LANDPOT_MAX_BANK`                                                             |
+| Entries close     | 20 min after the lobby opens by default (at most 1 day)                    | API `LANDPOT_POT_FUNDING_MINUTES`                                                     |
 
 Worked example: 8 players × 20 entry is a pot of 160. Burn 3 (2% floored),
 treasury 4 (3% floored), net 153. Land held 100/50/30/20/0/0/0/0 pays
@@ -51,6 +51,29 @@ gets their entry back at settlement, less their equal share of the fees:
 floor(net ÷ depositors). The players who came split the rest by land. The
 lobby waits for everyone who paid. It starts without them only just before
 entries close, and only if at least two depositors are there.
+
+## The map
+
+Every paid match is played on **Caldera** (`scripts/landpot/makeMap.py`): a
+round volcanic island around a crater lake with a cone in the middle. Eight
+mountain ridges (with passes) and eight rivers (with fords) cut it into 16
+identical plates, one per seat, plus eight islets offshore. Every terrain
+field is drawn in one 22.5° wedge and mirrored, and the fields are computed
+on the half-size grid Compact games play on, so the plates match exactly
+there:
+
+```
+python scripts/landpot/makeMap.py            # image.png
+cd map-generator && go run -tags nodynamic . --maps=caldera
+python scripts/landpot/makeMap.py --stats    # balance per plate
+```
+
+On map4x (600×600, 178,868 land tiles): 11,179 land tiles per plate, 49%
+plains, 47% highland, 5% mountain. The plates differ by 0.01% in land,
+0.08% in plains, 0.15% in highland and under 1% in mountain.
+
+The match ends after 12 minutes (`PAID_MATCH_MINUTES`), or earlier if one
+player holds 80% of the land; land held then is the split.
 
 ## Flow
 

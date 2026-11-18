@@ -1,4 +1,8 @@
-import { GameMode, GameType } from "@openfront/engine-api/game/GameTypes";
+import {
+  GameMapType,
+  GameMode,
+  GameType,
+} from "@openfront/engine-api/game/GameTypes";
 import type { GameConfig } from "@openfront/engine-api/Schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GamePhase } from "../../src/server/GameServer";
@@ -116,11 +120,15 @@ describe("decidePaidLobby", () => {
 });
 
 describe("paidGameConfig", () => {
-  it("is humans-only FFA with no alliances, whatever the base was", () => {
+  it("is humans-only FFA on Caldera with a timer, whatever the base was", () => {
     const c = paidGameConfig(
       testGameConfig({
         gameType: GameType.Public,
         gameMode: GameMode.Team,
+        gameMap: GameMapType.World,
+        maxTimerValue: undefined,
+        winThresholdTenths: 500,
+        overtime: { enabled: true, startMinutes: 5 },
         bots: 400,
         nations: "default",
         trusted: true,
@@ -130,12 +138,16 @@ describe("paidGameConfig", () => {
     expect(c).toMatchObject({
       gameType: GameType.Private,
       gameMode: GameMode.FFA,
+      gameMap: GameMapType.Caldera,
+      maxTimerValue: 12,
       bots: 0,
       nations: "disabled",
       disableAlliances: true,
       maxPlayers: 16,
     });
     expect(c.trusted).toBeUndefined();
+    expect(c.winThresholdTenths).toBeUndefined();
+    expect(c.overtime).toBeUndefined();
   });
 });
 

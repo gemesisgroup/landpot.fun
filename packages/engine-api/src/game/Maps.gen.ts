@@ -31,6 +31,7 @@ export enum GameMapType {
   BranchingPaths = "Branching Paths", // map-generator/assets/maps/branchingpaths/info.json
   Britannia = "Britannia", // map-generator/assets/maps/britannia/info.json
   BritanniaClassic = "Britannia Classic", // map-generator/assets/maps/britanniaclassic/info.json
+  Caldera = "Caldera", // map-generator/assets/maps/caldera/info.json
   Canada = "Canada", // map-generator/assets/maps/canada/info.json
   CanaryIslands = "Canary Islands", // map-generator/assets/maps/canaryislands/info.json
   CapeCod = "Cape Cod", // map-generator/assets/maps/capecod/info.json
@@ -564,6 +565,16 @@ export const maps: readonly MapInfo[] = [
     themes: ["europe"],
     author: "Tiger McSwane",
     location: { lat: 56.5, lon: -4 },
+  },
+  {
+    id: "Caldera",
+    type: GameMapType.Caldera,
+    translationKey: "map.caldera",
+    categories: ["featured", "fictional"],
+    defaultNationCount: 16,
+    featuredRank: 1,
+    author: "Landpot",
+    descriptionKey: "map_description.caldera",
   },
   {
     id: "Canada",
