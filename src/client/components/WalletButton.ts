@@ -107,7 +107,7 @@ export class WalletButton extends LitElement {
   private async connect(wallet: WalletOption) {
     this.phase = { kind: "signing", name: wallet.info.name };
     try {
-      await signInWithWallet(wallet.provider);
+      await signInWithWallet(wallet.wallet);
       window.location.reload();
     } catch (e) {
       const rejected = e instanceof WalletError && e.kind === "rejected";

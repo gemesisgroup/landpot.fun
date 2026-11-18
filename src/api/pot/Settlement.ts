@@ -1,14 +1,13 @@
 import type { ReplayedWinner } from "@openfront/engine/WinnerReplay";
 import type { GameRecord } from "@openfront/shared/WireSchemas";
-import { keccak256, type Address, type Hex } from "viem";
 import { RoundPhase, type EscrowChain } from "./EscrowChain";
-import { resultDigest, roundIdOf, signDigest } from "./Oracle";
 import { netPot, NoTerritoryError, splitPot } from "./Payouts";
+import { keccakHex, roundIdOf, type Hex } from "./RoundId";
 
 /**
  * Settles a paid match (docs/LandpotPot.md): replay the archived record on
  * our own simulation, turn each depositor's final land into their share of
- * the pot, sign that as the oracle and propose it to the escrow. Nothing a
+ * the pot and propose it to the escrow, co-signed by the oracle key. Nothing a
  * client reported is trusted: territory comes from the replay, identities
  * from our database, depositors from the chain.
  */
@@ -17,7 +16,6 @@ export type Replayer = (record: GameRecord) => Promise<ReplayedWinner | null>;
 
 export interface SettlementDeps {
   chain: EscrowChain;
-  oracleKey: Hex;
   replay: Replayer;
   /** The wallet signed in as this persistentID, or null. */
   walletOf: (persistentID: string) => string | null;
@@ -27,8 +25,8 @@ export type SettleOutcome =
   | {
       status: "proposed";
       roundId: Hex;
-      tx: Hex;
-      players: Address[];
+      tx: string;
+      players: string[];
       amounts: bigint[];
       replayHash: Hex;
     }
@@ -39,7 +37,7 @@ export type SettleOutcome =
 
 export async function settleGame(
   deps: SettlementDeps,
-  /** The record exactly as archived: its hash is what the oracle signs. */
+  /** The record exactly as archived: its hash goes on chain with the result. */
   raw: Uint8Array,
   record: GameRecord,
 ): Promise<SettleOutcome> {
@@ -66,7 +64,7 @@ export async function settleGame(
   const played = new Set<string>();
   for (const p of record.info.players) {
     if (p.persistentID === null) continue;
-    const wallet = deps.walletOf(p.persistentID)?.toLowerCase();
+    const wallet = deps.walletOf(p.persistentID);
     if (!wallet) continue;
     played.add(wallet);
     const tiles = BigInt(replayed.territory[p.clientID] ?? 0);
@@ -91,17 +89,8 @@ export async function settleGame(
     throw e;
   }
 
-  const replayHash = keccak256(raw);
-  const digest = resultDigest({
-    chainId: deps.chain.chainId,
-    escrow: deps.chain.escrow,
-    roundId,
-    players,
-    amounts,
-    replayHash,
-  });
-  const sig = await signDigest(deps.oracleKey, digest);
-  const tx = await deps.chain.propose(roundId, amounts, replayHash, sig);
+  const replayHash = keccakHex(raw);
+  const tx = await deps.chain.propose(roundId, amounts, replayHash);
   return { status: "proposed", roundId, tx, players, amounts, replayHash };
 }
 
@@ -110,7 +99,7 @@ export async function finalizeIfDue(
   chain: EscrowChain,
   gameID: string,
   nowSeconds: bigint,
-): Promise<Hex | null> {
+): Promise<string | null> {
   const roundId = roundIdOf(gameID);
   const s = await chain.status(roundId);
   if (s.phase !== RoundPhase.Proposed || s.frozen || nowSeconds < s.releaseAt) {

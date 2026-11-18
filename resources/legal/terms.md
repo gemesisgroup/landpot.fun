@@ -16,7 +16,7 @@ You must be at least 13 years old to play free matches, and at least 18 (or the 
 
 ## 3. Your session and your wallet
 
-You can play as a guest: the Service gives your browser an anonymous identity kept in a cookie. You can also sign in by signing a message with an Ethereum-compatible wallet. Signing in never moves funds and costs no gas.
+You can play as a guest: the Service gives your browser an anonymous identity kept in a cookie. You can also sign in by signing a message with a Solana wallet. Signing in never moves funds and costs no fees.
 
 Your wallet is yours alone. We never hold your private keys or seed phrase and will never ask for them. You are responsible for the security of your wallet and device, and for every action signed with them.
 
@@ -40,17 +40,17 @@ Your username and in-game actions are shown to other players, and match records,
 
 This section applies once paid matches launch. We will announce the launch on the Service.
 
-- **Entry and pot.** Every player in a paid match pays the same entry. Each paid lobby shows the entry, the token it is paid in, and the number of seats before you join. Your entry goes from your wallet to an escrow smart contract, not to us, and only the wallet that paid it can take a seat.
+- **Entry and pot.** Every player in a paid match pays the same entry. Each paid lobby shows the entry, the token it is paid in, and the number of seats before you join. Paid matches run on the Solana blockchain. Your entry goes from your wallet to an escrow program on Solana, not to us, and only the wallet that paid it can take a seat.
 - **Start.** A paid match starts when every seat is paid and every player who paid is in the lobby, or a minute after the last entry once at least the minimum number of players have paid and are in the lobby, or shortly before entries close if at least the minimum have paid and at least two of them are in the lobby. A player who paid but is not in the lobby when the match starts is left out of it and gets their entry back at settlement, less their equal share of the fees below. If too few have paid or are present when entries close, the lobby is cancelled and every entry is refunded in full.
-- **Fees.** At settlement 2% of the pot is burned and 3% goes to the treasury. You also pay the network's transaction fees for the transactions you send.
+- **Fees.** At settlement 2% of the pot is burned and 3% goes to the treasury. You also pay the Solana network's transaction fees for the transactions you send, and the first time you claim, a small refundable rent deposit for the account that tracks your daily claims.
 - **Match.** Every paid match is a free-for-all on the Caldera map, whose starting regions are identical, and ends after 12 minutes, or earlier if one player holds 80% of the land.
 - **How the pot is split.** The rest of the pot is shared among the players in proportion to the land each holds when the match ends. A player with no land at the end gets nothing. Rounding is settled by a fixed rule published in the source code, so the amounts always add up to the pot.
-- **Result.** Our server replays the recorded match to measure everyone's land and submits the split to the contract with a signature. The match record is public, so anyone can check the result.
-- **Review and claim.** A submitted result is held for a review period of 24 to 48 hours, set in the contract. During it we can freeze a result we believe is wrong. After it, the result is final and each player claims their share from the contract. Claims are limited per wallet per day; a larger share is claimed over several days.
-- **Refunds.** If a paid match does not start in time, gets no result in time, is cancelled, or has a frozen result that is not resolved, every entry is returned in full through the contract and each player claims it back. A match in which we find cheating or collusion may be cancelled this way.
+- **Result.** Our server replays the recorded match to measure everyone's land and submits the split to the escrow program, signed with our result key. The match record is public, so anyone can check the result.
+- **Review and claim.** A submitted result is held for a review period of 24 to 48 hours, set in the escrow program. During it we can freeze a result we believe is wrong. After it, the result is final and each player claims their share from the escrow program. Claims are limited per wallet per day; a larger share is claimed over several days.
+- **Refunds.** If a paid match does not start in time, gets no result in time, is cancelled, or has a frozen result that is not resolved, every entry is returned in full through the escrow program and each player claims it back. A match in which we find cheating or collusion may be cancelled this way.
 - **Skill.** Paid matches are contests of skill. There is no random prize draw, and we do not play against you.
 - **No investment.** An entry is the price of taking part in a match. It is not an investment, a deposit, or a security, and the Service does not give financial advice.
-- **Blockchain risk.** Transactions on a blockchain cannot be reversed by us. Smart contracts, networks, and wallets can fail or be attacked. Token values change. You accept these risks.
+- **Blockchain risk.** Transactions on a blockchain cannot be reversed by us. Programs on the blockchain, networks, and wallets can fail or be attacked. Token values change. You accept these risks.
 - **Taxes.** You are responsible for any tax on your winnings.
 
 ## 7. Availability and changes

@@ -1,5 +1,4 @@
-import { secp256k1 } from "@noble/curves/secp256k1";
-import { keccak_256 } from "@noble/hashes/sha3";
+import { ed25519 } from "@noble/curves/ed25519";
 import { GameType } from "@openfront/engine-api/game/GameTypes";
 import { UserMeResponseSchema } from "@openfront/shared/ApiSchemas";
 import { createPartialGameRecord } from "@openfront/shared/SharedUtil";
@@ -7,13 +6,13 @@ import {
   GameRecordSchema,
   type PlayerRecord,
 } from "@openfront/shared/WireSchemas";
+import { base58 } from "@scure/base";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadApiConfig } from "../../src/api/ApiEnv";
 import { createApp } from "../../src/api/App";
-import { toChecksumAddress } from "../../src/api/Siwe";
 import { SqliteStore } from "../../src/api/Store";
 import { loadSigningKeys, type SigningKeys } from "../../src/api/Tokens";
 import { verifyClientToken } from "../../src/server/jwt";
@@ -108,33 +107,18 @@ class Client {
   }
 }
 
+/** A Solana wallet: what `solana:signMessage` returns, base58. */
 function wallet() {
-  const priv = secp256k1.utils.randomPrivateKey();
-  const pub = secp256k1.getPublicKey(priv, false);
-  const address = toChecksumAddress(
-    "0x" +
-      Buffer.from(keccak_256(pub.subarray(1)).subarray(12)).toString("hex"),
-  );
-  const sign = (message: string) => {
-    const body = new TextEncoder().encode(message);
-    const prefix = new TextEncoder().encode(
-      `\x19Ethereum Signed Message:\n${body.length}`,
-    );
-    const digest = keccak_256(Buffer.concat([prefix, body]));
-    const sig = secp256k1.sign(digest, priv);
-    return (
-      "0x" +
-      Buffer.from(sig.toCompactRawBytes()).toString("hex") +
-      (27 + sig.recovery).toString(16)
-    );
-  };
+  const priv = ed25519.utils.randomPrivateKey();
+  const address = base58.encode(ed25519.getPublicKey(priv));
+  const sign = (message: string) =>
+    base58.encode(ed25519.sign(new TextEncoder().encode(message), priv));
   return { address, sign };
 }
 
 async function signIn(client: Client, w: ReturnType<typeof wallet>) {
   const challenge = await client.post("/auth/wallet/challenge", {
-    address: w.address.toLowerCase(),
-    chainId: 1,
+    address: w.address,
   });
   expect(challenge.status).toBe(200);
   const { message } = (await challenge.json()) as { message: string };
@@ -272,11 +256,11 @@ describe("wallet sign-in", () => {
     const other = wallet();
     const challenge = await c.post("/auth/wallet/challenge", {
       address: w.address,
-      chainId: 8453,
     });
     const { message } = (await challenge.json()) as { message: string };
     expect(message).toContain("localhost:9000 wants you to sign in");
-    expect(message).toContain("Chain ID: 8453");
+    expect(message).toContain("with your Solana account:");
+    expect(message).toContain("Chain ID: mainnet");
     const bad = await c.post("/auth/wallet/verify", {
       message,
       signature: other.sign(message),
@@ -296,7 +280,6 @@ describe("wallet sign-in", () => {
     const w = wallet();
     const challenge = await c.post("/auth/wallet/challenge", {
       address: w.address,
-      chainId: 1,
     });
     const { message } = (await challenge.json()) as { message: string };
     const edited = message.replace("localhost:9000", "evil.example");
@@ -448,20 +431,20 @@ describe("config", () => {
   });
 
   it("takes the pot whole or not at all", () => {
-    const key = `0x${"11".repeat(32)}`;
+    const keypair = (n: number) => JSON.stringify(Array(64).fill(n));
     const pot = {
-      LANDPOT_POT_RPC_URL: "https://sepolia.base.org",
-      LANDPOT_POT_CHAIN_ID: "84532",
-      LANDPOT_POT_ESCROW: `0x${"22".repeat(20)}`,
-      LANDPOT_POT_ORACLE_KEY: key,
-      LANDPOT_POT_OPERATOR_KEY: `0x${"33".repeat(32)}`,
+      LANDPOT_POT_RPC_URL: "https://api.devnet.solana.com",
+      LANDPOT_POT_CLUSTER: "devnet",
+      LANDPOT_POT_PROGRAM: "4cbs4ZSsC9E9S56QwoAxPKDPDjRbfWzoUso3R8NWq165",
+      LANDPOT_POT_ORACLE_KEY: keypair(1),
+      LANDPOT_POT_OPERATOR_KEY: keypair(2),
       LANDPOT_POT_STAKE: "10",
     };
     const load = (extra: Record<string, string>) =>
       loadApiConfig({ DOMAIN: "localhost", ...extra });
     expect(load({}).pot).toBeNull();
     expect(load(pot).pot).toMatchObject({
-      chainId: 84532,
+      cluster: "devnet",
       stakeTokens: 10n,
       minPlayers: 8,
       maxPlayers: 16,
@@ -474,6 +457,14 @@ describe("config", () => {
     expect(() => load({ ...pot, LANDPOT_POT_STAKE: "1.5" })).toThrow(
       /whole number/,
     );
-    expect(() => load({ ...pot, LANDPOT_POT_ORACLE_KEY: "0x12" })).toThrow();
+    expect(() => load({ ...pot, LANDPOT_POT_ORACLE_KEY: "[1,2]" })).toThrow(
+      /keypair/,
+    );
+    expect(() => load({ ...pot, LANDPOT_POT_PROGRAM: "0x12" })).toThrow(
+      /program id/,
+    );
+    expect(() => load({ ...pot, LANDPOT_POT_CLUSTER: "base" })).toThrow(
+      /CLUSTER/,
+    );
   });
 });

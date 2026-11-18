@@ -604,7 +604,7 @@ export const UserMeResponseSchema = z.object({
     google: GoogleUserSchema.optional(),
     email: z.string().optional(),
     steam: SteamUserSchema.optional(),
-    // Landpot: the EVM wallet that signed in (EIP-4361), EIP-55 checksummed.
+    // Landpot: the Solana wallet that signed in (Sign-In With Solana), base58.
     wallet: z.object({ address: z.string() }).optional(),
   }),
   // The caller's active account ban, shown to them (localized client-side), or

@@ -1,24 +1,28 @@
+import type { Wallet, WalletAccount } from "@wallet-standard/base";
 import { getApiBase } from "./Api";
 import {
   availableWallets,
-  discoverWallets,
-  type Eip1193Provider,
+  connectWallet,
+  isUserRejection,
+  signAndSend,
+  WalletError,
 } from "./Wallet";
 
 /**
  * Paid matches, client side (docs/LandpotPot.md): read the open lobbies and
  * what the escrow owes you from the API; deposit and claim from your own
- * wallet, straight to the escrow contract. The server never touches funds.
- *
- * Kept free of viem at import time: the homepage loads this module, and the
- * ABI encoder is only fetched when a player actually pays or claims.
+ * wallet, straight to the escrow program. The API builds the unsigned
+ * transaction; your wallet shows it, signs it and sends it. The server never
+ * holds funds or keys that can move them.
  */
 
 export interface PotConfig {
   enabled: true;
-  chainId: number;
-  escrow: `0x${string}`;
-  token: { address: `0x${string}`; symbol: string; decimals: number };
+  /** "mainnet-beta", "devnet" or "localnet". */
+  cluster: string;
+  /** The escrow program id. */
+  program: string;
+  token: { address: string; symbol: string; decimals: number };
   /** Entry, token base units. */
   stake: string;
   minPlayers: number;
@@ -86,7 +90,7 @@ export async function potClaims(wallet: string): Promise<Claim[]> {
   ).claims;
 }
 
-/** 1500000000000000000 with 18 decimals → "1.5". */
+/** 1500000 with 6 decimals → "1.5". */
 export function formatUnits(value: string | bigint, decimals: number): string {
   const v = BigInt(value);
   const base = 10n ** BigInt(decimals);
@@ -100,13 +104,14 @@ export function formatUnits(value: string | bigint, decimals: number): string {
 
 // ── the wallet side ──
 
-export type PotStep = "switching" | "approving" | "depositing" | "claiming";
+export type PotStep = "switching" | "depositing" | "claiming";
 
 export type PotErrorKind =
   | "rejected" // the player declined in the wallet
   | "wrong_account" // the wallet's account is not the one signed in
   | "no_wallet"
   | "balance" // not enough tokens
+  | "busy" // the chain's RPC is rate-limiting the API; nothing was sent
   | "failed";
 
 export class PotTxError extends Error {
@@ -118,259 +123,125 @@ export class PotTxError extends Error {
   }
 }
 
-const KNOWN_CHAINS: Record<
-  number,
-  { name: string; rpc: string; explorer: string }
-> = {
-  8453: {
-    name: "Base",
-    rpc: "https://mainnet.base.org",
-    explorer: "https://basescan.org",
-  },
-  84532: {
-    name: "Base Sepolia",
-    rpc: "https://sepolia.base.org",
-    explorer: "https://sepolia.basescan.org",
-  },
+/** Wallet Standard chain ids. */
+const CHAINS: Record<string, string> = {
+  "mainnet-beta": "solana:mainnet",
+  devnet: "solana:devnet",
+  localnet: "solana:localnet",
 };
 
-export function explorerTx(chainId: number, hash: string): string | null {
-  const c = KNOWN_CHAINS[chainId];
-  return c ? `${c.explorer}/tx/${hash}` : null;
-}
-
-function isRejection(e: unknown): boolean {
-  const code = (e as { code?: unknown } | null)?.code;
-  return code === 4001 || code === "ACTION_REJECTED";
-}
-
-async function rpc<T>(
-  provider: Eip1193Provider,
-  method: string,
-  params?: unknown[],
-): Promise<T> {
-  try {
-    return (await provider.request({ method, params })) as T;
-  } catch (e) {
-    if (isRejection(e)) throw new PotTxError("rejected");
-    throw e;
-  }
+export function explorerTx(cluster: string, signature: string): string | null {
+  if (cluster === "localnet") return null;
+  const q = cluster === "mainnet-beta" ? "" : `?cluster=${cluster}`;
+  return `https://explorer.solana.com/tx/${signature}${q}`;
 }
 
 /**
- * The wallet holding the signed-in address. Asks without a prompt first;
- * if none has it unlocked, asks the only (or first) wallet to connect, and
- * refuses another account: a deposit from it would not get a seat.
+ * The wallet holding the signed-in address. Looks for one already connected
+ * to it, then asks each to connect; refuses another account: a deposit from
+ * it would not get a seat.
  */
-export async function walletFor(address: string): Promise<Eip1193Provider> {
-  discoverWallets();
-  const wanted = address.toLowerCase();
+export async function walletFor(
+  address: string,
+): Promise<{ wallet: Wallet; account: WalletAccount }> {
   const wallets = availableWallets();
   if (wallets.length === 0) throw new PotTxError("no_wallet");
-  for (const w of wallets) {
-    const accounts = await w.provider
-      .request({ method: "eth_accounts" })
-      .catch(() => []);
-    if (
-      Array.isArray(accounts) &&
-      accounts.some((a) => String(a).toLowerCase() === wanted)
-    ) {
-      return w.provider;
-    }
+  for (const { wallet } of wallets) {
+    const account = wallet.accounts.find((a) => a.address === address);
+    if (account) return { wallet, account };
   }
-  const provider = wallets[0].provider;
-  const accounts = await rpc<string[]>(provider, "eth_requestAccounts");
-  if (!accounts.some((a) => a.toLowerCase() === wanted)) {
-    throw new PotTxError("wrong_account");
+  for (const { wallet } of wallets) {
+    const account = await connectWallet(wallet, true).catch(() => null);
+    if (account?.address === address) return { wallet, account };
   }
-  return provider;
-}
-
-async function ensureChain(provider: Eip1193Provider, chainId: number) {
-  const current = Number.parseInt(
-    await rpc<string>(provider, "eth_chainId"),
-    16,
-  );
-  if (current === chainId) return;
-  const hex = `0x${chainId.toString(16)}`;
+  let account: WalletAccount;
   try {
-    await rpc(provider, "wallet_switchEthereumChain", [{ chainId: hex }]);
+    account = await connectWallet(wallets[0].wallet);
   } catch (e) {
-    // 4902: the wallet does not know this chain yet.
-    const known = KNOWN_CHAINS[chainId];
-    if ((e as { code?: unknown }).code !== 4902 || !known) throw e;
-    await rpc(provider, "wallet_addEthereumChain", [
-      {
-        chainId: hex,
-        chainName: known.name,
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: [known.rpc],
-        blockExplorerUrls: [known.explorer],
-      },
-    ]);
+    throw new PotTxError(
+      e instanceof WalletError && e.kind === "rejected" ? "rejected" : "failed",
+    );
   }
+  if (account.address !== address) throw new PotTxError("wrong_account");
+  return { wallet: wallets[0].wallet, account };
 }
 
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "allowance",
-    stateMutability: "view",
-    inputs: [{ type: "address" }, { type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "approve",
-    stateMutability: "nonpayable",
-    inputs: [{ type: "address" }, { type: "uint256" }],
-    outputs: [{ type: "bool" }],
-  },
-] as const;
-
-const ESCROW_ABI = [
-  {
-    type: "function",
-    name: "deposit",
-    stateMutability: "nonpayable",
-    inputs: [{ type: "bytes32" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "claim",
-    stateMutability: "nonpayable",
-    inputs: [{ type: "bytes32" }],
-    outputs: [],
-  },
-] as const;
-
-async function readUint(
-  provider: Eip1193Provider,
-  to: string,
-  data: `0x${string}`,
-): Promise<bigint> {
-  const out = await rpc<string>(provider, "eth_call", [{ to, data }, "latest"]);
-  return BigInt(out === "0x" ? 0 : out);
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${getApiBase()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.status === 402) throw new PotTxError("balance");
+  if (res.status === 503) throw new PotTxError("busy");
+  if (!res.ok) throw new PotTxError("failed", `api ${res.status}`);
+  return (await res.json()) as T;
 }
 
-async function sendTx(
-  provider: Eip1193Provider,
-  from: string,
-  to: string,
-  data: `0x${string}`,
-): Promise<string> {
-  const hash = await rpc<string>(provider, "eth_sendTransaction", [
-    { from, to, data },
-  ]);
-  // Wait for it to be mined: the next step depends on it.
-  const deadline = Date.now() + 180_000;
+/** Wait until the cluster has confirmed it: the next step depends on it. */
+async function confirmed(signature: string): Promise<void> {
+  const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
-    const receipt = await rpc<{ status?: string } | null>(
-      provider,
-      "eth_getTransactionReceipt",
-      [hash],
-    ).catch(() => null);
-    if (receipt) {
-      if (receipt.status !== "0x1") {
-        throw new PotTxError("failed", `transaction ${hash} reverted`);
-      }
-      return hash;
+    const { status } = await get<{ status: string }>(
+      `/public/pot/tx/${signature}`,
+    ).catch(() => ({ status: "pending" }));
+    if (status === "confirmed") return;
+    if (status === "failed") {
+      throw new PotTxError("failed", `transaction ${signature} failed`);
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new PotTxError("failed", `transaction ${hash} was not mined in time`);
+  throw new PotTxError("failed", `transaction ${signature} not confirmed`);
 }
 
-/**
- * Pay a lobby's entry: switch to the escrow's chain, approve the entry if
- * the allowance is short, then deposit. Resolves with the deposit's hash.
- */
-export async function payEntry(
+async function send(
+  kind: "deposit" | "claim",
+  address: string,
+  config: PotConfig,
+  gameId: string,
+  onStep: (step: PotStep) => void,
+): Promise<string> {
+  onStep("switching");
+  const { wallet, account } = await walletFor(address);
+  const { transaction } = await post<{ transaction: string }>(
+    `/public/pot/${kind}-tx`,
+    { gameId, wallet: address },
+  );
+  onStep(kind === "deposit" ? "depositing" : "claiming");
+  const bytes = Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0));
+  let signature: string;
+  try {
+    signature = await signAndSend(
+      wallet,
+      account,
+      bytes,
+      CHAINS[config.cluster] ?? "solana:mainnet",
+    );
+  } catch (e) {
+    console.warn(`${kind} not sent`, e);
+    throw new PotTxError(isUserRejection(e) ? "rejected" : "failed");
+  }
+  await confirmed(signature);
+  return signature;
+}
+
+/** Pay a lobby's entry. Resolves with the transaction's signature. */
+export function payEntry(
   address: string,
   config: PotConfig,
   lobby: PaidLobby,
   onStep: (step: PotStep) => void,
 ): Promise<string> {
-  const { encodeFunctionData } = await import("viem");
-  const provider = await walletFor(address);
-  onStep("switching");
-  await ensureChain(provider, config.chainId);
-  const stake = BigInt(lobby.stake);
-  const token = config.token.address;
-  const balance = await readUint(
-    provider,
-    token,
-    encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [address as `0x${string}`],
-    }),
-  );
-  if (balance < stake) throw new PotTxError("balance");
-  const allowance = await readUint(
-    provider,
-    token,
-    encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [address as `0x${string}`, config.escrow],
-    }),
-  );
-  if (allowance < stake) {
-    onStep("approving");
-    // Exactly one entry: the escrow can never pull more than you chose to pay.
-    await sendTx(
-      provider,
-      address,
-      token,
-      encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [config.escrow, stake],
-      }),
-    );
-  }
-  onStep("depositing");
-  return sendTx(
-    provider,
-    address,
-    config.escrow,
-    encodeFunctionData({
-      abi: ESCROW_ABI,
-      functionName: "deposit",
-      args: [lobby.roundId],
-    }),
-  );
+  return send("deposit", address, config, lobby.gameId, onStep);
 }
 
 /** Claim winnings or a refund for one round. */
-export async function claimRound(
+export function claimRound(
   address: string,
   config: PotConfig,
-  roundId: `0x${string}`,
+  gameId: string,
   onStep: (step: PotStep) => void,
 ): Promise<string> {
-  const { encodeFunctionData } = await import("viem");
-  const provider = await walletFor(address);
-  onStep("switching");
-  await ensureChain(provider, config.chainId);
-  onStep("claiming");
-  return sendTx(
-    provider,
-    address,
-    config.escrow,
-    encodeFunctionData({
-      abi: ESCROW_ABI,
-      functionName: "claim",
-      args: [roundId],
-    }),
-  );
+  return send("claim", address, config, gameId, onStep);
 }

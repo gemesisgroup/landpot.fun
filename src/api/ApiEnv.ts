@@ -1,3 +1,5 @@
+import { base58 } from "@scure/base";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -27,15 +29,17 @@ export interface ApiConfig {
 
 export interface PotConfig {
   readonly rpcUrl: string;
-  readonly chainId: number;
-  readonly escrow: `0x${string}`;
-  /** Signs results; its address is the contract's immutable oracle. */
-  readonly oracleKey: `0x${string}`;
+  /** "mainnet-beta", "devnet" or "localnet": for explorer links. */
+  readonly cluster: string;
+  /** The escrow program id, base58. */
+  readonly programId: string;
+  /** Co-signs every result; the escrow config's oracle. 64-byte secret key. */
+  readonly oracleKey: Uint8Array;
   /**
-   * The contract's operator: opens and starts rounds, closes unfilled
-   * lobbies, and pays gas for everything the API sends.
+   * The escrow config's operator: opens and starts rounds, closes unfilled
+   * lobbies, and pays fees and rent for everything the API sends.
    */
-  readonly operatorKey: `0x${string}`;
+  readonly operatorKey: Uint8Array;
   /** Entry per player, whole tokens. */
   readonly stakeTokens: bigint;
   readonly minPlayers: number;
@@ -43,16 +47,37 @@ export interface PotConfig {
   readonly fundingSeconds: number;
 }
 
-const KEY_RE = /^0x[0-9a-fA-F]{64}$/;
-const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const CLUSTERS = new Set(["mainnet-beta", "devnet", "localnet"]);
 const POT_REQUIRED = [
   "LANDPOT_POT_RPC_URL",
-  "LANDPOT_POT_CHAIN_ID",
-  "LANDPOT_POT_ESCROW",
+  "LANDPOT_POT_CLUSTER",
+  "LANDPOT_POT_PROGRAM",
   "LANDPOT_POT_ORACLE_KEY",
   "LANDPOT_POT_OPERATOR_KEY",
   "LANDPOT_POT_STAKE",
 ] as const;
+
+/**
+ * A Solana keypair as `solana-keygen` writes it: a JSON array of 64 bytes,
+ * inline or in a file at this path.
+ */
+function keypairBytes(name: string, value: string): Uint8Array {
+  const json = value.startsWith("[") ? value : readFileSync(value, "utf8");
+  let bytes: unknown;
+  try {
+    bytes = JSON.parse(json);
+  } catch {
+    bytes = null;
+  }
+  if (
+    !Array.isArray(bytes) ||
+    bytes.length !== 64 ||
+    !bytes.every((b) => Number.isInteger(b) && b >= 0 && b < 256)
+  ) {
+    throw new Error(`${name} must be a Solana keypair (64-byte JSON array)`);
+  }
+  return Uint8Array.from(bytes as number[]);
+}
 
 /** All of the required LANDPOT_POT_* variables, or none of them. */
 function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
@@ -70,15 +95,15 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     }
     return n;
   };
-  const chainId = int("LANDPOT_POT_CHAIN_ID", 0);
-  const escrow = v("LANDPOT_POT_ESCROW");
-  if (!ADDRESS_RE.test(escrow)) {
-    throw new Error("LANDPOT_POT_ESCROW must be an address");
+  const cluster = v("LANDPOT_POT_CLUSTER");
+  if (!CLUSTERS.has(cluster)) {
+    throw new Error(
+      `LANDPOT_POT_CLUSTER must be one of ${[...CLUSTERS].join(", ")}`,
+    );
   }
-  const oracleKey = v("LANDPOT_POT_ORACLE_KEY");
-  const operatorKey = v("LANDPOT_POT_OPERATOR_KEY");
-  if (!KEY_RE.test(oracleKey) || !KEY_RE.test(operatorKey)) {
-    throw new Error("LANDPOT_POT_*_KEY must be 32-byte hex private keys");
+  const programId = v("LANDPOT_POT_PROGRAM");
+  if (!isPublicKey(programId)) {
+    throw new Error("LANDPOT_POT_PROGRAM must be a base58 program id");
   }
   const stake = v("LANDPOT_POT_STAKE");
   if (!/^[1-9]\d*$/.test(stake)) {
@@ -86,15 +111,30 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
   }
   return {
     rpcUrl: v("LANDPOT_POT_RPC_URL"),
-    chainId,
-    escrow: escrow as `0x${string}`,
-    oracleKey: oracleKey as `0x${string}`,
-    operatorKey: operatorKey as `0x${string}`,
+    cluster,
+    programId,
+    oracleKey: keypairBytes(
+      "LANDPOT_POT_ORACLE_KEY",
+      v("LANDPOT_POT_ORACLE_KEY"),
+    ),
+    operatorKey: keypairBytes(
+      "LANDPOT_POT_OPERATOR_KEY",
+      v("LANDPOT_POT_OPERATOR_KEY"),
+    ),
     stakeTokens: BigInt(stake),
     minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
     maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
     fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,
   };
+}
+
+/** A base58 string that decodes to 32 bytes: a Solana public key. */
+export function isPublicKey(s: string): boolean {
+  try {
+    return base58.decode(s).length === 32;
+  } catch {
+    return false;
+  }
 }
 
 // Cloudflare's documented test secret that always passes.

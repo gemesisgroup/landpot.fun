@@ -13,7 +13,7 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 export interface User {
   id: string; // UUID, the game's persistentID
   publicId: string;
-  wallet: string | null; // EIP-55 checksummed address
+  wallet: string | null; // Solana public key, base58 (case-sensitive)
   role: string | null;
   createdAt: number;
 }

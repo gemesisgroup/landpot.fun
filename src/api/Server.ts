@@ -1,10 +1,11 @@
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { loadApiConfig } from "./ApiEnv";
 import { createApp, publicRecordJson } from "./App";
-import { viemEscrowChain } from "./pot/EscrowChain";
 import { PotService } from "./pot/PotService";
 import { replayRecord } from "./pot/Replay";
+import { SolanaEscrow } from "./pot/SolanaEscrow";
 import { SqliteStore } from "./Store";
 import { loadSigningKeys } from "./Tokens";
 
@@ -18,14 +19,14 @@ async function main() {
   const keys = await loadSigningKeys(config);
   const pot = config.pot
     ? new PotService({
-        chain: viemEscrowChain({
-          rpcUrl: config.pot.rpcUrl,
-          chainId: config.pot.chainId,
-          escrow: config.pot.escrow,
-          senderKey: config.pot.operatorKey,
+        chain: new SolanaEscrow({
+          connection: new Connection(config.pot.rpcUrl, "confirmed"),
+          programId: new PublicKey(config.pot.programId),
+          operator: Keypair.fromSecretKey(config.pot.operatorKey),
+          oracle: Keypair.fromSecretKey(config.pot.oracleKey),
+          cluster: config.pot.cluster,
         }),
         store,
-        oracleKey: config.pot.oracleKey,
         replay: replayRecord,
         rules: config.pot,
         archived: (id) => {
@@ -54,7 +55,7 @@ async function main() {
 
   const server = app.listen(config.port, () => {
     console.log(
-      `Landpot API on :${config.port} (issuer ${config.issuer}, audience ${config.audience}, pot ${config.pot ? `escrow ${config.pot.escrow} on chain ${config.pot.chainId}` : "off"})`,
+      `Landpot API on :${config.port} (issuer ${config.issuer}, audience ${config.audience}, pot ${config.pot ? `program ${config.pot.programId} on ${config.pot.cluster}` : "off"})`,
     );
   });
 

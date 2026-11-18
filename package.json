@@ -22,9 +22,7 @@
     "start:api": "tsx src/api/Server.ts",
     "start:api-dev": "cross-env DOMAIN=localhost tsx src/api/Server.ts",
     "dev:pot": "tsx scripts/landpot/devPot.ts",
-    "contracts:deploy": "tsx scripts/landpot/deploy.ts",
     "api:keygen": "tsx src/api/Keygen.ts",
-    "contracts:build": "tsx scripts/landpot/compileContracts.ts",
     "replay:api": "tsx scripts/replay/stub-game-api.mts records 8787",
     "replay:demo": "tsx scripts/replay/record-demo.mts",
     "docs:map-generator": "cd map-generator && go doc -cmd -u -all",
@@ -53,7 +51,9 @@
     "prepare": "husky",
     "gen-maps": "cd map-generator && go run -tags nodynamic . && npm run gen-map-schema",
     "gen-map-schema": "tsx scripts/genMapInfoSchema.ts && npx --no-install oxfmt --write map-generator/info.schema.json",
-    "inst": "npm ci --ignore-scripts"
+    "inst": "npm ci --ignore-scripts",
+    "solana:build": "wsl -d Ubuntu -- bash scripts/landpot/solana-build.sh",
+    "solana:deploy": "tsx scripts/landpot/solanaDeploy.ts"
   },
   "lint-staged": {
     "**/*.{js,mjs,cjs,ts,jsx,tsx}": [
@@ -95,7 +95,6 @@
     "oxlint": "^1.88.0",
     "oxlint-plugin-eslint": "^1.88.0",
     "oxlint-tsgolint": "^7.0.2004",
-    "solc": "0.8.30",
     "tailwindcss": "^4.2.4",
     "typescript": "^7.0.2",
     "vite": "^8.0.16",
@@ -104,6 +103,7 @@
     "vitest-canvas-mock": "^1.1.4"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "0.31.1",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/unbounded": "^5.3.0",
     "@grafana/faro-web-sdk": "^2.12.0",
@@ -123,9 +123,13 @@
     "@opentelemetry/sdk-metrics": "^2.8.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
     "@opentelemetry/winston-transport": "^0.26.0",
+    "@scure/base": "1.2.6",
+    "@solana/spl-token": "0.4.13",
+    "@solana/web3.js": "1.98.4",
     "@stripe/stripe-js": "9.15.0",
     "@types/compression": "^1.8.1",
     "@types/three": "^0.187.0",
+    "@wallet-standard/app": "1.1.0",
     "colord": "^2.9.3",
     "compression": "^1.8.1",
     "dompurify": "^3.4.13",
@@ -144,7 +148,6 @@
     "obscenity": "^0.4.6",
     "three": "^0.187.0",
     "tsx": "^4.22.4",
-    "viem": "2.57.13",
     "winston": "^3.19.0",
     "ws": "^8.21.0",
     "zod": "^4.4.2"

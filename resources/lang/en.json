@@ -1794,8 +1794,9 @@
     "pot_connect": "Connect wallet to play",
     "pot_enter": "Enter lobby",
     "pot_error_balance": "Not enough tokens: the entry is {amount}.",
+    "pot_error_busy": "The network is busy right now. Nothing was sent: try again in a few seconds.",
     "pot_error_failed": "The transaction did not go through. Check your wallet and try again.",
-    "pot_error_no_wallet": "No wallet found. Install an Ethereum wallet such as MetaMask or Rabby, then reload.",
+    "pot_error_no_wallet": "No wallet found. Install a Solana wallet such as Phantom or Solflare, then reload.",
     "pot_error_rejected": "Cancelled in your wallet.",
     "pot_error_wrong_account": "Switch your wallet to the account you signed in with.",
     "pot_last_tx": "View the last transaction",
@@ -1809,7 +1810,6 @@
     "pot_seats": "{paid}/{max} paid, starts from {min}",
     "pot_soon": "soon",
     "pot_soon_hint": "Token pot is not live yet. Matches are free while we test.",
-    "pot_step_approving": "Approve the entry…",
     "pot_step_claiming": "Claiming…",
     "pot_step_depositing": "Paying the entry…",
     "pot_step_switching": "Check your wallet…",
@@ -1827,7 +1827,7 @@
     "wallet_confirm": "Confirm in {wallet}…",
     "wallet_disconnect": "Disconnect",
     "wallet_failed": "Sign-in failed. Try again.",
-    "wallet_none": "No wallet found. Install an Ethereum wallet such as MetaMask or Rabby, then reload."
+    "wallet_none": "No wallet found. Install a Solana wallet such as Phantom or Solflare, then reload."
   },
   "lang": {
     "en": "English",

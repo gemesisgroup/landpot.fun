@@ -37,7 +37,6 @@ const REFRESH_MS = 5_000;
 // Literal keys, so the unused-translation check can see them.
 const STEP_KEYS: Record<PotStep, string> = {
   switching: "landpot.pot_step_switching",
-  approving: "landpot.pot_step_approving",
   depositing: "landpot.pot_step_depositing",
   claiming: "landpot.pot_step_claiming",
 };
@@ -46,6 +45,7 @@ const ERROR_KEYS: Record<PotErrorKind, string> = {
   wrong_account: "landpot.pot_error_wrong_account",
   no_wallet: "landpot.pot_error_no_wallet",
   balance: "landpot.pot_error_balance",
+  busy: "landpot.pot_error_busy",
   failed: "landpot.pot_error_failed",
 };
 
@@ -177,14 +177,9 @@ export class PaidMatch extends LitElement {
     this.error = null;
     this.busy = { kind: "claiming", roundId: c.roundId, step: "switching" };
     try {
-      this.lastTx = await claimRound(
-        this.address,
-        config,
-        c.roundId,
-        (step) => {
-          this.busy = { kind: "claiming", roundId: c.roundId, step };
-        },
-      );
+      this.lastTx = await claimRound(this.address, config, c.gameId, (step) => {
+        this.busy = { kind: "claiming", roundId: c.roundId, step };
+      });
     } catch (e) {
       console.warn("claim failed", e);
       this.error = this.errorKey(e);
@@ -310,7 +305,7 @@ export class PaidMatch extends LitElement {
     const busy = this.busy.kind === "paying";
     const tx =
       this.lastTx && this.config
-        ? explorerTx(this.config.chainId, this.lastTx)
+        ? explorerTx(this.config.cluster, this.lastTx)
         : null;
     return html`
       <section

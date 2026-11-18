@@ -53,11 +53,13 @@ The game server caches the JWKS for its lifetime: after rotating
 - `POST /auth/refresh` with no cookie creates a **guest** user and session.
   The game server rejects bare persistent IDs in production, so guests need a
   real JWT too.
-- **Wallet sign-in** (EIP-4361 "Sign-In with Ethereum"): an unknown wallet is
-  attached to the current guest in place (their history stays theirs); a
-  known wallet switches the session to that wallet's account. Plain EOA
-  signatures only for now; EIP-1271 contract wallets are not supported yet.
-  The chain id is recorded but not restricted, since the chain is not chosen.
+- **Wallet sign-in** (Sign-In With Solana: the EIP-4361 message shape that
+  Solana wallets show): an unknown wallet is attached to the current guest
+  in place (their history stays theirs); a known wallet switches the session
+  to that wallet's account. The server writes the message, the wallet signs
+  it with `solana:signMessage`, the server checks the ed25519 signature
+  (`src/api/Siws.ts`). Addresses are base58 and compared exactly. The
+  message's Chain ID is the pot's cluster (`mainnet` when the pot is off).
 - Access token: EdDSA JWT, 15 min, `sub` = base64url of the user UUID,
   `provider` = `"wallet"` once a wallet is attached (absent for guests).
 - Refresh token: random 32 bytes in an httpOnly `Secure` `SameSite=Lax` cookie
@@ -110,9 +112,9 @@ deep links like `#page-clan`, which now redirect to Play).
 
 ## Client
 
-`src/client/Wallet.ts` finds wallets through EIP-6963 (falling back to
-`window.ethereum`), signs the server's message with `personal_sign` and
-reloads into the new session. `<landpot-wallet-button>` is the only account
+`src/client/Wallet.ts` finds Solana wallets through Wallet Standard
+(Phantom, Solflare, Backpack…), signs the server's message with
+`solana:signMessage` and reloads into the new session. `<landpot-wallet-button>` is the only account
 control: in the desktop bar and at the foot of the mobile menu.
 
 Archived records are stored whole (gzip, turns included) because stake

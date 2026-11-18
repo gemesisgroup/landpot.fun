@@ -1,8 +1,12 @@
 import { GameRecordSchema } from "@openfront/shared/WireSchemas";
-import { getAddress, type Address, type Hex } from "viem";
 import type { PotRoundRow, Store } from "../Store";
-import { RoundPhase, type EscrowChain, type TokenInfo } from "./EscrowChain";
-import { roundIdOf } from "./Oracle";
+import {
+  InsufficientBalanceError,
+  RoundPhase,
+  type EscrowChain,
+  type TokenInfo,
+} from "./EscrowChain";
+import { roundIdOf, type Hex } from "./RoundId";
 import {
   finalizeIfDue,
   settleGame,
@@ -21,8 +25,9 @@ import {
  *   cancel  refund a lobby that did not fill
  *
  * and `tick` keeps every round moving without anyone asking: settles an
- * archived match, finalizes after the review hold, and cancels rounds whose
- * deadline passed so entries can be claimed back.
+ * archived match, finalizes after the review hold, cancels rounds whose
+ * deadline passed so entries can be claimed back, and closes fully claimed
+ * rounds so their rent returns to the operator.
  */
 
 export interface PotRules {
@@ -37,7 +42,6 @@ export interface PotRules {
 export interface PotServiceDeps {
   chain: EscrowChain;
   store: Store;
-  oracleKey: Hex;
   replay: Replayer;
   rules: PotRules;
   /**
@@ -186,10 +190,10 @@ export class PotService {
   }
 
   /** persistentIDs of the accounts behind these wallets. */
-  private accountsOf(wallets: readonly Address[]): string[] {
+  private accountsOf(wallets: readonly string[]): string[] {
     const out: string[] = [];
     for (const w of wallets) {
-      const user = this.store.getUserByWallet(getAddress(w));
+      const user = this.store.getUserByWallet(w);
       if (user) out.push(user.id);
     }
     return out;
@@ -222,8 +226,7 @@ export class PotService {
     const wallet = this.store.getUser(persistentID)?.wallet;
     if (!wallet) return false;
     const players = await this.chain.players(row.roundId as Hex);
-    const w = wallet.toLowerCase();
-    return players.some((p) => p.toLowerCase() === w);
+    return players.includes(wallet);
   }
 
   /**
@@ -264,7 +267,6 @@ export class PotService {
     return this.accountsOf(await this.chain.players(roundId));
   }
 
-  /** Refund a lobby that is still taking deposits. */
   /**
    * Refund a lobby. `seen` is the deposit count the game server decided on:
    * deposits may have landed since, and then it must look again. Without it,
@@ -293,7 +295,7 @@ export class PotService {
   // ── public reads ──
 
   /** Lobbies taking deposits now, with whether `wallet` is in each. */
-  async openLobbies(wallet?: Address): Promise<
+  async openLobbies(wallet?: string): Promise<
     {
       gameId: string;
       roundId: string;
@@ -317,7 +319,6 @@ export class PotService {
           this.chain.players(roundId),
         ]);
         if (status.phase !== RoundPhase.Funding) return null;
-        const w = wallet?.toLowerCase();
         return {
           gameId: r.gameId,
           roundId: r.roundId,
@@ -326,7 +327,7 @@ export class PotService {
           maxPlayers: r.maxPlayers,
           fundingEnds: r.fundingEnds,
           deposited: players.length,
-          joined: w !== undefined && players.some((p) => p.toLowerCase() === w),
+          joined: wallet !== undefined && players.includes(wallet),
         };
       }),
     );
@@ -334,7 +335,7 @@ export class PotService {
   }
 
   /** What the escrow owes this wallet, from recent rounds. */
-  async claims(wallet: Address): Promise<Claimable[]> {
+  async claims(wallet: string): Promise<Claimable[]> {
     const rows = this.store.recentRounds(this.now() - CLAIMS_LOOKBACK_MS);
     const out: Claimable[] = [];
     await Promise.all(
@@ -366,6 +367,55 @@ export class PotService {
     return out.sort((a, b) => a.gameId.localeCompare(b.gameId));
   }
 
+  // ── transactions the player's wallet signs ──
+
+  /** A deposit into a lobby that is still taking them. */
+  async depositTx(gameId: string, wallet: string): Promise<string> {
+    const row = this.round(gameId);
+    if (row.state !== "funding") throw new PotError(409, "lobby is closed");
+    const roundId = row.roundId as Hex;
+    const [status, players] = await Promise.all([
+      this.chain.status(roundId),
+      this.chain.players(roundId),
+    ]);
+    if (status.phase !== RoundPhase.Funding) {
+      throw new PotError(409, `round is ${RoundPhase[status.phase]}`);
+    }
+    if (players.includes(wallet)) throw new PotError(409, "already in");
+    if (status.playerCount >= row.maxPlayers) {
+      throw new PotError(409, "lobby is full");
+    }
+    try {
+      return await this.chain.depositTx(roundId, wallet);
+    } catch (e) {
+      if (e instanceof InsufficientBalanceError) {
+        throw new PotError(402, e.message);
+      }
+      throw e;
+    }
+  }
+
+  /** Claim winnings or a refund the escrow holds for this wallet. */
+  async claimTx(gameId: string, wallet: string): Promise<string> {
+    const roundId = this.round(gameId).roundId as Hex;
+    const [status, owed] = await Promise.all([
+      this.chain.status(roundId),
+      this.chain.owed(roundId, wallet),
+    ]);
+    const amount =
+      status.phase === RoundPhase.Refunding
+        ? owed.deposit
+        : status.phase === RoundPhase.Final
+          ? owed.payout
+          : 0n;
+    if (amount === 0n) throw new PotError(409, "nothing to claim");
+    return this.chain.claimTx(roundId, wallet);
+  }
+
+  txStatus(signature: string): Promise<"confirmed" | "failed" | "pending"> {
+    return this.chain.txStatus(signature);
+  }
+
   // ── settlement ──
 
   /** Replay, split and propose one archived paid match. */
@@ -380,7 +430,6 @@ export class PotService {
       outcome = await settleGame(
         {
           chain: this.chain,
-          oracleKey: this.deps.oracleKey,
           replay: this.deps.replay,
           walletOf: (pid) => this.store.getUser(pid)?.wallet ?? null,
         },
@@ -412,7 +461,7 @@ export class PotService {
     return outcome;
   }
 
-  async finalize(gameId: string): Promise<Hex | null> {
+  async finalize(gameId: string): Promise<string | null> {
     const tx = await finalizeIfDue(this.chain, gameId, await this.chain.now());
     if (tx !== null) {
       const prev = this.store.getSettlement(gameId);
@@ -461,6 +510,34 @@ export class PotService {
         await this.advance(row, chainNow);
       } catch (e) {
         this.log("pot keeper step failed", {
+          gameId: row.gameId,
+          error: String(e),
+        });
+      }
+    }
+    await this.reclaimRent();
+  }
+
+  /**
+   * Close settled rounds nobody is owed anything from: the round and vault
+   * accounts' rent goes back to the operator. Unclaimed winnings keep a
+   * round open; this looks again on later passes.
+   */
+  private async reclaimRent(): Promise<void> {
+    const since = this.now() - CLAIMS_LOOKBACK_MS;
+    for (const row of this.store.recentRounds(since)) {
+      if (row.state !== "closed" && row.state !== "cancelled") continue;
+      const roundId = row.roundId as Hex;
+      try {
+        const s = await this.chain.status(roundId);
+        const settled =
+          s.phase === RoundPhase.Final || s.phase === RoundPhase.Refunding;
+        if (settled && s.balance === 0n) {
+          await this.chain.close(roundId);
+          this.log("pot round closed, rent reclaimed", { gameId: row.gameId });
+        }
+      } catch (e) {
+        this.log("pot rent reclaim failed", {
           gameId: row.gameId,
           error: String(e),
         });

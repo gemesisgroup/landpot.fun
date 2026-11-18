@@ -1,0 +1,16 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+landpot_escrow = "4cbs4ZSsC9E9S56QwoAxPKDPDjRbfWzoUso3R8NWq165"
+
+[programs.devnet]
+landpot_escrow = "4cbs4ZSsC9E9S56QwoAxPKDPDjRbfWzoUso3R8NWq165"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"

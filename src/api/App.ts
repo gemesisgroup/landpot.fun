@@ -17,14 +17,13 @@ import { z } from "zod";
 import type { ApiConfig } from "./ApiEnv";
 import { bigintJson, PotError, type PotService } from "./pot/PotService";
 import {
-  buildSiweMessage,
+  buildSiwsMessage,
   CHALLENGE_TTL_MS,
   isAddress,
   newNonce,
   nonceOf,
-  recoverSigner,
-  toChecksumAddress,
-} from "./Siwe";
+  verifySignature,
+} from "./Siws";
 import type { GameMeta, GamePlayerRow, Store, User } from "./Store";
 import {
   ACCESS_TTL_S,
@@ -277,14 +276,18 @@ export function createApp(deps: AppDeps): express.Express {
     res.json({ ok: true });
   });
 
-  // ── wallet sign-in (EIP-4361) ──
+  // ── wallet sign-in (Sign-In With Solana) ──
 
   const walletLimit = rateLimit("wallet", 20, 60_000);
 
   const ChallengeBody = z.object({
     address: z.string().refine(isAddress, "invalid address"),
-    chainId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   });
+  // The cluster the wallet signs in for, as SIWS names it.
+  const siwsChain =
+    config.pot?.cluster === "mainnet-beta"
+      ? "mainnet"
+      : (config.pot?.cluster ?? "mainnet");
 
   app.post(
     "/auth/wallet/challenge",
@@ -294,14 +297,14 @@ export function createApp(deps: AppDeps): express.Express {
     (req, res) => {
       const body = ChallengeBody.safeParse(req.body);
       if (!body.success) throw new HttpError(400, z.prettifyError(body.error));
-      const address = toChecksumAddress(body.data.address);
+      const address = body.data.address;
       const nonce = newNonce();
       const issuedAt = new Date(now());
       const expiresAt = new Date(issuedAt.getTime() + CHALLENGE_TTL_MS);
-      const message = buildSiweMessage({
+      const message = buildSiwsMessage({
         siteOrigin: config.siteOrigin,
         address,
-        chainId: body.data.chainId,
+        chainId: siwsChain,
         nonce,
         issuedAt,
         expiresAt,
@@ -340,8 +343,8 @@ export function createApp(deps: AppDeps): express.Express {
       ) {
         throw new HttpError(400, "challenge expired or unknown");
       }
-      const signer = recoverSigner(challenge.message, body.data.signature);
-      if (signer === null || signer !== challenge.address) {
+      const signer = challenge.address;
+      if (!verifySignature(challenge.message, body.data.signature, signer)) {
         throw new HttpError(401, "signature does not match the address");
       }
 
@@ -554,12 +557,10 @@ export function createApp(deps: AppDeps): express.Express {
   };
   const sendJson = (res: Response, v: unknown) =>
     res.type("json").send(bigintJson(v));
-  const walletParam = (v: unknown): `0x${string}` | undefined => {
+  const walletParam = (v: unknown): string | undefined => {
     if (v === undefined) return undefined;
-    if (typeof v !== "string" || !isAddress(v)) {
-      throw new HttpError(400, "bad wallet address");
-    }
-    return toChecksumAddress(v) as `0x${string}`;
+    if (!isAddress(v)) throw new HttpError(400, "bad wallet address");
+    return v;
   };
 
   // Game server: run a paid lobby.
@@ -605,8 +606,8 @@ export function createApp(deps: AppDeps): express.Express {
     res.setHeader("Cache-Control", "public, max-age=60");
     res.json({
       enabled: true,
-      chainId: config.pot!.chainId,
-      escrow: config.pot!.escrow,
+      cluster: config.pot!.cluster,
+      program: config.pot!.programId,
       token,
       stake: (await pot.stakeUnits()).toString(),
       minPlayers: pot.rules.minPlayers,
@@ -635,6 +636,45 @@ export function createApp(deps: AppDeps): express.Express {
       res.json({
         claims: await needPot().claims(walletParam(req.params.wallet)!),
       });
+    },
+  );
+  // Unsigned transactions for the player's wallet to sign and send. Only
+  // that wallet can sign them, so they need no session.
+  const TxBody = z.object({
+    gameId: z.string().min(1).max(64),
+    wallet: z.string().refine(isAddress, "invalid address"),
+  });
+  // Each costs a few RPC reads, like the pot reads above.
+  const txLimit = rateLimit("pot-tx", 120, 60_000);
+  app.post("/public/pot/deposit-tx", txLimit, json, async (req, res) => {
+    const body = TxBody.safeParse(req.body);
+    if (!body.success) throw new HttpError(400, z.prettifyError(body.error));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      transaction: await needPot().depositTx(
+        body.data.gameId,
+        body.data.wallet,
+      ),
+    });
+  });
+  app.post("/public/pot/claim-tx", txLimit, json, async (req, res) => {
+    const body = TxBody.safeParse(req.body);
+    if (!body.success) throw new HttpError(400, z.prettifyError(body.error));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      transaction: await needPot().claimTx(body.data.gameId, body.data.wallet),
+    });
+  });
+  app.get(
+    "/public/pot/tx/:signature",
+    rateLimit("pot", 120, 60_000),
+    async (req, res) => {
+      const sig = req.params.signature as string;
+      if (!/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(sig)) {
+        throw new HttpError(400, "bad signature");
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ status: await needPot().txStatus(sig) });
     },
   );
   // How a paid game was settled, for anyone checking a payout.
@@ -683,7 +723,7 @@ export function createApp(deps: AppDeps): express.Express {
   // ── errors ──
 
   app.use((_req, res) => res.status(404).json({ error: "not found" }));
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError || err instanceof PotError) {
       return res.status(err.status).json({ error: err.message });
     }
@@ -691,6 +731,13 @@ export function createApp(deps: AppDeps): express.Express {
     if (typeof status === "number" && status >= 400 && status < 500) {
       // body-parser: malformed JSON, too large, bad encoding.
       return res.status(status).json({ error: (err as Error).message });
+    }
+    // The chain's RPC turned us away (rate limit): nothing is wrong with
+    // the request, and asking again shortly works.
+    if (/\b429\b|too many requests/i.test(String(err))) {
+      console.warn("api: RPC rate-limited", req.method, req.path);
+      res.setHeader("Retry-After", "5");
+      return res.status(503).json({ error: "chain busy, try again" });
     }
     console.error("api error", err);
     res.status(500).json({ error: "internal error" });

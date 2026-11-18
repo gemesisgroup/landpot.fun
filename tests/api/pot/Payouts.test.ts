@@ -1,13 +1,17 @@
+import { PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
-import { roundIdOf } from "../../../src/api/pot/Oracle";
 import {
   netPot,
   NoTerritoryError,
   splitPot,
 } from "../../../src/api/pot/Payouts";
+import { roundIdOf } from "../../../src/api/pot/RoundId";
 
-const P = (n: number) =>
-  `0x${n.toString(16).padStart(40, "0")}` as `0x${string}`;
+const P = (n: number) => {
+  const key = new Uint8Array(32);
+  key[31] = n;
+  return new PublicKey(key).toBase58();
+};
 const roundId = roundIdOf("GamePaid1");
 const land = (entries: [number, number][]) =>
   new Map(entries.map(([i, t]) => [P(i), BigInt(t)]));
@@ -100,15 +104,19 @@ describe("splitPot", () => {
     expect(other.reduce((x, y) => x + y, 0n)).toBe(10n);
   });
 
-  it("matches addresses whatever their case", () => {
-    const upper = `0x${"AB".repeat(20)}` as `0x${string}`;
-    const amounts = splitPot({
-      net: 7n,
-      roundId,
-      players: [upper],
-      land: new Map([[upper.toLowerCase(), 5n]]),
-    });
-    expect(amounts).toEqual([7n]);
+  it("compares wallets exactly (base58 is case-sensitive)", () => {
+    const w = P(9);
+    const swapped = [...w]
+      .map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()))
+      .join("");
+    expect(() =>
+      splitPot({
+        net: 7n,
+        roundId,
+        players: [w],
+        land: new Map([[swapped, 5n]]),
+      }),
+    ).toThrow(NoTerritoryError);
   });
 
   it("refunds a depositor who missed the start, less their share of fees", () => {
@@ -126,7 +134,7 @@ describe("splitPot", () => {
         [4, 20],
         [7, 999], // not in the match: land can't count
       ]),
-      played: new Set(eight.slice(0, 6).map((p) => p.toUpperCase())),
+      played: new Set(eight.slice(0, 6)),
     });
     expect(amounts.slice(6)).toEqual([19n, 19n]);
     expect(amounts.reduce((a, b) => a + b, 0n)).toBe(153n);
