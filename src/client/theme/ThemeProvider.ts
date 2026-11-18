@@ -81,6 +81,17 @@ function buildTeamPalettes(settings: ThemeSettings): Map<Team, Colord[]> {
  * allocators and the territory/team color dispatch, plus the color math every
  * theme shares — a new theme is just a new theme JSON.
  */
+const LANDPOT_PLAYER_COLORS = [
+  "#c6ff3d",
+  "#ff5a4e",
+  "#35e0ff",
+  "#8b6cff",
+  "#ffb02e",
+  "#ff4fb8",
+  "#19d3a6",
+  "#e9ecf1",
+];
+
 export class SettingsTheme implements Theme {
   private humanColorAllocator: ColorAllocator;
   private nationColorAllocator: ColorAllocator;
@@ -99,8 +110,21 @@ export class SettingsTheme implements Theme {
   private _spawnHighlightColor: Colord;
 
   constructor(private settings: ThemeSettings) {
-    const humanColors = settings.humanColors.map(colord);
-    const nationColors = settings.nationColors.map(colord);
+    // Landpot "Plates": the design palette leads, and the upstream pastel
+    // lists are pushed towards saturated colour so territories glow on the
+    // graphite board (design/DESIGN.md).
+    const humanColors = [...LANDPOT_PLAYER_COLORS, ...settings.humanColors].map(
+      (c) => colord(c).saturate(0.2),
+    );
+    // Nations get the same count of colours, but as saturated hues spread by
+    // the golden angle instead of the upstream pastels.
+    const nationColors = settings.nationColors.map((_, i) =>
+      colord({
+        h: (i * 137.508) % 360,
+        s: 62 + ((i * 7) % 4) * 7,
+        l: 52 + ((i * 5) % 3) * 6,
+      }),
+    );
     const classicBotColors = settings.classicBotColors.map(colord);
     const fallbackColors = settings.fallbackColors.map(colord);
 

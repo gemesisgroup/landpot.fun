@@ -164,10 +164,10 @@ export interface LobbyCardOptions {
  * line box and renders short and low.
  */
 const PILL =
-  "rounded bg-malibu-blue px-2 py-1 text-xs font-bold tracking-widest text-white";
+  "lp-mono rounded-md bg-malibu-blue px-2 py-1 text-[11px] font-medium tracking-widest text-white";
 // No backdrop-filter anywhere in the card: under a transformed ancestor
 // Chrome clips it with a separate mask and the map leaks at the corners.
-const BADGE = "rounded bg-black/70";
+const BADGE = "lp-mono rounded-md bg-black/70";
 /** A player's listed lobby, so it can't pass for a scheduled public game. */
 const CUSTOM_PILL =
   "rounded bg-orange-500 px-2 py-1 text-xs font-bold tracking-widest text-white";
@@ -228,6 +228,10 @@ export function lobbyCard({
     ? "object-contain group-hover:scale-105"
     : "object-cover scale-[1.05] group-hover:scale-[1.12]";
 
+  const plateScale = fitsByContain(mapType)
+    ? "group-hover:scale-105"
+    : "scale-[1.05] group-hover:scale-[1.12]";
+
   return html`
     <button
       @click=${onClick}
@@ -239,8 +243,15 @@ export function lobbyCard({
         src=${terrainMapFileLoader.getMapData(mapType).webpPath}
         alt=${mapName ?? mapType}
         draggable="false"
-        class="pointer-events-none absolute inset-0 size-full select-none transition-transform duration-200 ${image}"
+        class="lp-map-thumb pointer-events-none absolute inset-0 size-full select-none transition-transform duration-200 ${image}"
       />
+      <!-- Landpot: the land turned into plates, masked by the thumbnail's own
+           alpha so it lines up with the image exactly (same fit, same scale). -->
+      <div
+        aria-hidden="true"
+        class="lp-map-plates pointer-events-none absolute inset-0 size-full transition-transform duration-200 ${plateScale}"
+        style="--lp-mask: url('${terrainMapFileLoader.getMapData(mapType).webpPath}'); --lp-mask-fit: ${fitsByContain(mapType) ? "contain" : "cover"}"
+      ></div>
 
       <div
         class="absolute inset-x-2 top-2 flex items-start justify-between gap-2"
@@ -264,7 +275,7 @@ export function lobbyCard({
       </div>
 
       <div
-        class="absolute inset-x-0 bottom-0 flex flex-col bg-black/65 px-3 py-2 ${
+        class="absolute inset-x-0 bottom-0 flex flex-col bg-[linear-gradient(0deg,rgb(11_13_16/0.92),rgb(11_13_16/0.55))] px-3 py-2 ${
           trustedOnly && custom ? "pr-20" : trustedOnly || custom ? "pr-10" : ""
         }"
       >

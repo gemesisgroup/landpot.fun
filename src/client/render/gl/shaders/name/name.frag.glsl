@@ -32,7 +32,9 @@ void main() {
 
   // Compute fill color: player color, or per-type grayscale shade
   // (black for human, grayer for nation/bot). Applies in day and night.
-  vec3 defaultFill = vec3(vNameShade);
+  // Landpot: light ink on the dark plate board (humans brightest, nations
+  // and bots a step dimmer), with a graphite outline.
+  vec3 defaultFill = vec3(0.96 - vNameShade * 0.5);
   vec3 fillColor = mix(defaultFill, vPlayerColor.rgb, uFillUsePlayerColor);
 
   vec3 msd = texture(uAtlas, vUV).rgb;

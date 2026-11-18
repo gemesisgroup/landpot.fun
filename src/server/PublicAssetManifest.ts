@@ -256,7 +256,8 @@ export function getPublicDir(resourcesDir: string): string {
 }
 
 export function getProprietaryDir(rootDir: string = process.cwd()): string {
-  return path.join(rootDir, "proprietary");
+  // Landpot: our own brand assets replace OpenFront Inc.'s proprietary/ dir.
+  return path.join(rootDir, "brand");
 }
 
 // Scans directories with synchronous fs.existsSync — assumes a small number of sourceDirs.

@@ -11,7 +11,7 @@
     "src/**/*",
     "packages/**/*",
     "resources/**/*",
-    "proprietary/**/*",
+    "brand/**/*",
     "generated/**/*",
     "tests/**/*",
     "src/scripts",

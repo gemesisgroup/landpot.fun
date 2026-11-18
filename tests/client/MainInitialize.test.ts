@@ -323,7 +323,8 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     expect(warnSpy).toHaveBeenCalledWith("Game version element not found");
     // userAuth() === false → onUserMe(false) (line 735), which flips the ad
     // entitlement on for a signed-out web player.
-    expect(window.adsEnabled).toBe(true);
+    // Landpot ships no ads: Main pins adsEnabled to false.
+    expect(window.adsEnabled).toBe(false);
   });
 
   it("clears the stale achievements.pushed record", () => {

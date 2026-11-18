@@ -1772,6 +1772,25 @@
     "lobby_creator": "Kicked by lobby creator",
     "match_cancelled": "Match cancelled: a player failed to connect. You have not lost any ELO."
   },
+  "landpot": {
+    "connect_wallet": "Connect wallet",
+    "connect_wallet_soon": "Wallets are not wired yet. Coming with the token pot.",
+    "hero_line_1": "Take land.",
+    "hero_line_2": "Take the pot.",
+    "hero_sub": "A real-time territory conquest game. Spread, hold the map, outlast everyone.",
+    "pot_soon": "soon",
+    "pot_soon_hint": "Token pot is not live yet. Matches are free while we test.",
+    "step_expand": "Expand",
+    "step_expand_desc": "Send troops into land",
+    "step_hold": "Hold",
+    "step_hold_desc": "Defend your borders",
+    "step_payout": "Payout",
+    "step_payout_desc": "Winners split the pot",
+    "step_spawn": "Spawn",
+    "step_spawn_desc": "Pick a starting tile",
+    "strip_badge": "ALPHA",
+    "strip_note": "Free matches while we build the pot. Same rules, no stakes yet."
+  },
   "lang": {
     "en": "English",
     "lang_code": "en",
@@ -1883,18 +1902,15 @@
     "menu": "Menu",
     "news": "News",
     "play": "Play",
-    "privacy_policy": "Privacy Policy",
     "quit": "Exit game",
     "settings": "Settings",
     "sign_in": "Sign in",
     "solo": "Solo",
     "store": "Store",
-    "terms_of_service": "Terms of Service",
     "title": "OpenFront (ALPHA)",
     "troubleshooting": "Troubleshooting",
     "tutorial": "Tutorial",
-    "user_avatar_alt": "{username}'s avatar",
-    "wiki": "Wiki"
+    "user_avatar_alt": "{username}'s avatar"
   },
   "map": {
     "achiran": "Achiran",

@@ -3,7 +3,6 @@ import {
   isRewardClaimable,
   UserMeResponse,
 } from "@openfront/shared/ApiSchemas";
-import { assetUrl } from "@openfront/shared/AssetUrls";
 import { GameEnv } from "@openfront/shared/configuration/Env";
 import { EventBus } from "@openfront/shared/EventBus";
 import { toWireGameStartInfo } from "@openfront/shared/SharedUtil";
@@ -586,12 +585,8 @@ class Client {
     await customElements.whenDefined("mobile-nav-bar");
     await customElements.whenDefined("desktop-nav-bar");
 
-    const openFrontFont = new FontFace(
-      "OpenFront",
-      `url(${assetUrl("fonts/OpenFront.ttf")})`,
-    );
-    document.fonts.add(openFrontFont);
-    openFrontFont.load().catch(() => {});
+    // Landpot: the upstream display font is proprietary (proprietary/), so it
+    // is not loaded; --font-display falls back to Inter.
 
     // The tagged version only, so a player's version reads the same across web
     // and Steam. The build's full identity -- the commit on an untagged build,
@@ -835,8 +830,10 @@ class Client {
       }
       const isAdFree =
         userMeResponse !== false && userMeResponse.player?.adfree === true;
-      window.adsEnabled =
-        !isAdFree && !gamePortal.isOnGamePortal() && !isDesktopShell();
+      // Landpot: no ads at all. Kept as an expression so the upstream
+      // checks stay visible for future merges.
+      void isAdFree;
+      window.adsEnabled = false;
       syncHashedEmail(userMeResponse, window.adsEnabled).catch((e) =>
         console.warn("Hashed email sync failed", e),
       );

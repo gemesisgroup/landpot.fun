@@ -28,6 +28,7 @@ import type { LegendCeremony } from "../../components/LegendCeremony";
 import "../../components/ProfileShare";
 import "../../components/PurchaseButton";
 import "../../components/SteamWishlist";
+
 import { Controller } from "../../Controller";
 import {
   fetchCosmetics,
@@ -122,6 +123,9 @@ const iconShare = html`<svg
   <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
   <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
 </svg>`;
+
+// Landpot: see innerHtml().
+const LANDPOT_NO_UPSTREAM_PROMOS = true;
 
 @customElement("win-modal")
 export class WinModal extends LitElement implements Controller {
@@ -529,6 +533,10 @@ export class WinModal extends LitElement implements Controller {
   }
 
   innerHtml() {
+    // Landpot: every upstream promo here points at OpenFront (its Steam page,
+    // Discord, YouTube tutorial, cosmetics shop), so the box stays empty
+    // until Landpot has its own. The upstream selection stays below for merges.
+    if (LANDPOT_NO_UPSTREAM_PROMOS) return html``;
     // The Steam desktop build has nothing to wishlist, and the Android app
     // must not send the player to another store — fall through to the other
     // promos so the box is never empty.

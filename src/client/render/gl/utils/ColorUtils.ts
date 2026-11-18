@@ -140,9 +140,10 @@ export function encodeTerrainTile(
       // Plains
       const base = terrainColors.plains;
 
-      r = base[0];
-      g = base[1] - 2 * magnitude;
-      b = base[2];
+      // Landpot: darken evenly so graphite plains don't drift towards magenta.
+      r = Math.max(0, base[0] - magnitude);
+      g = Math.max(0, base[1] - magnitude);
+      b = Math.max(0, base[2] - magnitude);
     } else if (magnitude < 20) {
       // Highland
       const base = terrainColors.highland;
@@ -163,9 +164,10 @@ export function encodeTerrainTile(
   } else if (isShoreline) {
     // Shoreline water — computed dynamically by blending 70% ocean color and 30% white
     const base = oceanColor ?? DEEP_WATER_BASE;
-    r = Math.round(0.7 * base[0] + 76.5);
-    g = Math.round(0.7 * base[1] + 76.5);
-    b = Math.round(0.7 * base[2] + 76.5);
+    // Landpot: a faint lit rim of shallow glass instead of a bright coast.
+    r = Math.round(0.8 * base[0] + 22);
+    g = Math.round(0.8 * base[1] + 30);
+    b = Math.round(0.8 * base[2] + 38);
   } else {
     // Deep water — darkens with depth (magnitude). The base color sets the
     // shallowest (brightest) shade; the per-depth gradient is preserved by
@@ -180,7 +182,10 @@ export function encodeTerrainTile(
   out[offset] = r;
   out[offset + 1] = g;
   out[offset + 2] = b;
-  out[offset + 3] = 255;
+  // Landpot: alpha carries a land flag (255 land, 0 water) for the plate
+  // bevel in terrain.frag.glsl. The terrain pass draws without blending and
+  // writes alpha 1, so this never shows as transparency.
+  out[offset + 3] = isLand ? 255 : 0;
 }
 
 export function buildTerrainRGBA(

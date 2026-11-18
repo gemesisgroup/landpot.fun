@@ -432,6 +432,17 @@ export class LangSelector extends LitElement {
   }
 }
 
+// Landpot: AGPL §7(c) of the upstream licence forbids presenting this fork
+// as OpenFront, so the game's own name in UI strings becomes "Landpot".
+// Done here instead of in resources/lang/*.json so upstream translation
+// updates merge cleanly. The copyright line is required by §7(b) and is
+// left exactly as upstream wrote it.
+const BRAND_KEEP = new Set(["main.copyright"]);
+function landpotBrand(key: string, value: string): string {
+  if (BRAND_KEEP.has(key) || !value.includes("OpenFront")) return value;
+  return value.replace(/OpenFront(?:\.io)?(?!™)/g, "Landpot");
+}
+
 function flattenTranslations(
   obj: Record<string, any>,
   parentKey = "",
@@ -441,7 +452,7 @@ function flattenTranslations(
     const value = obj[key];
     const fullKey = parentKey ? `${parentKey}.${key}` : key;
     if (typeof value === "string") {
-      result[fullKey] = value;
+      result[fullKey] = landpotBrand(fullKey, value);
     } else if (
       typeof value === "object" &&
       value !== null &&

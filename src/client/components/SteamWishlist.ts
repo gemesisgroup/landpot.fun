@@ -56,6 +56,9 @@ function steamUrl(path: string, medium: string, campaign: string): string {
  * native 646px and only downscaled once the container is narrower than that
  * floor, so text stays full size on everything but phones.
  */
+// Landpot: the widget promotes OpenFront's Steam page, so it never renders.
+const LANDPOT_HIDE_STEAM = true;
+
 @customElement("steam-wishlist")
 export class SteamWishlist extends LitElement {
   /** UTM campaign identifying the placement, e.g. "homepage" or "winmodal". */
@@ -111,7 +114,9 @@ export class SteamWishlist extends LitElement {
     // Poki doesn't allow promoting other platforms, and neither app shell
     // shows it: the Steam app has nothing to wishlist, and the Android app
     // must not send the player to another store.
-    if (isDesktopShell() || gamePortal.name() === "poki") return nothing;
+    // Landpot: no OpenFront Steam promo in this fork.
+    if (LANDPOT_HIDE_STEAM || isDesktopShell() || gamePortal.name() === "poki")
+      return nothing;
 
     const frameWidth = Math.min(
       WIDGET_WIDTH,

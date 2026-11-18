@@ -2,9 +2,10 @@ import { assetUrl } from "@openfront/shared/AssetUrls";
 import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
 import "./CosmeticBackground";
+import "./LandpotHero";
 import "./NavAccountMenu";
 import "./NavUtilityIcons";
-import "./NewsBox";
+import "./LandpotStrip";
 import "./SteamWishlist";
 import "./StreamingNow";
 
@@ -60,7 +61,7 @@ export class PlayPage extends LitElement {
             >
               <img
                 src=${assetUrl("images/OpenFrontLogo.svg")}
-                alt="OpenFront"
+                alt="Landpot"
                 class="h-full w-auto"
               />
             </div>
@@ -77,21 +78,21 @@ export class PlayPage extends LitElement {
           </div>
         </div>
 
+        <!-- Mobile: spacer for fixed top bar -->
+        <div class="lg:hidden h-[calc(env(safe-area-inset-top)+56px)]"></div>
+
+        <landpot-hero class="block sm:-mx-4 lg:mx-0"></landpot-hero>
+
         <!-- Top strip: news + identity on the left, Streaming Now on the right. The 2fr/1fr
              split only exists while the panel is live (.streaming-live via has-[]) —
              otherwise the left column takes the full row. -->
         <div
           class="group/strip w-full pb-4 lg:pb-0 sm:compact:pb-0 flex flex-col gap-4 sm:-mx-4 sm:w-[calc(100%+2rem)] lg:mx-0 lg:w-full lg:grid lg:grid-cols-1 lg:has-[.streaming-live]:grid-cols-[2fr_1fr] lg:gap-4 lg:items-stretch"
         >
-          <!-- Mobile: spacer for fixed top bar -->
-          <div
-            class="lg:hidden h-[calc(env(safe-area-inset-top)+56px)] -mb-4"
-          ></div>
-
           <!-- Left column: news banner + identity row, stacked tight. -->
           <div class="flex flex-col gap-2 min-w-0">
-            <!-- Off on compact screens (see styles.css), like Streaming Now. -->
-            <news-box class="compact:hidden"></news-box>
+            <!-- Landpot: the round explainer replaces the upstream news feed. -->
+            <landpot-strip class="block compact:hidden"></landpot-strip>
 
             <!-- Identity row: username over the currently selected cosmetic background. -->
             <div

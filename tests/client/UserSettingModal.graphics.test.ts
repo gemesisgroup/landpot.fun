@@ -103,6 +103,8 @@ function resetGraphicsSettings() {
   settings.setGraphicsOverrides({});
   settings.setGraphicsPresets({});
   settings.removeCached(MAP_LAYERS_KEY);
+    // Landpot defaults Map Layers off; these tests cover the upstream "on" path.
+    if (!settings.mapLayers()) settings.toggleMapLayers();
 }
 
 describe("Graphics tab: advanced options in the graphics panel", () => {

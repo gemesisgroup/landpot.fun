@@ -7,7 +7,7 @@
     "Yellow": "#e7b008",
     "Orange": "#ff7f0e",
     "Green": "#41be52",
-    "Bot": "#d1cdc7",
+    "Bot": "#5b606b",
     "Humans": "#2962ff",
     "Nations": "#eb3333"
   },
@@ -490,5 +490,5 @@
   "defendedBorderDarkenDark": 0.4,
   "structureContrastTarget": 0.5,
   "focusedBorderColor": "#e6e6e6",
-  "spawnHighlightColor": "#ffd54f"
+  "spawnHighlightColor": "#c6ff3d"
 }

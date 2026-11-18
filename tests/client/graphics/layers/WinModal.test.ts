@@ -209,7 +209,8 @@ describe("WinModal Play Again", () => {
   });
 });
 
-describe("WinModal pattern promotion", () => {
+// Landpot: the win modal shows no upstream shop promos (WinModal.innerHtml).
+describe.skip("WinModal pattern promotion", () => {
   let modal: WinModal | undefined;
 
   afterEach(() => {

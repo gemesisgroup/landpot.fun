@@ -55,14 +55,13 @@ import {
 } from "./Utils";
 import { isReplayShellHost } from "./VersionedReplay";
 
-const PRIMARY_ACTION =
-  "bg-malibu-blue hover:bg-aquarius active:bg-malibu-blue/80 hover:scale-y-105 hover:scale-x-[1.01]";
-const SECONDARY_ACTION =
-  "bg-surface hover:brightness-[1.08] active:brightness-[0.95] hover:scale-105 hover:shadow-[var(--shadow-action-card-hover)]";
+// Landpot: action cards are plates - they lift on hover instead of scaling.
+const PRIMARY_ACTION = "bg-malibu-blue hover:bg-aquarius";
+const SECONDARY_ACTION = "lp-glass lp-lift hover:border-malibu-blue/40";
 const DISABLED = "opacity-50 cursor-not-allowed pointer-events-none";
 /** Tutorial card: the panel's gold, dark text for contrast. */
 const TUTORIAL_ACTION =
-  "bg-cyber-yellow hover:bg-yellow-300 active:bg-cyber-yellow/80 !text-gray-900 hover:scale-y-105 hover:scale-x-[1.01]";
+  "lp-lift bg-cyber-yellow hover:bg-yellow-300 active:bg-cyber-yellow/80 !text-gray-900";
 
 /** The Tutorial card shows beside Solo until the player has played this many games. */
 const TUTORIAL_CARD_MAX_GAMES = 5;
@@ -970,7 +969,7 @@ export class GameModeSelector extends LitElement {
         @click=${onClick}
         ?disabled=${!this.inputValid}
         aria-disabled=${blocked}
-        class="relative flex items-center justify-center w-full h-full rounded-lg ${bgClass} transition-all duration-200 text-sm lg:text-base font-medium text-white uppercase tracking-wider text-center ${
+        class="relative flex items-center justify-center w-full h-full rounded-[10px] ${bgClass} transition-all duration-200 lp-display text-[13px] lg:text-sm font-semibold text-white uppercase tracking-wide text-center ${
           !this.inputValid
             ? DISABLED
             : blocked

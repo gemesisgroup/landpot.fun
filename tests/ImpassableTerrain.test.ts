@@ -372,10 +372,11 @@ describe("Impassable Terrain", () => {
     const out = new Uint8Array(4);
     encodeTerrainTile(IMPASSABLE, out, 0);
     // Must match the clear colour in Renderer.ts drawBaseLayer():
-    // gl.clearColor(60/255, 60/255, 60/255) → rgb(60, 60, 60).
-    expect(out[0]).toBe(60);
-    expect(out[1]).toBe(60);
-    expect(out[2]).toBe(60);
+    // both read render-settings.json terrain.backgroundColor, which Landpot
+    // sets to the graphite ground #0b0d10 → rgb(11, 13, 16).
+    expect(out[0]).toBe(11);
+    expect(out[1]).toBe(13);
+    expect(out[2]).toBe(16);
     expect(out[3]).toBe(255);
   });
 

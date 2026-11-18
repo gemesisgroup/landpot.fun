@@ -450,7 +450,8 @@ export class UserSettings {
   }
 
   mapLayers() {
-    return this.getBool(MAP_LAYERS_KEY, true);
+    // Landpot: the plate board is the look; photo layers are opt-in.
+    return this.getBool(MAP_LAYERS_KEY, false);
   }
 
   alertFrame() {

@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/* Landpot type: Unbounded (display) + IBM Plex Mono (labels), OFL, bundled. */
+@import "@fontsource/unbounded/500.css";
+@import "@fontsource/unbounded/600.css";
+@import "@fontsource/unbounded/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "./landpot.css";
 @import "./halloween.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -23,36 +30,58 @@
 @theme {
   --default-ring-width: 3px;
   --default-ring-color: var(--color-malibu-blue);
-  --font-display: "OpenFront", Inter, Arial, sans-serif;
+  /* Landpot "Plates" palette (design/DESIGN.md). Token names stay upstream so
+     merges are clean; only the values change. */
+  --font-display: "Unbounded", Inter, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Openfront.io brand palette — see Openfront_Brand_Guidelines.pdf §4 */
-  --color-malibu-blue: #0084d1;
-  --color-aquarius: #3fa9f5;
-  --color-dawn-blue: #cccccc;
-  --color-bright-white: #ffffff;
-  --color-bright-blue: #1e90ff;
+  --color-malibu-blue: #c6ff3d;
+  --color-aquarius: #daff85;
+  --color-dawn-blue: #cbcfd6;
+  --color-bright-white: #f4f5f7;
+  --color-bright-blue: #c6ff3d;
+  --color-cyber-yellow: #ffb02e;
+  --color-limestone: #8a909c;
+  --color-deep-navy: #0b0d10;
+  --color-hex-cyan: #35e0ff;
+  --color-frame-orange: #ff5a4e;
+  --color-surface: #12151a;
 
-  /* Openfront Masters sub-brand */
-  --color-cyber-yellow: #ffd700;
-  --color-limestone: #999999;
+  /* Graphite replaces every neutral scale. */
+  --color-gray-50: #f4f5f7; --color-gray-100: #e6e8ec; --color-gray-200: #cbcfd6;
+  --color-gray-300: #a6acb6; --color-gray-400: #8a909c; --color-gray-500: #6a707b;
+  --color-gray-600: #4b505a; --color-gray-700: #343841; --color-gray-800: #1e2127;
+  --color-gray-900: #14171b; --color-gray-950: #0b0d10;
+  --color-zinc-50: #f4f5f7; --color-zinc-100: #e6e8ec; --color-zinc-200: #cbcfd6;
+  --color-zinc-300: #a6acb6; --color-zinc-400: #8a909c; --color-zinc-500: #6a707b;
+  --color-zinc-600: #4b505a; --color-zinc-700: #343841; --color-zinc-800: #1e2127;
+  --color-zinc-900: #14171b; --color-zinc-950: #0b0d10;
+  --color-slate-50: #f4f5f7; --color-slate-100: #e6e8ec; --color-slate-200: #cbcfd6;
+  --color-slate-300: #a6acb6; --color-slate-400: #8a909c; --color-slate-500: #6a707b;
+  --color-slate-600: #4b505a; --color-slate-700: #343841; --color-slate-800: #1e2127;
+  --color-slate-900: #14171b; --color-slate-950: #0b0d10;
+  --color-neutral-50: #f4f5f7; --color-neutral-100: #e6e8ec; --color-neutral-200: #cbcfd6;
+  --color-neutral-300: #a6acb6; --color-neutral-400: #8a909c; --color-neutral-500: #6a707b;
+  --color-neutral-600: #4b505a; --color-neutral-700: #343841; --color-neutral-800: #1e2127;
+  --color-neutral-900: #14171b; --color-neutral-950: #0b0d10;
 
-  /* Background & decorative — not for standalone UI use */
-  --color-deep-navy: #0a1628;
-  --color-hex-cyan: #00c8ff;
-  --color-frame-orange: #f97316;
+  /* Secondary accent: plate cyan instead of upstream blue. */
+  --color-blue-50: #e8fbff; --color-blue-100: #c9f5ff; --color-blue-200: #96ecff;
+  --color-blue-300: #5fe2ff; --color-blue-400: #35d3f5; --color-blue-500: #12b8de;
+  --color-blue-600: #0a93b5; --color-blue-700: #0b7390; --color-blue-800: #0f5a70;
+  --color-blue-900: #11485a; --color-blue-950: #082e3b;
+  --color-sky-300: #5fe2ff; --color-sky-400: #35d3f5; --color-sky-500: #12b8de;
+  --color-sky-600: #0a93b5; --color-sky-700: #0b7390;
 
-  /* App-specific surface colors */
-  --color-surface: #0a1628;
-
-  --shadow-malibu-blue: 0 0 15px rgba(0, 132, 209, 0.2);
-  --shadow-malibu-blue-soft: 0 0 12px rgba(0, 132, 209, 0.2);
-  --shadow-malibu-blue-strong: 0 0 15px rgba(0, 132, 209, 0.3);
-  --shadow-malibu-blue-pill: 0 0 6px rgba(0, 132, 209, 0.35);
-  --shadow-malibu-blue-ring-sm: 0 0 0 4px rgba(0, 132, 209, 0.2);
-  --shadow-malibu-blue-ring-lg: 0 0 0 6px rgba(0, 132, 209, 0.3);
-  --shadow-lobby-card-hover: 0 0 0 2px #0084d1, 0 0 20px rgba(0, 132, 209, 0.5);
+  --shadow-malibu-blue: 0 0 15px rgba(198, 255, 61, 0.2);
+  --shadow-malibu-blue-soft: 0 0 12px rgba(198, 255, 61, 0.2);
+  --shadow-malibu-blue-strong: 0 0 15px rgba(198, 255, 61, 0.3);
+  --shadow-malibu-blue-pill: 0 0 6px rgba(198, 255, 61, 0.35);
+  --shadow-malibu-blue-ring-sm: 0 0 0 4px rgba(198, 255, 61, 0.2);
+  --shadow-malibu-blue-ring-lg: 0 0 0 6px rgba(198, 255, 61, 0.3);
+  --shadow-lobby-card-hover: 0 0 0 2px #c6ff3d, 0 0 20px rgba(198, 255, 61, 0.5);
   --shadow-action-card-hover:
-    0 0 0 1px #0084d1, 0 0 12px rgba(0, 132, 209, 0.35);
+    0 0 0 1px #c6ff3d, 0 0 12px rgba(198, 255, 61, 0.35);
 }
 
 /* Match the in-game HUD surface; opacity affects the surface, not the controls. */

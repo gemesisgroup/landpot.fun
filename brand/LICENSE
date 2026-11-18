@@ -1,0 +1,6 @@
+Landpot brand assets (this directory)
+Copyright (c) 2026 Landpot contributors.
+
+These files replace OpenFront Inc.'s proprietary assets, which this fork does
+not use or redistribute. File names follow the upstream paths so the upstream
+code loads them unchanged; their content is Landpot's own.

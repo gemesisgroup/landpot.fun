@@ -54,25 +54,25 @@ export class DesktopNavBar extends LitElement {
     // not the sticky host, so the host's offset below a header ad stays exact.
     return html`
       <nav
-        class="hidden lg:flex w-full bg-zinc-900/90 backdrop-blur-md items-center justify-center gap-8 py-4 shrink-0 z-50 relative compact:[zoom:0.75]"
+        class="landpot-nav hidden lg:flex w-full bg-[rgb(11_13_16/0.72)] backdrop-blur-md border-b border-white/[0.06] items-center gap-7 px-8 py-3 shrink-0 z-50 relative compact:[zoom:0.75]"
       >
-        <div class="flex flex-col items-center justify-center">
-          <div class="h-8">
+        <div class="flex items-center gap-3 mr-auto">
+          <div class="h-7">
             <img
-              class="block h-full aspect-[1364/259]"
+              class="block h-full w-auto"
               src=${assetUrl("images/OpenFrontLogo.svg")}
-              alt="OpenFront"
+              alt="Landpot"
             />
           </div>
           <div
             id="game-version"
-            class="l-header__highlightText text-center"
+            class="l-header__highlightText lp-mono text-[11px] text-gray-500"
           ></div>
         </div>
         <button
           class="nav-menu-item ${
             currentPage === "page-play" ? "active" : ""
-          } text-white/70 hover:text-malibu-blue  font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue "
+          } text-white/70 hover:text-malibu-blue  lp-mono lowercase text-[13px] tracking-wide cursor-pointer transition-colors [&.active]:text-malibu-blue "
           data-page="page-play"
           data-i18n="main.play"
         ></button>
@@ -81,7 +81,7 @@ export class DesktopNavBar extends LitElement {
           <button
             class="nav-menu-item ${
               currentPage === "page-item-store" ? "active" : ""
-            } text-white/70 hover:text-malibu-blue  font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue "
+            } text-white/70 hover:text-malibu-blue  lp-mono lowercase text-[13px] tracking-wide cursor-pointer transition-colors [&.active]:text-malibu-blue "
             data-page="page-item-store"
             data-i18n="main.store"
             @click=${this._notifications.onStoreClick}
@@ -102,17 +102,17 @@ export class DesktopNavBar extends LitElement {
         <button
           class="nav-menu-item ${
             currentPage === "page-inventory" ? "active" : ""
-          } text-white/70 hover:text-malibu-blue font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue"
+          } text-white/70 hover:text-malibu-blue lp-mono lowercase text-[13px] tracking-wide cursor-pointer transition-colors [&.active]:text-malibu-blue"
           data-page="page-inventory"
           data-i18n="main.inventory"
         ></button>
         <button
-          class="nav-menu-item text-white/70 hover:text-malibu-blue  font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue "
+          class="nav-menu-item text-white/70 hover:text-malibu-blue  lp-mono lowercase text-[13px] tracking-wide cursor-pointer transition-colors [&.active]:text-malibu-blue "
           data-page="page-leaderboard"
           data-i18n="main.leaderboard"
         ></button>
         <button
-          class="no-game-portal nav-menu-item text-white/70 hover:text-blue-500 font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-blue-500"
+          class="no-game-portal nav-menu-item text-white/70 hover:text-malibu-blue lp-mono lowercase text-[13px] tracking-wide cursor-pointer transition-colors [&.active]:text-malibu-blue"
           data-page="page-clan"
           data-i18n="main.clans"
         ></button>
@@ -124,6 +124,19 @@ export class DesktopNavBar extends LitElement {
           <nav-utility-icons size="desktop"></nav-utility-icons>
           <nav-account-menu variant="desktop"></nav-account-menu>
         </div>
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          data-i18n-title="landpot.connect_wallet_soon"
+          class="lp-mono text-[13px] rounded-[10px] border border-white/20 px-4 py-2 text-white/80 cursor-not-allowed flex items-center gap-2"
+        >
+          <span data-i18n="landpot.connect_wallet"></span>
+          <span
+            class="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-gray-400"
+            data-i18n="landpot.pot_soon"
+          ></span>
+        </button>
       </nav>
     `;
   }

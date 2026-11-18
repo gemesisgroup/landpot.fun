@@ -45,6 +45,8 @@ describe("MapLayerController", () => {
     const settings = new UserSettings();
     settings.setGraphicsOverrides({});
     settings.removeCached(MAP_LAYERS_KEY);
+    // Landpot defaults Map Layers off; these tests cover the upstream "on" path.
+    if (!settings.mapLayers()) settings.toggleMapLayers();
   });
 
   it("applies each layer's stored state once the images load", async () => {

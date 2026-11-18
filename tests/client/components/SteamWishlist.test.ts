@@ -24,7 +24,8 @@ import type { SteamWishlist } from "../../../src/client/components/SteamWishlist
 import "../../../src/client/components/SteamWishlistButton";
 import { gamePortal } from "../../../src/client/GamePortal";
 
-describe("steam-wishlist", () => {
+// Landpot hides the Steam widget (LANDPOT_HIDE_STEAM in SteamWishlist.ts).
+describe.skip("steam-wishlist", () => {
   it("gives the widget's iframe Steam's light color scheme on the dark page", async () => {
     const el = document.createElement("steam-wishlist") as SteamWishlist;
     el.campaign = "test";
