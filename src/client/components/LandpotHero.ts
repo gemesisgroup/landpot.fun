@@ -1,5 +1,7 @@
 import { LitElement, html } from "lit";
-import { customElement } from "lit/decorators.js";
+import { customElement, state } from "lit/decorators.js";
+import { potConfig } from "../Pot";
+import { translateText } from "../Utils";
 
 /**
  * Landpot homepage hero (design/DESIGN.md, direction A "Plates"): an isometric
@@ -11,6 +13,7 @@ import { customElement } from "lit/decorators.js";
 @customElement("landpot-hero")
 export class LandpotHero extends LitElement {
   private stop: (() => void) | null = null;
+  @state() private potLive = false;
 
   createRenderRoot() {
     return this;
@@ -20,6 +23,9 @@ export class LandpotHero extends LitElement {
     super.connectedCallback();
     // Wait for the first render so the canvas host exists.
     void this.updateComplete.then(() => this.startBoard());
+    void potConfig().then((c) => {
+      this.potLive = c !== null;
+    });
   }
 
   disconnectedCallback() {
@@ -73,13 +79,16 @@ export class LandpotHero extends LitElement {
         </div>
         <div
           class="lp-glass pointer-events-none absolute z-10 right-4 top-4 sm:right-8 sm:top-8 flex items-center gap-3 rounded-xl px-4 py-2"
-          data-i18n-title="landpot.pot_soon_hint"
+          title=${translateText(
+            this.potLive ? "landpot.pot_live_hint" : "landpot.pot_soon_hint",
+          )}
         >
           <span class="lp-mono text-xs tracking-widest text-gray-400">POT</span>
-          <span
-            class="lp-display text-lg font-semibold text-malibu-blue"
-            data-i18n="landpot.pot_soon"
-          ></span>
+          <span class="lp-display text-lg font-semibold text-malibu-blue">
+            ${translateText(
+              this.potLive ? "landpot.pot_live" : "landpot.pot_soon",
+            )}
+          </span>
         </div>
       </section>
     `;

@@ -1,5 +1,7 @@
 import { LitElement, html } from "lit";
-import { customElement } from "lit/decorators.js";
+import { customElement, state } from "lit/decorators.js";
+import { potConfig } from "../Pot";
+import { translateText } from "../Utils";
 
 /**
  * Landpot round explainer under the hero (design/DESIGN.md: "Plates: a small
@@ -44,8 +46,17 @@ const STEPS: Step[] = [
 
 @customElement("landpot-strip")
 export class LandpotStrip extends LitElement {
+  @state() private potLive = false;
+
   createRenderRoot() {
     return this;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    void potConfig().then((c) => {
+      this.potLive = c !== null;
+    });
   }
 
   private board(step: Step) {
@@ -74,10 +85,11 @@ export class LandpotStrip extends LitElement {
             class="lp-mono rounded-md bg-malibu-blue px-2 py-1 text-[11px] font-medium tracking-widest"
             data-i18n="landpot.strip_badge"
           ></span>
-          <p
-            class="lp-mono text-xs leading-snug text-gray-300"
-            data-i18n="landpot.strip_note"
-          ></p>
+          <p class="lp-mono text-xs leading-snug text-gray-300">
+            ${translateText(
+              this.potLive ? "landpot.strip_note_live" : "landpot.strip_note",
+            )}
+          </p>
         </div>
         <ol class="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
           ${STEPS.map(
@@ -87,7 +99,7 @@ export class LandpotStrip extends LitElement {
                 <div class="min-w-0">
                   <div class="lp-mono text-[11px] text-gray-500">
                     0${i + 1}${
-                      step.soon
+                      step.soon && !this.potLive
                         ? html` ·
                             <span data-i18n="landpot.pot_soon"></span>`
                         : ""

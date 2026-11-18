@@ -45,6 +45,8 @@ export const CloseReason = {
   CannotJoin: "close_reason.cannot_join",
   NotAllowlisted: "close_reason.not_allowlisted",
   NotTrusted: "close_reason.not_trusted",
+  PotNotSeated: "close_reason.pot_not_seated",
+  PotUnavailable: "close_reason.pot_unavailable",
   ModeRetired: "close_reason.mode_retired",
   LobbyFull: "close_reason.lobby_full",
   WrongWorker: "close_reason.wrong_worker",

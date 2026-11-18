@@ -103,14 +103,17 @@ describe("the nav bars that host the cluster", () => {
     window.currentPageId = "page-play";
   });
 
-  it("puts the cogwheel in the desktop bar, immediately left of the avatar", async () => {
+  // Landpot: the wallet button replaces OpenFront's account menu and sits
+  // after the utility cluster, outside its divider.
+  it("puts the cogwheel in the desktop bar, before the wallet button", async () => {
     const bar = await mount("desktop-nav-bar");
     expect(settingsButton(bar)).not.toBeNull();
 
     const cluster = bar.querySelector("nav-utility-icons")!;
-    expect(cluster.nextElementSibling?.tagName.toLowerCase()).toBe(
-      "nav-account-menu",
-    );
+    expect(cluster.nextElementSibling).toBeNull();
+    expect(
+      cluster.parentElement?.nextElementSibling?.tagName.toLowerCase(),
+    ).toBe("landpot-wallet-button");
   });
 
   it("puts the cogwheel in the mobile top bar too", async () => {
@@ -118,8 +121,7 @@ describe("the nav bars that host the cluster", () => {
     const cluster = page.querySelector("nav-utility-icons")!;
     expect(cluster.getAttribute("size")).toBe("mobile");
     expect(settingsButton(cluster)).not.toBeNull();
-    expect(cluster.nextElementSibling?.tagName.toLowerCase()).toBe(
-      "nav-account-menu",
-    );
+    // Landpot: the wallet lives in the mobile sidebar, not the top bar.
+    expect(cluster.nextElementSibling).toBeNull();
   });
 });

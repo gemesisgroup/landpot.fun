@@ -56,6 +56,10 @@ import {
 import { isReplayShellHost } from "./VersionedReplay";
 
 // Landpot: action cards are plates - they lift on hover instead of scaling.
+
+// Landpot has no matchmaker behind its API (docs/LandpotAPI.md), so the
+// Ranked card stays hidden; the page and its modal are kept for later.
+const RANKED_ENABLED = false;
 const PRIMARY_ACTION = "bg-malibu-blue hover:bg-aquarius";
 const SECONDARY_ACTION = "lp-glass lp-lift hover:border-malibu-blue/40";
 const DISABLED = "opacity-50 cursor-not-allowed pointer-events-none";
@@ -694,7 +698,7 @@ export class GameModeSelector extends LitElement {
           }
         </div>
         <div
-          class="grid grid-cols-3 gap-4 sm:compact:gap-3 h-14 sm:col-span-2 sm:row-start-4"
+          class="grid ${RANKED_ENABLED ? "grid-cols-3" : "grid-cols-2"} gap-4 sm:compact:gap-3 h-14 sm:col-span-2 sm:row-start-4"
         >
           ${this.renderSmallActionCard(
             translateText("main.create"),
@@ -703,26 +707,30 @@ export class GameModeSelector extends LitElement {
             undefined,
             true,
           )}
-          ${this.renderSmallActionCard(
-            translateText("mode_selector.ranked_title"),
-            this.openRankedMenu,
-            SECONDARY_ACTION,
-            undefined,
-            true,
-            // Ranked admits trusted accounts only. A trusted viewer gets the
-            // green open lock; anyone else meets the red locks and the trust
-            // popup inside the ranked modal. Small, so it clears the label on
-            // narrow (mobile) buttons.
-            this.viewerTrusted
-              ? trustLockIcon(true, {
-                  tooltipTitle: translateText(
-                    "mode_selector.ranked_trust_tooltip_title",
-                  ),
-                  position: "top-1 right-1",
-                  small: true,
-                })
-              : nothing,
-          )}
+          ${
+            RANKED_ENABLED
+              ? this.renderSmallActionCard(
+                  translateText("mode_selector.ranked_title"),
+                  this.openRankedMenu,
+                  SECONDARY_ACTION,
+                  undefined,
+                  true,
+                  // Ranked admits trusted accounts only. A trusted viewer gets the
+                  // green open lock; anyone else meets the red locks and the trust
+                  // popup inside the ranked modal. Small, so it clears the label on
+                  // narrow (mobile) buttons.
+                  this.viewerTrusted
+                    ? trustLockIcon(true, {
+                        tooltipTitle: translateText(
+                          "mode_selector.ranked_trust_tooltip_title",
+                        ),
+                        position: "top-1 right-1",
+                        small: true,
+                      })
+                    : nothing,
+                )
+              : nothing
+          }
           ${this.renderSmallActionCard(
             translateText("main.join"),
             this.openJoinLobby,

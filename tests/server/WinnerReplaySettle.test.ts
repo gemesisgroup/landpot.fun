@@ -144,6 +144,7 @@ describe("settling a disputed winner vote by replay", () => {
         winner: ["player", C],
         allPlayersStats: stats,
         tick: 90,
+        territory: {},
       });
       await archivedOnce();
     });
@@ -209,7 +210,12 @@ describe("settling a disputed winner vote by replay", () => {
     await vote(clients[1], ["player", A]);
 
     const counted = await outcomesDuring(async () => {
-      resolveReplay({ winner: ["player", A], allPlayersStats: {}, tick: 90 });
+      resolveReplay({
+        winner: ["player", A],
+        allPlayersStats: {},
+        tick: 90,
+        territory: {},
+      });
       await archivedOnce();
     });
 
@@ -247,6 +253,7 @@ describe("settling a disputed winner vote by replay", () => {
         winner: ["player", A],
         allPlayersStats: honest,
         tick: 90,
+        territory: {},
       });
       await archivedOnce();
     });
@@ -281,7 +288,12 @@ describe("settling a disputed winner vote by replay", () => {
     await game.end();
     expect(replayWinner).toHaveBeenCalledTimes(1);
 
-    resolveReplay({ winner: ["player", B], allPlayersStats: {}, tick: 90 });
+    resolveReplay({
+      winner: ["player", B],
+      allPlayersStats: {},
+      tick: 90,
+      territory: {},
+    });
     await archivedOnce();
     expect(archived()[0].info.winner).toEqual(["player", B]);
     expect(archived()[0].info.statsAgreed).toBe(true);
@@ -326,6 +338,7 @@ describe("settling a disputed winner vote by replay", () => {
         winner: ["player", A],
         allPlayersStats: simulated,
         tick: 90,
+        territory: {},
       });
       await archivedOnce();
     });
@@ -441,7 +454,12 @@ describe("settling a disputed winner vote by replay", () => {
 
     expect(replayWinner).toHaveBeenCalledTimes(1);
     expect(archive).not.toHaveBeenCalled();
-    resolveReplay({ winner: ["player", A], allPlayersStats: {}, tick: 90 });
+    resolveReplay({
+      winner: ["player", A],
+      allPlayersStats: {},
+      tick: 90,
+      territory: {},
+    });
     await archivedOnce();
     expect(archived()[0].info.statsAgreed).toBe(true);
   });
@@ -456,7 +474,12 @@ describe("settling a disputed winner vote by replay", () => {
     expect(replayWinner).toHaveBeenCalledTimes(1);
     expect(archive).not.toHaveBeenCalled();
     const counted = await outcomesDuring(async () => {
-      resolveReplay({ winner: ["player", A], allPlayersStats: {}, tick: 90 });
+      resolveReplay({
+        winner: ["player", A],
+        allPlayersStats: {},
+        tick: 90,
+        territory: {},
+      });
       await archivedOnce();
     });
     expect(counted).toEqual({

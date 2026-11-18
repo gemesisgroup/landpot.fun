@@ -54,6 +54,8 @@ export class JoinLobbyModal extends BaseModal {
   @property({ attribute: false }) eventBus: EventBus | null = null;
 
   @state() private players: ClientInfo[] = [];
+  // Landpot: a paid lobby has no host; it starts when the escrow round does.
+  @state() private paidLobby = false;
   @state() private playerCount: number = 0;
   @state() private gameConfig: GameConfig | null = null;
   @state() private currentLobbyId: string = "";
@@ -207,9 +209,11 @@ export class JoinLobbyModal extends BaseModal {
         : null;
     const statusLabel =
       secondsRemaining === null
-        ? this.isPrivateLobby()
-          ? translateText("private_lobby.joined_waiting")
-          : translateText("public_lobby.waiting_for_players")
+        ? this.paidLobby
+          ? translateText("landpot.pot_lobby_waiting")
+          : this.isPrivateLobby()
+            ? translateText("private_lobby.joined_waiting")
+            : translateText("public_lobby.waiting_for_players")
         : secondsRemaining > 0
           ? translateText("public_lobby.starting_in", {
               time: renderDuration(secondsRemaining),
@@ -536,6 +540,7 @@ export class JoinLobbyModal extends BaseModal {
     this.leaveLobbyOnClose = true;
     this.hostedLobbiesLoaded = false;
     void this.hostedLobbySocket.start();
+    this.paidLobby = args?.paid === true;
     const lobbyId = typeof args?.lobbyId === "string" ? args.lobbyId : "";
     const lobbyInfo = args?.lobbyInfo as GameInfo | PublicGameInfo | undefined;
     if (lobbyId) {
@@ -640,6 +645,7 @@ export class JoinLobbyModal extends BaseModal {
   }
 
   protected onClose(): void {
+    this.paidLobby = false;
     this.hostedLobbySocket.stop();
     this.hostedLobbies = [];
     this.hostedLobbiesLoaded = false;
@@ -1071,7 +1077,9 @@ export class JoinLobbyModal extends BaseModal {
         translateText(
           spectator
             ? "private_lobby.spectating"
-            : "private_lobby.joined_waiting",
+            : this.paidLobby
+              ? "landpot.pot_lobby_waiting"
+              : "private_lobby.joined_waiting",
         ),
       );
 

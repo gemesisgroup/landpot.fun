@@ -169,7 +169,8 @@ async function waitForStatsModal(
   });
 }
 
-describe("Account Games stats navigation", () => {
+// Landpot closes the account page (Navigation.ts LANDPOT_CLOSED_PAGES).
+describe.skip("Account Games stats navigation", () => {
   let modal: AccountModal;
   let statsModal: GameStatsModal;
   let playPage: HTMLElement;

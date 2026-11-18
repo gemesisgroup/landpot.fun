@@ -3,9 +3,9 @@ import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
 import "./CosmeticBackground";
 import "./LandpotHero";
-import "./NavAccountMenu";
 import "./NavUtilityIcons";
 import "./LandpotStrip";
+import "./PaidMatch";
 import "./SteamWishlist";
 import "./StreamingNow";
 
@@ -66,14 +66,12 @@ export class PlayPage extends LitElement {
               />
             </div>
 
-            <!-- Right slot: bell, help, settings and the profile control. The menu is
-                 the account affordance on every platform now — on CrazyGames
-                 its "Sign in" item hands off to their SDK prompt. -->
+            <!-- Right slot: help and settings. The account control (the wallet)
+                 lives in the sidebar on mobile. -->
             <div
               class="col-start-3 justify-self-end shrink-0 flex items-center gap-0.5"
             >
               <nav-utility-icons size="mobile"></nav-utility-icons>
-              <nav-account-menu variant="mobile"></nav-account-menu>
             </div>
           </div>
         </div>
@@ -82,6 +80,12 @@ export class PlayPage extends LitElement {
         <div class="lg:hidden h-[calc(env(safe-area-inset-top)+56px)]"></div>
 
         <landpot-hero class="block sm:-mx-4 lg:mx-0"></landpot-hero>
+
+        <!-- Landpot: the open paid lobby and anything to claim (renders
+             nothing while paid matches are off). -->
+        <landpot-paid-match
+          class="block empty:hidden sm:-mx-4 lg:mx-0 -mt-2 mb-4 lg:mt-0"
+        ></landpot-paid-match>
 
         <!-- Top strip: news + identity on the left, Streaming Now on the right. The 2fr/1fr
              split only exists while the panel is live (.streaming-live via has-[]) —

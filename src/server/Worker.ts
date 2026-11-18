@@ -59,6 +59,7 @@ import { resolveVerifiedJoin } from "./Privilege";
 import { loadGatekeeper } from "./Gatekeeper";
 import { MapPlaylist } from "./MapPlaylist";
 import { setNoStoreHeaders } from "./NoStoreHeaders";
+import { httpPotApi, PaidLobbyHost } from "./PaidLobby";
 import { PrivilegeRefresher } from "./PrivilegeRefresher";
 import { startRankedCheckinLoops } from "./RankedCheckin";
 import { rejoinOrClose } from "./Rejoin";
@@ -303,21 +304,37 @@ export async function startWorker() {
   const lobbyService = new WorkerLobbyService(server, wss, gm, log);
   const singleplayerPresence = new SingleplayerPresence();
 
-  setTimeout(
-    () => {
-      // The ranked loop follows the deployment-active flag the master pushes
-      // to this worker (OPE-469): a draining, standby or fenced server keeps
-      // the games it has but stops offering new matches.
-      startRankedCheckinLoops({
-        gm,
-        playlist,
-        workerId,
-        log,
-        isActive: () => lobbyService.isDeploymentActive(),
-      });
-    },
-    1000 + Math.random() * 2000,
-  );
+  // Landpot paid lobbies: one worker keeps one open (docs/LandpotPot.md).
+  const paidLobbies =
+    ServerEnv.paidLobbiesEnabled() && workerId === 0
+      ? new PaidLobbyHost({
+          games: gm,
+          api: httpPotApi,
+          newGameId: () => ServerEnv.generateGameIdForWorker(workerId),
+          baseConfig: () => playlist.gameConfig("ffa"),
+          isActive: () => lobbyService.isDeploymentActive(),
+          log: (msg, fields) => log.info(msg, fields),
+        })
+      : null;
+  paidLobbies?.start();
+
+  if (ServerEnv.rankedMatchmakingEnabled()) {
+    setTimeout(
+      () => {
+        // The ranked loop follows the deployment-active flag the master pushes
+        // to this worker (OPE-469): a draining, standby or fenced server keeps
+        // the games it has but stops offering new matches.
+        startRankedCheckinLoops({
+          gm,
+          playlist,
+          workerId,
+          log,
+          isActive: () => lobbyService.isDeploymentActive(),
+        });
+      },
+      1000 + Math.random() * 2000,
+    );
+  }
 
   if (ServerEnv.otelEnabled()) {
     initWorkerMetrics(gm, lobbyService, singleplayerPresence);
@@ -681,6 +698,28 @@ export async function startWorker() {
         if (claims?.role === "banned") {
           ws.close(CloseCode.Banned, CloseReason.Banned);
           return;
+        }
+
+        // A paid match seats only wallets that paid its entry, joins and
+        // rejoins alike. Fails closed: if the escrow can't be asked, the
+        // player waits outside rather than sitting unpaid.
+        if (paidLobbies?.isPaid(clientMsg.gameID)) {
+          let admitted: boolean;
+          try {
+            admitted = await paidLobbies.admits(clientMsg.gameID, persistentId);
+          } catch (e) {
+            log.warn("paid seat check failed", {
+              gameID: clientMsg.gameID,
+              error: String(e),
+            });
+            ws.close(CloseCode.TryAgainLater, CloseReason.PotUnavailable);
+            return;
+          }
+          if (isSocketClosed(ws)) return;
+          if (!admitted) {
+            ws.close(CloseCode.Forbidden, CloseReason.PotNotSeated);
+            return;
+          }
         }
 
         if (clientMsg.type === "rejoin") {

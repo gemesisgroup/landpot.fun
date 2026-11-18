@@ -6,10 +6,12 @@ import {
 import { MapFiles } from "@openfront/engine-api/game/MapFiles";
 import {
   AllPlayersStats,
+  ClientID,
   GameStartInfo,
   Turn,
   Winner,
 } from "@openfront/engine-api/Schemas";
+import { Game } from "./game/Game";
 import { createGameRunner } from "./GameRunner";
 
 export interface ReplayedWinner {
@@ -19,6 +21,19 @@ export interface ReplayedWinner {
   allPlayersStats: AllPlayersStats;
   // The tick the simulation declared the result on; null if it never did.
   tick: number | null;
+  // Tiles each human player (keyed by clientID) owns on that tick, or after
+  // the last turn when there was no result. Dead players count 0. Landpot
+  // splits a paid match's pot in proportion to these (docs/LandpotPot.md).
+  territory: Record<ClientID, number>;
+}
+
+function territoryOf(game: Game): Record<ClientID, number> {
+  const out: Record<ClientID, number> = {};
+  for (const p of game.allPlayers()) {
+    const id = p.clientID();
+    if (id !== null) out[id] = p.isAlive() ? p.numTilesOwned() : 0;
+  }
+  return out;
 }
 
 /**
@@ -56,6 +71,7 @@ export async function replayWinner(
         winner: w.winner,
         allPlayersStats: w.allPlayersStats,
         tick: runner.game.ticks(),
+        territory: territoryOf(runner.game),
       };
     }
   }
@@ -63,5 +79,6 @@ export async function replayWinner(
     winner: undefined,
     allPlayersStats: runner.game.stats().stats(),
     tick: null,
+    territory: territoryOf(runner.game),
   };
 }

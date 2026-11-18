@@ -18,6 +18,10 @@ type LanguageMetadata = {
   svg: string;
 };
 
+// Landpot ships English only; the picker and the other locales stay in the
+// code so upstream merges stay clean.
+const LANDPOT_ENGLISH_ONLY = true;
+
 @customElement("lang-selector")
 export class LangSelector extends LitElement {
   @state() public translations: Record<string, string> | undefined;
@@ -126,9 +130,13 @@ export class LangSelector extends LitElement {
     // just how the DEFAULT is picked -- see defaultLocale, and note it is
     // consulted afresh each launch rather than persisted, so a player who
     // changes their Steam language sees the game follow.
-    const browserLocale = this.defaultLocale();
-    const savedLang = localStorage.getItem("lang");
-    const userLang = this.getClosestSupportedLang(savedLang ?? browserLocale);
+    // Landpot is English only (EnglishOnly.ts): no auto-detection, and a
+    // language saved by an earlier build is ignored.
+    const userLang = LANDPOT_ENGLISH_ONLY
+      ? "en"
+      : this.getClosestSupportedLang(
+          localStorage.getItem("lang") ?? this.defaultLocale(),
+        );
 
     const [defaultTranslations, translations] = await Promise.all([
       this.loadLanguage("en"),
@@ -302,6 +310,7 @@ export class LangSelector extends LitElement {
       "tutorial-panel",
       // Re-sends its strings to the clan map frame.
       "clan-map-view",
+      "landpot-wallet-button",
     ];
 
     document.title = this.translateText("main.title") ?? document.title;
@@ -413,6 +422,7 @@ export class LangSelector extends LitElement {
             svg: "uk_us_flag",
           });
 
+    if (LANDPOT_ENGLISH_ONLY) return html``;
     return html`
       <button
         id="lang-selector"

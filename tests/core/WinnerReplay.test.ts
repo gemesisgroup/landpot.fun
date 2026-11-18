@@ -87,6 +87,18 @@ describe("replayWinner", () => {
     expect(replayed.tick).toBe(turns.length);
   });
 
+  it("reports each human's territory on the result tick", async () => {
+    const { turns } = await playLive(P2);
+    const replayed = await replayWinner(gameStart(), turns, await mapFiles());
+    expect(Object.keys(replayed.territory).sort()).toEqual([P1, P2]);
+    // A player who disconnects keeps the land they held; both have some.
+    expect(replayed.territory[P1]).toBeGreaterThan(0);
+    expect(replayed.territory[P2]).toBeGreaterThan(0);
+    // Deterministic: a second replay gives the same counts.
+    const again = await replayWinner(gameStart(), turns, await mapFiles());
+    expect(again.territory).toEqual(replayed.territory);
+  });
+
   it("follows the turn log, not anyone's claim", async () => {
     const { turns } = await playLive(P1);
     const replayed = await replayWinner(gameStart(), turns, await mapFiles());

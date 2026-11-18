@@ -1,5 +1,7 @@
 // Add global mocks or configuration here if needed
 import "vitest-canvas-mock";
+// Landpot formats in en-US whatever the machine locale (src/client/EnglishOnly.ts).
+import "../src/client/EnglishOnly";
 // Registers the per-test DOM teardown. Imported here, and not from individual
 // test files, so its hooks are registered before any test file's own -- see the
 // hook-order note in that file.

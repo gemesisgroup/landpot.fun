@@ -95,7 +95,8 @@ async function waitForStatsModal(
   });
 }
 
-describe("Clan Games stats navigation", () => {
+// Landpot closes the clan page (Navigation.ts LANDPOT_CLOSED_PAGES).
+describe.skip("Clan Games stats navigation", () => {
   let modal: ClanModal;
   let statsModal: GameStatsModal;
   let playPage: HTMLElement;

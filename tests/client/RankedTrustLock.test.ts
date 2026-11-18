@@ -70,7 +70,8 @@ afterEach(() => {
   ClientEnv.reset();
 });
 
-describe("Ranked button trust lock", () => {
+// Landpot hides the Ranked card (RANKED_ENABLED in GameModeSelector.ts).
+describe.skip("Ranked button trust lock", () => {
   it("shows no lock before /users/@me has answered", async () => {
     const selector = await mount();
     expect(rankedLock(selector)).toBeNull();
@@ -107,7 +108,7 @@ describe("Ranked button trust lock", () => {
   });
 });
 
-describe("Ranked button opens the ranked modal regardless of trust", () => {
+describe.skip("Ranked button opens the ranked modal regardless of trust", () => {
   let showPage: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {

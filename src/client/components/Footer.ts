@@ -35,6 +35,13 @@ export class Footer extends LitElement {
     });
   }
 
+  // Open in place instead of reloading the app at the path.
+  private openLegal = (pageId: string) => (e: MouseEvent) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    window.showPage?.(pageId);
+  };
+
   render() {
     // Scaled to 3/4 on compact screens (styles.css), like the nav bar, from sm
     // up so phones keep their full-size footer.
@@ -84,9 +91,9 @@ export class Footer extends LitElement {
             class="text-xs mt-1 lg:mt-2 flex items-center justify-center gap-4 px-4"
           >
             <!-- AGPL-3.0 section 7(b): keep the upstream copyright notice.
-                 Section 13: link to this fork's source. Upstream's terms and
-                 privacy pages are OpenFront Inc.'s, so they are not linked;
-                 Landpot's own go here once written. -->
+                 Section 13: link to this fork's source. Landpot's own terms and
+                 privacy pages (LegalModal.ts) open in place; the hrefs are
+                 the shareable /terms and /privacy paths. -->
             <span data-i18n="main.copyright"></span>
             <span>
               Landpot ·
@@ -105,6 +112,20 @@ export class Footer extends LitElement {
                 class="underline hover:text-white transition-colors"
                 >Source</a
               >
+              ·
+              <a
+                href="/terms"
+                class="underline hover:text-white transition-colors"
+                data-i18n="landpot.legal_terms"
+                @click=${this.openLegal("page-terms")}
+              ></a>
+              ·
+              <a
+                href="/privacy"
+                class="underline hover:text-white transition-colors"
+                data-i18n="landpot.legal_privacy"
+                @click=${this.openLegal("page-privacy")}
+              ></a>
             </span>
           </div>
         </div>

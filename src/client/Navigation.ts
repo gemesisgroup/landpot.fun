@@ -1,4 +1,5 @@
 import { loadModal } from "./LazyModals";
+import { CONNECT_WALLET_EVENT } from "./Wallet";
 
 export function closeMobileSidebar() {
   const sidebar = document.getElementById("sidebar-menu");
@@ -14,8 +15,30 @@ export function closeMobileSidebar() {
   }
 }
 
+/**
+ * Pages backed by the closed OpenFront API that Landpot does not serve
+ * (docs/LandpotAPI.md). Their modals stay in the code for clean upstream
+ * merges; every way in (buttons deep in other modals, hash links) lands here
+ * and goes home instead.
+ */
+export const LANDPOT_CLOSED_PAGES: ReadonlySet<string> = new Set([
+  "page-item-store",
+  "page-inventory",
+  "page-leaderboard",
+  "page-clan",
+  "page-ranked",
+]);
+
 export function initNavigation() {
-  const showPage = (pageId: string) => {
+  const showPage = (requested: string) => {
+    let pageId = requested;
+    // OpenFront's sign-in page: in Landpot signing in means the wallet.
+    if (pageId === "page-account") {
+      window.dispatchEvent(new CustomEvent(CONNECT_WALLET_EVENT));
+      pageId = "page-play";
+    } else if (LANDPOT_CLOSED_PAGES.has(pageId)) {
+      pageId = "page-play";
+    }
     window.currentPageId = pageId;
 
     // Close mobile sidebar if a nav item was clicked

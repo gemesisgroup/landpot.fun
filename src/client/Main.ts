@@ -1,3 +1,5 @@
+// Landpot is English only; must run before anything formats a date or number.
+import "./EnglishOnly";
 import { GAME_ID_REGEX } from "@openfront/engine-api/Schemas";
 import {
   isRewardClaimable,
@@ -496,60 +498,84 @@ class Client {
     // Register modals with the URL router. Lobby modals (join/host) and
     // matchmaking are intentionally omitted — they own their own URL state
     // (path-based) or none at all.
-    modalRouter.register("store", {
+    // Landpot: no routes into pages its API does not serve (store, clans,
+    // ranked, accounts...), so old hash links fall through to the menu.
+    const closedRoutes = new Set([
+      "store",
+      "leaderboard",
+      "clan",
+      "account",
+      "account-settings",
+      "change-username",
+      "subscription",
+      "ranked",
+      "inventory",
+    ]);
+    const registerRoute: typeof modalRouter.register = (name, entry) => {
+      if (!closedRoutes.has(name)) modalRouter.register(name, entry);
+    };
+    registerRoute("store", {
       tag: "store-modal",
       pageId: "page-item-store",
     });
-    modalRouter.register("settings", {
+    registerRoute("settings", {
       tag: "user-setting",
       pageId: "page-settings",
     });
-    modalRouter.register("leaderboard", {
+    registerRoute("leaderboard", {
       tag: "leaderboard-modal",
       pageId: "page-leaderboard",
     });
-    modalRouter.register("clan", { tag: "clan-modal", pageId: "page-clan" });
-    modalRouter.register("account", {
+    registerRoute("clan", { tag: "clan-modal", pageId: "page-clan" });
+    registerRoute("account", {
       tag: "account-modal",
       pageId: "page-account",
     });
     // Profile-menu modals: popup style, so no pageId.
-    modalRouter.register("account-settings", { tag: "account-settings-modal" });
-    modalRouter.register("change-username", { tag: "change-username-modal" });
-    modalRouter.register("subscription", { tag: "subscription-modal" });
-    modalRouter.register("stats", {
+    registerRoute("account-settings", { tag: "account-settings-modal" });
+    registerRoute("change-username", { tag: "change-username-modal" });
+    registerRoute("subscription", { tag: "subscription-modal" });
+    registerRoute("stats", {
       tag: "game-stats-modal",
       pageId: "page-stats",
     });
-    modalRouter.register("profile", {
+    registerRoute("profile", {
       tag: "player-profile-modal",
       pageId: "page-profile",
     });
     // The canonical profile link, `/player/<id>` (see playerProfileUrl).
     modalRouter.registerPath("profile", playerProfileRouteArgs);
-    modalRouter.register("help", { tag: "help-modal", pageId: "page-help" });
-    modalRouter.register("news", { tag: "news-modal", pageId: "page-news" });
-    modalRouter.register("language", {
+    registerRoute("help", { tag: "help-modal", pageId: "page-help" });
+    // Landpot's legal pages, also at the clean paths /terms and /privacy.
+    registerRoute("terms", { tag: "terms-modal", pageId: "page-terms" });
+    registerRoute("privacy", { tag: "privacy-modal", pageId: "page-privacy" });
+    for (const doc of ["terms", "privacy"] as const) {
+      modalRouter.registerPath(doc, (location) =>
+        location.pathname.replace(/\/+$/, "") === `/${doc}` ? {} : null,
+      );
+    }
+    registerRoute("news", { tag: "news-modal", pageId: "page-news" });
+    registerRoute("language", {
       tag: "language-modal",
       pageId: "page-language",
     });
-    modalRouter.register("single-player", {
+    registerRoute("single-player", {
       tag: "single-player-modal",
       pageId: "page-single-player",
     });
-    modalRouter.register("ranked", {
+    registerRoute("ranked", {
       tag: "ranked-modal",
       pageId: "page-ranked",
     });
-    modalRouter.register("detailed-view", {
+    registerRoute("detailed-view", {
       tag: "detailed-view-modal",
       pageId: "page-detailed-view",
     });
-    modalRouter.register("troubleshooting", {
+    registerRoute("troubleshooting", {
       tag: "troubleshooting-modal",
       pageId: "page-troubleshooting",
     });
-    modalRouter.register("inventory", {
+    registerRoute("inventory", {
       tag: "inventory-modal",
       pageId: "page-inventory",
     });

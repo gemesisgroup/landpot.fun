@@ -17,6 +17,7 @@
     "src/scripts",
     "scripts/replay",
     "scripts/split-packages",
+    "scripts/landpot/*.ts",
     "vite.config.ts"
   ],
   "exclude": [

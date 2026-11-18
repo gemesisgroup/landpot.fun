@@ -17,7 +17,10 @@ const INK = "#0f1410";
 const LIME = "#c8f26b";
 const PAPER = "#f2ecdc";
 
-const wordmark = (fill, accent) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" role="img" aria-label="Landpot">
+const wordmark = (
+  fill,
+  accent,
+) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" role="img" aria-label="Landpot">
   <text x="0" y="88" font-family="Inter, Arial, sans-serif" font-size="96" font-weight="800" letter-spacing="-4" fill="${fill}">land<tspan fill="${accent}">pot</tspan></text>
 </svg>
 `;

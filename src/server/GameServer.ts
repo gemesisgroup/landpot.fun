@@ -141,6 +141,8 @@ const KICK_REASON_LOBBY_CREATOR = "kick_reason.lobby_creator";
 const KICK_REASON_ADMIN = "kick_reason.admin";
 const KICK_REASON_HOST_LEFT = "kick_reason.host_left";
 const KICK_REASON_MATCH_CANCELLED = "kick_reason.match_cancelled";
+const KICK_REASON_POT_CANCELLED = "kick_reason.pot_cancelled";
+const KICK_REASON_POT_NOT_SEATED = "kick_reason.pot_not_seated";
 
 export interface GameServerOptions {
   id: string;
@@ -239,6 +241,9 @@ export class GameServer {
   private paused = false;
   private _startTime: number | null = null;
   private hasReachedMaxPlayerCount: boolean = false;
+  // A paid lobby (src/server/PaidLobby.ts) waits in the lobby, full or not,
+  // until its round is started on chain; only releasePaidStart lets it go.
+  private paidHold = false;
 
   private endTurnIntervalID: ReturnType<typeof setInterval> | undefined;
 
@@ -897,6 +902,56 @@ export class GameServer {
 
   public numDesyncedClients(): number {
     return this.desync.count();
+  }
+
+  // ── paid lobbies (src/server/PaidLobby.ts) ──
+
+  public holdForPaidStart(): void {
+    this.paidHold = true;
+  }
+
+  public isPaidHeld(): boolean {
+    return this.paidHold;
+  }
+
+  /** persistentIDs of the players connected right now. */
+  public connectedPersistentIDs(): Set<string> {
+    return new Set(
+      this.clients
+        .active()
+        .filter((c) => !c.spectator)
+        .map((c) => c.persistentID),
+    );
+  }
+
+  /**
+   * The round is started on chain: seat exactly its depositors and start.
+   * Anyone else still connected is removed first, so the roster frozen at
+   * start() is the paid one.
+   */
+  public releasePaidStart(depositors: ReadonlySet<string>): void {
+    if (!this.paidHold || this.ended) return;
+    for (const c of [...this.clients.active()]) {
+      if (!depositors.has(c.persistentID)) {
+        this.kickClient(c.clientID, KICK_REASON_POT_NOT_SEATED);
+      }
+    }
+    this.paidHold = false;
+    this.setStartsAt(Date.now());
+    this.log.info("paid round started, starting match", {
+      gameID: this.id,
+      seated: this.playerCount(),
+    });
+  }
+
+  /** The round did not fill: close the lobby; entries are refunded on chain. */
+  public cancelPaidLobby(): void {
+    if (this.hasStarted() || this.ended) return;
+    for (const c of [...this.clients.active()]) {
+      this.kickClient(c.clientID, KICK_REASON_POT_CANCELLED);
+    }
+    this.paidHold = false;
+    this.ended = true;
   }
 
   // Matchmade ranked games (1v1/2v2/clan wars) must start with full
@@ -1619,6 +1674,9 @@ export class GameServer {
     }
     if (this.pastMaxDuration()) {
       return GamePhase.Finished;
+    }
+    if (this.paidHold) {
+      return GamePhase.Lobby;
     }
     const now = Date.now();
 

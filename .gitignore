@@ -42,3 +42,6 @@ records/*
 
 # Landpot: regenerable screenshots
 design/shots/
+
+# Landpot API local data (sqlite, dev signing key)
+.data/

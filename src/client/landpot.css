@@ -33,7 +33,11 @@ body {
       rgb(198 255 61 / 0.06),
       transparent 60%
     ),
-    radial-gradient(900px 600px at 10% 90%, rgb(53 224 255 / 0.05), transparent 60%),
+    radial-gradient(
+      900px 600px at 10% 90%,
+      rgb(53 224 255 / 0.05),
+      transparent 60%
+    ),
     var(--lp-ground);
 }
 #hex-grid::after {
@@ -174,7 +178,10 @@ attacks-display {
     linear-gradient(90deg, rgb(11 13 16 / 0.7) 1px, transparent 1px),
     linear-gradient(0deg, rgb(11 13 16 / 0.7) 1px, transparent 1px),
     linear-gradient(135deg, rgb(255 255 255 / 0.06), transparent 60%);
-  background-size: 7px 7px, 7px 7px, 7px 7px;
+  background-size:
+    7px 7px,
+    7px 7px,
+    7px 7px;
   transition:
     background-color 0.25s ease,
     transform 0.2s ease;

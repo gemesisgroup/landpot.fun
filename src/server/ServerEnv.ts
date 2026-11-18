@@ -317,6 +317,20 @@ export class ServerEnv {
     }
     return ServerEnv.cachedMachine;
   }
+  /**
+   * Ranked matchmaking long-polls the API's queue. Landpot's API has no
+   * matchmaker, so the loop stays off unless RANKED_MATCHMAKING=1.
+   */
+  static rankedMatchmakingEnabled(): boolean {
+    return process.env.RANKED_MATCHMAKING === "1";
+  }
+  /**
+   * Landpot paid lobbies (docs/LandpotPot.md): worker 0 keeps one open,
+   * driven by the API's escrow. Off unless LANDPOT_PAID_LOBBIES=1.
+   */
+  static paidLobbiesEnabled(): boolean {
+    return process.env.LANDPOT_PAID_LOBBIES === "1";
+  }
   static otelEnabled(): boolean {
     return (
       ServerEnv.gameEnv !== GameEnv.Dev &&
