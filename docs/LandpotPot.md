@@ -28,21 +28,23 @@ with real money before an audit.
 
 ## Rules
 
-| Rule              | Value                                                                       | Where                                                                                |
-| ----------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Players per match | 8–16                                                                        | program `open` (8 is the hard minimum); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
-| Entry             | equal for all                                                               | API `LANDPOT_POT_STAKE` (whole tokens)                                               |
-| No-show           | entry back less their fee share, floor(net ÷ depositors)                    | `Payouts.ts`                                                                         |
-| Match             | FFA on Caldera, 12 minutes; humans only: no bots, no nations, no alliances  | `packages/shared/src/PaidMatch.ts`, `paidGameConfig` in `src/server/PaidLobby.ts`    |
-| Burn              | 2% of the pot, floored, burned from the vault (the supply goes down)        | `initialize` `burn_bps`                                                              |
-| Treasury          | 3% of the pot, floored separately                                           | `initialize` `treasury_bps`                                                          |
-| Split             | the rest, in proportion to land held at the end                             | `src/api/pot/Payouts.ts`                                                             |
-| Rounding          | largest remainder; ties go to the lower keccak256(roundId ‖ wallet pubkey)  | `Payouts.ts`                                                                         |
-| Review hold       | 24–48 h after a result is proposed                                          | `initialize` `review_delay`                                                          |
-| Daily claim cap   | per wallet per UTC day                                                      | `initialize` `daily_cap`                                                             |
-| Max pot           | per round                                                                   | `initialize` `max_bank`                                                              |
-| Entries close     | 20 min after the lobby opens by default (at most 1 day)                     | API `LANDPOT_POT_FUNDING_MINUTES`                                                    |
-| Token             | no freeze authority; Token-2022 only with metadata extensions, or plain SPL | `check_mint` in the program                                                          |
+| Rule              | Value                                                                        | Where                                                                                |
+| ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Players per match | 8–16                                                                         | program `open` (8 is the hard minimum); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
+| Entry             | equal for all                                                                | API `LANDPOT_POT_STAKE` (whole tokens)                                               |
+| No-show           | entry back less their fee share, floor(net ÷ depositors)                     | `Payouts.ts`                                                                         |
+| Match             | FFA on Caldera, 12 minutes; humans only: no bots, no nations, no alliances   | `packages/shared/src/PaidMatch.ts`, `paidGameConfig` in `src/server/PaidLobby.ts`    |
+| Burn              | 2% of the pot, floored, burned from the vault (the supply goes down)         | `initialize` `burn_bps`                                                              |
+| Treasury          | 3% of the pot, floored separately                                            | `initialize` `treasury_bps`                                                          |
+| Split             | the rest, in proportion to land value at the end (crater tiles count ×3)     | `src/api/pot/Payouts.ts`, `landValue` in `engine-lib/game/Caldera.ts`                |
+| Units             | no nukes, missile silos, SAMs or warships                                    | `PAID_MATCH_DISABLED_UNITS`                                                          |
+| Eruption          | last 3 minutes: land outside an edge closing to ¼ of the width turns to rock | `PAID_MATCH_CALDERA`, `EruptionExecution`                                            |
+| Rounding          | largest remainder; ties go to the lower keccak256(roundId ‖ wallet pubkey)   | `Payouts.ts`                                                                         |
+| Review hold       | 24–48 h after a result is proposed                                           | `initialize` `review_delay`                                                          |
+| Daily claim cap   | per wallet per UTC day                                                       | `initialize` `daily_cap`                                                             |
+| Max pot           | per round                                                                    | `initialize` `max_bank`                                                              |
+| Entries close     | 20 min after the lobby opens by default (at most 1 day)                      | API `LANDPOT_POT_FUNDING_MINUTES`                                                    |
+| Token             | no freeze authority; Token-2022 only with metadata extensions, or plain SPL  | `check_mint` in the program                                                          |
 
 Worked example: 8 players × 20 entry is a pot of 160. Burn 3.2 (2%),
 treasury 4.8 (3%), net 152. Land held 100/50/30/20/0/0/0/0 pays
@@ -77,6 +79,31 @@ plains, 47% highland, 5% mountain. The plates differ by 0.01% in land,
 
 The match ends after 12 minutes (`PAID_MATCH_MINUTES`), or earlier if one
 player holds 80% of the land; land held then is the split.
+
+### Caldera rules
+
+The paid config carries `caldera` (`PAID_MATCH_CALDERA`, schema in
+`engine-api/Schemas.ts`); the maths is in `engine-lib/game/Caldera.ts`,
+shared by the simulation, the settlement replay and the client HUD.
+Distances are from the map centre in doubled tile units, integers only.
+
+- **The crater is worth more.** Land within a fifth of the map's width of
+  the centre (`craterPermille` 200) counts `craterWeight` 3 times. The
+  winner replay (`WinnerReplay.ts`) reports each alive player's land value,
+  not their tile count, so the split follows it.
+- **The eruption.** For the last `eruptionSeconds` (180) of the match,
+  `EruptionExecution` closes an edge on the centre once a second, evenly from
+  just past the farthest land down to a quarter of the width
+  (`eruptionPermille` 250). Land outside it becomes impassable rock
+  (`Game.setImpassable`): the owner loses it, structures on it go, and
+  nobody can take it again. Rock leaves the land count, so the 80% win
+  check is against the land still standing. The client draws rock as
+  cooling lava (`LAVA_ROCK`).
+- **The HUD.** `pot-share` shows the player's land value, their share of
+  all alive players' land value, the estimated payout (entry × players
+  here, less burn and treasury; no-show refunds are not subtracted) and
+  the time to the eruption. Paid matches replace the OpenFront tutorial
+  with three steps (`PAID_TUTORIAL_STEPS`).
 
 ## Flow
 

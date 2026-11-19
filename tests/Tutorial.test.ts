@@ -1,4 +1,5 @@
 import {
+  PAID_TUTORIAL_STEPS,
   STEP_DONE_LINGER_TICKS,
   TUTORIAL_STEPS,
   TutorialContext,
@@ -325,5 +326,29 @@ describe("TutorialProgress step counter", () => {
     p.update(after);
     expect(p.total(after)).toBe(total);
     expect(p.position(after)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("paid match tutorial", () => {
+  function settle(p: TutorialProgress, c: TutorialContext) {
+    for (let i = 0; i <= STEP_DONE_LINGER_TICKS; i++) p.update(c);
+  }
+
+  it("walks spawn, take land, then the crater rule, in three steps", () => {
+    const p = new TutorialProgress(PAID_TUTORIAL_STEPS);
+    const start = ctx();
+    expect(p.total(start)).toBe(3);
+    expect(p.current()?.id).toBe("paid_spawn");
+
+    settle(p, ctx({ hasSpawned: true, inSpawnPhase: true }));
+    expect(p.current()?.id).toBe("paid_spawn");
+    settle(p, ctx({ hasSpawned: true }));
+    expect(p.current()?.id).toBe("paid_land");
+
+    settle(p, ctx({ hasSpawned: true, attacking: true }));
+    expect(p.current()?.id).toBe("paid_crater");
+    p.acknowledge();
+    settle(p, ctx({ hasSpawned: true }));
+    expect(p.finished()).toBe(true);
   });
 });

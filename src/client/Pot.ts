@@ -25,6 +25,9 @@ export interface PotConfig {
   token: { address: string; symbol: string; decimals: number };
   /** Entry, token base units. */
   stake: string;
+  /** The escrow's cuts of the pot at settlement, basis points. */
+  burnBps: number;
+  treasuryBps: number;
   minPlayers: number;
   maxPlayers: number;
 }

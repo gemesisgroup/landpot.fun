@@ -70,7 +70,9 @@ import {
   EFFECT_PALETTE_BLOCKS,
   getPaletteSize,
   hexToRgb,
+  LAVA_ROCK,
   MAX_TRAIL_COLORS,
+  TerrainColorOverrides,
 } from "./utils/ColorUtils";
 import { renderDpr } from "./utils/Dpr";
 import {
@@ -179,6 +181,7 @@ export class GPURenderer {
   private skinAnchorCpu: Uint16Array;
   private canvas: HTMLCanvasElement;
   private settings: RenderSettings;
+  private readonly gameConfig: Config;
   private sceneTarget: RenderTarget;
   private raf: typeof requestAnimationFrame;
   private caf: typeof cancelAnimationFrame;
@@ -227,6 +230,7 @@ export class GPURenderer {
     // passed in, so every pass — including texture-baking ones like terrain —
     // is built with the final values. Live changes mutate this object in place.
     this.settings = settings;
+    this.gameConfig = config;
     this.raf = raf;
     this.caf = caf;
 
@@ -273,17 +277,7 @@ export class GPURenderer {
       terrainBytes,
       mapW,
       mapH,
-      {
-        backgroundColor:
-          hexToRgb(this.settings.terrain.backgroundColor) ?? undefined,
-        oceanColor: hexToRgb(this.settings.terrain.oceanColor) ?? undefined,
-        sandColor: hexToRgb(this.settings.terrain.sandColor) ?? undefined,
-        plainsColor: hexToRgb(this.settings.terrain.plainsColor) ?? undefined,
-        highlandColor:
-          hexToRgb(this.settings.terrain.highlandColor) ?? undefined,
-        mountainColor:
-          hexToRgb(this.settings.terrain.mountainColor) ?? undefined,
-      },
+      this.terrainColors(config),
     );
 
     // --- Terrain bytes R8UI texture (shared by map-layer passes) ---
@@ -1004,15 +998,23 @@ export class GPURenderer {
    * settings change needs this explicit rebuild.
    */
   rebuildTerrain(): void {
-    this.terrainPass.setTerrainColors({
-      backgroundColor:
-        hexToRgb(this.settings.terrain.backgroundColor) ?? undefined,
-      oceanColor: hexToRgb(this.settings.terrain.oceanColor) ?? undefined,
-      sandColor: hexToRgb(this.settings.terrain.sandColor) ?? undefined,
-      plainsColor: hexToRgb(this.settings.terrain.plainsColor) ?? undefined,
-      highlandColor: hexToRgb(this.settings.terrain.highlandColor) ?? undefined,
-      mountainColor: hexToRgb(this.settings.terrain.mountainColor) ?? undefined,
-    });
+    this.terrainPass.setTerrainColors(this.terrainColors(this.gameConfig));
+  }
+
+  private terrainColors(config: Config): TerrainColorOverrides {
+    const t = this.settings.terrain;
+    return {
+      backgroundColor: hexToRgb(t.backgroundColor) ?? undefined,
+      oceanColor: hexToRgb(t.oceanColor) ?? undefined,
+      sandColor: hexToRgb(t.sandColor) ?? undefined,
+      plainsColor: hexToRgb(t.plainsColor) ?? undefined,
+      highlandColor: hexToRgb(t.highlandColor) ?? undefined,
+      mountainColor: hexToRgb(t.mountainColor) ?? undefined,
+      // Landpot's Caldera eruption turns land to rock: show it as cooling
+      // lava, not as the void outside the map.
+      impassableColor:
+        config.gameConfig().caldera !== undefined ? LAVA_ROCK : undefined,
+    };
   }
 
   applyConquestEvents(events: ConquestFx[]): void {

@@ -43,6 +43,7 @@ import { OnboardingOverlay } from "./layers/OnboardingOverlay";
 import { PerformanceOverlay } from "./layers/PerformanceOverlay";
 import { PlayerInfoOverlay } from "./layers/PlayerInfoOverlay";
 import { PlayerPanel } from "./layers/PlayerPanel";
+import { PotShare } from "./layers/PotShare";
 import { ReplayPanel } from "./layers/ReplayPanel";
 import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
@@ -307,6 +308,12 @@ export function createRenderer(
   immunityTimer.game = game;
   immunityTimer.eventBus = eventBus;
 
+  const potShare = document.querySelector("pot-share") as PotShare;
+  if (!(potShare instanceof PotShare)) {
+    console.error("pot share not found");
+  }
+  potShare.game = game;
+
   const inGamePromo = document.querySelector("in-game-promo") as InGamePromo;
   if (!(inGamePromo instanceof InGamePromo)) {
     console.error("in-game promo not found");
@@ -369,6 +376,7 @@ export function createRenderer(
     ),
     spawnTimer,
     immunityTimer,
+    potShare,
     gameLeftSidebar,
     unitDisplay,
     gameRightSidebar,

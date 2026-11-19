@@ -97,7 +97,12 @@ export interface TerrainColorOverrides {
   plainsColor?: readonly [number, number, number];
   highlandColor?: readonly [number, number, number];
   mountainColor?: readonly [number, number, number];
+  /** Impassable land; the background colour when unset. */
+  impassableColor?: readonly [number, number, number];
 }
+
+/** Land the Caldera eruption has turned to rock (Landpot paid matches). */
+export const LAVA_ROCK: readonly [number, number, number] = [92, 38, 24];
 
 export function encodeTerrainTile(
   tb: number,
@@ -132,7 +137,7 @@ export function encodeTerrainTile(
   // with the area outside the map quad. Must match the clear colour in
   // Renderer.ts drawBaseLayer() (settings.terrain.backgroundColor).
   if (isLand && magnitude === 31) {
-    [r, g, b] = terrainColors.peak;
+    [r, g, b] = colors?.impassableColor ?? terrainColors.peak;
   } else if (isLand && isShoreline) {
     [r, g, b] = terrainColors.sand;
   } else if (isLand) {

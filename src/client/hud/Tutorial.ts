@@ -241,6 +241,21 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
 ];
 
+/**
+ * Landpot paid matches (Caldera rules): three steps instead of the whole
+ * OpenFront tour. Nukes, silos, SAMs and warships are off there, and what a
+ * newcomer must know is how the pot is won.
+ */
+export const PAID_TUTORIAL_STEPS: readonly TutorialStep[] = [
+  { id: "paid_spawn", isDone: (c) => c.hasSpawned && !c.inSpawnPhase },
+  {
+    id: "paid_land",
+    highlight: "territory",
+    isDone: (c) => c.attacking,
+  },
+  { id: "paid_crater", manual: true },
+];
+
 /** Ticks a completed step stays on screen (with its checkmark) before advancing. */
 export const STEP_DONE_LINGER_TICKS = 15;
 

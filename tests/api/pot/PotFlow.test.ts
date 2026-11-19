@@ -303,6 +303,8 @@ describe.skipIf(!validatorAvailable())(
         program: PROGRAM_ID.toBase58(),
         token: { address: mint.toBase58(), symbol: "LANDPOT", decimals: 6 },
         stake: STAKE.toString(),
+        burnBps: 200,
+        treasuryBps: 300,
         minPlayers: 8,
         maxPlayers: 16,
       });

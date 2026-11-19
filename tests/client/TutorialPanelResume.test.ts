@@ -5,11 +5,28 @@ import type { TutorialPanel } from "../../src/client/hud/layers/TutorialPanel";
 import type { UserSettings } from "../../src/client/UserSettings";
 import type { GameView } from "../../src/client/view";
 
-function firstTick(resumedFromSave: boolean) {
+function firstTick(
+  resumedFromSave: boolean,
+  opts: { dismissed?: boolean; paid?: boolean } = {},
+) {
   const myPlayer = vi.fn(() => null);
   const panel = document.createElement("tutorial-panel") as TutorialPanel;
   panel.game = {
-    config: () => ({ isReplay: () => false, gameConfig: () => ({}) }),
+    config: () => ({
+      isReplay: () => false,
+      gameConfig: () =>
+        opts.paid
+          ? {
+              maxTimerValue: 12,
+              caldera: {
+                craterPermille: 200,
+                craterWeight: 3,
+                eruptionSeconds: 180,
+                eruptionPermille: 250,
+              },
+            }
+          : {},
+    }),
     myPlayer,
     resumedFromSave: () => resumedFromSave,
     setOwnSpawnRing: vi.fn(),
@@ -17,7 +34,7 @@ function firstTick(resumedFromSave: boolean) {
   } as unknown as GameView;
   panel.eventBus = new EventBus();
   panel.userSettings = {
-    tutorialDismissed: () => false,
+    tutorialDismissed: () => opts.dismissed ?? false,
   } as unknown as UserSettings;
   panel.tick();
   return { myPlayer };
@@ -32,5 +49,18 @@ describe("TutorialPanel", () => {
   // until they next attack.
   it("stays off in a game resumed from a save", () => {
     expect(firstTick(true).myPlayer).not.toHaveBeenCalled();
+  });
+
+  it("stays off for a player who dismissed it", () => {
+    expect(
+      firstTick(false, { dismissed: true }).myPlayer,
+    ).not.toHaveBeenCalled();
+  });
+
+  // Three short steps on how the pot is won, even for OpenFront veterans.
+  it("runs the paid match steps even when the full tour was dismissed", () => {
+    expect(
+      firstTick(false, { dismissed: true, paid: true }).myPlayer,
+    ).toHaveBeenCalled();
   });
 });

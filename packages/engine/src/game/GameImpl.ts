@@ -320,6 +320,21 @@ export class GameImpl implements Game {
     this.recordTileUpdate(tile);
   }
 
+  setImpassable(tile: TileRef): void {
+    if (!this.isLand(tile) || this.isImpassable(tile)) return;
+    if (this.hasOwner(tile)) {
+      throw Error(`cannot set impassable, tile ${tile} has owner`);
+    }
+    if (this._map.hasFallout(tile)) {
+      this._map.setFallout(tile, false);
+    }
+    this._territoryVersion++;
+    // Rails and land routes go around impassable ground.
+    this._structureVersion++;
+    this._map.setImpassable(tile);
+    this.recordTileUpdate(tile);
+  }
+
   queueWaterConversion(tile: TileRef): void {
     if (!this.isLand(tile)) return;
     if (this.hasOwner(tile)) {

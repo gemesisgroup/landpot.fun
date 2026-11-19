@@ -18,6 +18,7 @@ import { GameView } from "../../view";
 import { PlayerView } from "../../view/PlayerView";
 import {
   TutorialContext,
+  PAID_TUTORIAL_STEPS,
   TutorialHighlight,
   TutorialHighlightEvent,
   TutorialProgress,
@@ -144,8 +145,12 @@ export class TutorialPanel extends LitElement implements Controller {
       // The steps walk a new game from its spawn; a resumed save is well
       // past that, and would hold the spawn ring up until the next attack.
       // The onboarding tutorial has its own guide (OnboardingOverlay).
+      // A paid match gets its own three steps, shown even to players who
+      // closed the full tour: they explain how the pot is won.
+      const paid = this.game.config().gameConfig().caldera !== undefined;
+      if (paid) this.progress = new TutorialProgress(PAID_TUTORIAL_STEPS);
       this.setActive(
-        !this.userSettings.tutorialDismissed() &&
+        (paid || !this.userSettings.tutorialDismissed()) &&
           !this.game.resumedFromSave() &&
           this.game.config().gameConfig().tutorial !== true,
       );
@@ -571,7 +576,11 @@ export class TutorialPanel extends LitElement implements Controller {
   private stepText(step: TutorialStep, done: boolean): string {
     // Multiplayer: the spot is picked but the spawn timer is still running,
     // so don't keep asking the player to pick one.
-    if (!done && step.id === "spawn" && this.ctx?.hasSpawned) {
+    if (
+      !done &&
+      (step.id === "spawn" || step.id === "paid_spawn") &&
+      this.ctx?.hasSpawned
+    ) {
       return translateText("tutorial.step.spawn_wait");
     }
     // Boats and ports need shore; landlocked players are sent to get some.
@@ -606,6 +615,19 @@ export class TutorialPanel extends LitElement implements Controller {
     return translateText(`tutorial.${block}.${id}`, {
       cost: renderNumber(this.costs.get(UnitType.City) ?? 0n),
       key: this.hotkeyFor(step),
+      ...this.paidParams(),
     });
+  }
+
+  /** The paid match's numbers, for the paid_* steps. */
+  private paidParams(): Record<string, number> {
+    const gc = this.game.config().gameConfig();
+    const rules = gc.caldera;
+    if (!rules) return {};
+    return {
+      minutes: gc.maxTimerValue ?? 0,
+      weight: rules.craterWeight,
+      eruption: Math.round(rules.eruptionSeconds / 60),
+    };
   }
 }

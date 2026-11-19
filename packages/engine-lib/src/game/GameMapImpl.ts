@@ -182,6 +182,20 @@ export class GameMapImpl implements GameMap {
     this.numLandTiles_--;
   }
 
+  /**
+   * Turns a land tile into impassable rock, the way the map file marks it:
+   * land bit, magnitude 31, no shoreline or ocean bit. It stops counting as
+   * land, like the map generator's impassable tiles. The caller makes sure
+   * nobody owns it.
+   */
+  setImpassable(ref: TileRef): void {
+    if (!this.isLand(ref) || this.isImpassable(ref)) return;
+    this.noteTerrainEdit(ref);
+    this.terrain[ref] =
+      (1 << GameMapImpl.IS_LAND_BIT) | GameMapImpl.IMPASSABLE_MAGNITUDE;
+    this.numLandTiles_--;
+  }
+
   setShorelineBit(ref: TileRef): void {
     this.noteTerrainEdit(ref);
     this.terrain[ref] |= 1 << GameMapImpl.SHORELINE_BIT;
@@ -538,14 +552,18 @@ export class GameMapImpl implements GameMap {
     const terrainChanged = this.terrain[tile] !== terrainByte;
     if (terrainChanged) {
       const wasLand = this.isLand(tile);
+      const wasCounted = wasLand && !this.isImpassable(tile);
       this.noteTerrainEdit(tile);
       this.terrain[tile] = terrainByte;
-      const isNowLand = Boolean(terrainByte & (1 << GameMapImpl.IS_LAND_BIT));
+      const isNowLand = this.isLand(tile);
+      const isCounted = isNowLand && !this.isImpassable(tile);
       // Water-derived caches key on waterVersion(): a packed update that flips
       // land/water must invalidate them just like setWater() does.
       if (wasLand !== isNowLand) this.waterVersion_++;
-      if (wasLand && !isNowLand) this.numLandTiles_--;
-      else if (!wasLand && isNowLand) this.numLandTiles_++;
+      // Impassable land is not counted, like in the map file: land turned to
+      // water and land turned to rock (an eruption) both leave the count.
+      if (wasCounted && !isCounted) this.numLandTiles_--;
+      else if (!wasCounted && isCounted) this.numLandTiles_++;
     }
     return terrainChanged;
   }

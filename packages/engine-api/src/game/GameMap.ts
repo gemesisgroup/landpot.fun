@@ -30,6 +30,8 @@ export interface GameMap {
   clearShorelineBit(ref: TileRef): void;
   setOcean(ref: TileRef): void;
   setMagnitude(ref: TileRef, value: number): void;
+  /** Land → impassable rock (no longer counted as land). Unowned tiles only. */
+  setImpassable(ref: TileRef): void;
   // State getters and setters (mutable)
   ownerID(ref: TileRef): number;
   hasOwner(ref: TileRef): boolean;

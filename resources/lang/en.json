@@ -2551,6 +2551,12 @@
     "nation": "Nation",
     "player": "Player"
   },
+  "pot_hud": {
+    "erupting": "Eruption: the edge is closing on the crater",
+    "eruption_in": "Eruption in {time}",
+    "land_value": "Land worth {value}, {crater} crater tiles ×{weight}",
+    "your_share": "Your share of the pot"
+  },
   "prestige": {
     "button": "Prestige",
     "caps": "Caps",
@@ -3215,6 +3221,9 @@
       "launch_atom": "Your silo is armed! Press {key}, then click a neighbor's territory to launch an Atom Bomb.",
       "mirv_info": "MIRV — a massive missile attack to cripple your enemy.",
       "no_coast": "You have no coastline yet. Water access is very important — it lets you send boats, build ports and trade by sea. Expand your territory until it reaches the coast.",
+      "paid_crater": "The crater in the middle counts ×{weight}. For the last {eruption} minutes the island erupts from the edge in, and burnt land is gone for good: end the match on the crater.",
+      "paid_land": "Take land. When the {minutes} minutes run out, the pot is split by the land each player holds.",
+      "paid_spawn": "Pick your plate. All of them are the same shape, so no start is better than another.",
       "port_info_ships": "Ports send out trade ships, which earn you gold.",
       "port_info_warships": "Ports can also be used to construct warships.",
       "propose_alliance": "Allies secure your borders. Right-click the nation marked with a target and propose an alliance.",

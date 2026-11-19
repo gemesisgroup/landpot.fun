@@ -6,6 +6,8 @@ import {
 } from "@openfront/engine-api/game/GameTypes";
 import type { GameConfig } from "@openfront/engine-api/Schemas";
 import {
+  PAID_MATCH_CALDERA,
+  PAID_MATCH_DISABLED_UNITS,
   PAID_MATCH_MAP,
   PAID_MATCH_MINUTES,
 } from "@openfront/shared/PaidMatch";
@@ -130,6 +132,10 @@ export function paidGameConfig(
     // ...or earlier at the default 80%, never lowered by overtime.
     winThresholdTenths: undefined,
     overtime: undefined,
+    doomsdayClock: undefined,
+    // The crater is worth more, and the island erupts toward it at the end.
+    caldera: PAID_MATCH_CALDERA,
+    disabledUnits: PAID_MATCH_DISABLED_UNITS,
     publicGameModifiers: undefined,
     difficulty: Difficulty.Medium,
     maxPlayers,

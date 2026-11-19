@@ -1047,6 +1047,9 @@ export class GameView implements GameLike {
   setMagnitude(ref: TileRef, value: number): void {
     this._map.setMagnitude(ref, value);
   }
+  setImpassable(ref: TileRef): void {
+    this._map.setImpassable(ref);
+  }
   ownerID(ref: TileRef): number {
     return this._map.ownerID(ref);
   }

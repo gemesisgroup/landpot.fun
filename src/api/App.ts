@@ -610,6 +610,7 @@ export function createApp(deps: AppDeps): express.Express {
       program: config.pot!.programId,
       token,
       stake: (await pot.stakeUnits()).toString(),
+      ...(await pot.fees()),
       minPlayers: pot.rules.minPlayers,
       maxPlayers: pot.rules.maxPlayers,
     });

@@ -134,6 +134,11 @@ export class PotService {
     return this.chain.token();
   }
 
+  /** The escrow's burn and treasury cuts, basis points of the pot. */
+  fees(): Promise<{ burnBps: number; treasuryBps: number }> {
+    return this.chain.fees();
+  }
+
   async stakeUnits(): Promise<bigint> {
     const { decimals } = await this.chain.token();
     return this.deps.rules.stakeTokens * 10n ** BigInt(decimals);

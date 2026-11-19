@@ -11,6 +11,7 @@ import {
   Turn,
   Winner,
 } from "@openfront/engine-api/Schemas";
+import { landValue } from "@openfront/engine-lib/game/Caldera";
 import { Game } from "./game/Game";
 import { createGameRunner } from "./GameRunner";
 
@@ -21,17 +22,21 @@ export interface ReplayedWinner {
   allPlayersStats: AllPlayersStats;
   // The tick the simulation declared the result on; null if it never did.
   tick: number | null;
-  // Tiles each human player (keyed by clientID) owns on that tick, or after
-  // the last turn when there was no result. Dead players count 0. Landpot
-  // splits a paid match's pot in proportion to these (docs/LandpotPot.md).
+  // Land each human player (keyed by clientID) holds on that tick, or after
+  // the last turn when there was no result: their tile count, with crater
+  // tiles weighted under the game's Caldera rules (engine-lib/game/Caldera).
+  // Dead players count 0. Landpot splits a paid match's pot in proportion to
+  // these (docs/LandpotPot.md).
   territory: Record<ClientID, number>;
 }
 
 function territoryOf(game: Game): Record<ClientID, number> {
   const out: Record<ClientID, number> = {};
+  const rules = game.config().gameConfig().caldera;
   for (const p of game.allPlayers()) {
     const id = p.clientID();
-    if (id !== null) out[id] = p.isAlive() ? p.numTilesOwned() : 0;
+    if (id === null) continue;
+    out[id] = p.isAlive() ? landValue(game.map(), rules, p.tiles()) : 0;
   }
   return out;
 }

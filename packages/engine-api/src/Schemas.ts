@@ -217,6 +217,19 @@ export const DoomsdayClockConfigSchema = z.object({
   speed: z.enum(["slow", "normal", "fast", "veryfast"]).optional(),
 });
 
+// Landpot's paid-match rules (docs/LandpotPot.md, engine-lib/game/Caldera.ts).
+// Distances are from the map's centre, in thousandths of the map's width.
+// Land within craterPermille counts craterWeight times at the end of the
+// match. For the last eruptionSeconds of a timed match, land beyond a radius
+// that shrinks evenly down to eruptionPermille turns to impassable rock.
+export const CalderaConfigSchema = z.object({
+  craterPermille: zb.uint({ max: 500 }),
+  craterWeight: zb.uint({ min: 1, max: 10 }),
+  eruptionSeconds: zb.uint({ max: 3600 }),
+  eruptionPermille: zb.uint({ max: 750 }),
+});
+export type CalderaConfig = z.infer<typeof CalderaConfigSchema>;
+
 // Overtime (anti-stalemate). After startMinutes of game time the tile share
 // required to win drops steadily from the 80% base at a fixed rate (see
 // OVERTIME_DEFAULTS in Config.ts), so the leading side eventually crosses the
@@ -266,6 +279,7 @@ export const GameConfigSchema = z.object({
   gameMapSize: z.enum(GameMapSize),
   doomsdayClock: DoomsdayClockConfigSchema.optional(),
   overtime: OvertimeConfigSchema.optional(),
+  caldera: CalderaConfigSchema.optional(),
   publicGameModifiers: z
     .object({
       isCompact: z.boolean().optional(),

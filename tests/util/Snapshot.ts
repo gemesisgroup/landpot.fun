@@ -177,6 +177,10 @@ const DERIVED_FIELDS = new Set<string>([
   "mirvWorthSavingMemo",
   // AiAttackBehavior: only read in the tick it was written in
   "sentThisTick",
+  // EruptionExecution: the burn order, rebuilt from the map after a restore
+  "eruptionOrder",
+  "eruptionDist2",
+  "eruptionNext",
 ]);
 
 // Search engines whose fields are per-query scratch (stamps, scores, open
