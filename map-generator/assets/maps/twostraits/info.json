@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../info.schema.json",
+  "id": "TwoStraits",
+  "name": "Two Straits",
+  "translation_key": "map.twostraits",
+  "categories": ["fictional"],
+  "author": "Landpot",
+  "description": "Two mirrored continents face each other across a channel split by a long isle. The Central Strait is the short way across; the Northern Passage is the long way round. Iron lies between the starts and on the islands.",
+  "nations": [
+    { "coordinates": [250, 230], "flag": "", "name": "Northmarch" },
+    { "coordinates": [250, 690], "flag": "", "name": "Southvale" },
+    { "coordinates": [120, 400], "flag": "", "name": "Westhold" },
+    { "coordinates": [1149, 230], "flag": "", "name": "Ironreach" },
+    { "coordinates": [1149, 690], "flag": "", "name": "Coalport" },
+    { "coordinates": [1279, 400], "flag": "", "name": "Eastgate" }
+  ]
+}

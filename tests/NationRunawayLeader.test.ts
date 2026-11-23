@@ -4,6 +4,7 @@ import {
   PlayerInfo,
   PlayerType,
   Tick,
+  UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { AttackExecution } from "@openfront/engine/execution/AttackExecution";
@@ -24,15 +25,16 @@ async function setupStripes(
   difficulty: Difficulty,
   widths: [number, number, number, number] = [10, 140, 20, 30],
   gameMode: GameMode = GameMode.FFA,
+  frontTypes = [PlayerType.Human, PlayerType.Human],
 ) {
   const game = await setup(
     "big_plains",
     { difficulty, gameMode, playerTeams: 2 },
     [
       new PlayerInfo("helper", PlayerType.Human, null, "helper_id"),
-      new PlayerInfo("leader", PlayerType.Human, null, "leader_id"),
+      new PlayerInfo("leader", frontTypes[0], null, "leader_id"),
       new PlayerInfo("nation", PlayerType.Nation, null, "nation_id"),
-      new PlayerInfo("runnerUp", PlayerType.Human, null, "runner_up_id"),
+      new PlayerInfo("runnerUp", frontTypes[1], null, "runner_up_id"),
     ],
   );
   const players = ["helper_id", "leader_id", "nation_id", "runner_up_id"].map(
@@ -194,6 +196,75 @@ describe("Attacking a runaway leader - end-to-end via maybeAttack", () => {
           e instanceof AttackExecution && e.targetID() === target.id(),
       );
   }
+
+  it.each([Difficulty.Hard, Difficulty.Impossible])(
+    "%s prefers the equally sized front with a committed army",
+    async (difficulty) => {
+      const { game, helper, leader, nation, runnerUp, attackBehavior } =
+        await setupStripes(difficulty, [20, 60, 60, 60]);
+      nation.setTroops(game.config().maxTroops(nation));
+      leader.setTroops(nation.troops() * 0.4);
+      runnerUp.setTroops(nation.troops() * 0.35);
+      leader.createAttack(helper, leader.troops() * 2, null, new Set());
+      const spy = vi.spyOn(game, "addExecution");
+      attackBehavior.maybeAttack();
+      expect(attacksOn(spy, leader)).toHaveLength(1);
+      expect(attacksOn(spy, runnerUp)).toHaveLength(0);
+    },
+  );
+
+  it("prefers a capturable economy across two otherwise equal fronts", async () => {
+    const { game, nation, leader, runnerUp, attackBehavior } =
+      await setupStripes(Difficulty.Hard, [20, 60, 60, 60]);
+    nation.setTroops(game.config().maxTroops(nation));
+    for (const p of [leader, runnerUp]) p.setTroops(nation.troops() * 0.35);
+    runnerUp.buildUnit(UnitType.Factory, game.ref(170, 80), {});
+    const spy = vi.spyOn(game, "addExecution");
+    attackBehavior.maybeAttack();
+    expect(attacksOn(spy, runnerUp)).toHaveLength(1);
+    expect(attacksOn(spy, leader)).toHaveLength(0);
+  });
+
+  it.each<[Difficulty, PlayerType, PlayerType]>([
+    [Difficulty.Hard, PlayerType.Human, PlayerType.Nation],
+    [Difficulty.Hard, PlayerType.Nation, PlayerType.Human],
+    [Difficulty.Impossible, PlayerType.Human, PlayerType.Nation],
+    [Difficulty.Medium, PlayerType.Human, PlayerType.Nation],
+  ])(
+    "%s chooses the open %s/%s front when the other garrison is already overwhelmed",
+    async (difficulty, busyType, openType) => {
+      const { game, nation, helper, leader, runnerUp, attackBehavior } =
+        await setupStripes(difficulty, [20, 60, 60, 60], GameMode.FFA, [
+          busyType,
+          openType,
+        ]);
+      nation.setTroops(game.config().maxTroops(nation));
+      leader.setTroops(nation.troops() * 0.45);
+      runnerUp.setTroops(nation.troops() * 0.5);
+      helper.createAttack(leader, leader.troops() * 2, null, new Set());
+      const spy = vi.spyOn(game, "addExecution");
+      attackBehavior.maybeAttack();
+      expect(attacksOn(spy, runnerUp)).toHaveLength(1);
+      expect(attacksOn(spy, leader)).toHaveLength(0);
+    },
+  );
+
+  it("still attacks a neighboring nation after an inland boat attempt fails", async () => {
+    const { game, nation, leader, runnerUp, attackBehavior } =
+      await setupStripes(Difficulty.Hard, [20, 60, 60, 60], GameMode.FFA, [
+        PlayerType.Nation,
+        PlayerType.Human,
+      ]);
+    nation.setTroops(game.config().maxTroops(nation));
+    leader.setTroops(nation.troops() * 0.1);
+    runnerUp.setTroops(nation.troops() * 0.4);
+    vi.spyOn(attackBehavior["random"], "chance").mockImplementation(
+      (odds) => odds === 10,
+    );
+    const spy = vi.spyOn(game, "addExecution");
+    attackBehavior.maybeAttack();
+    expect(attacksOn(spy, leader)).toHaveLength(1);
+  });
 
   // The nation is well above its trigger ratio; the runner-up is too strong
   // to be a juicy target but still weaker than the nation.

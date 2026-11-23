@@ -13,6 +13,7 @@ import { TribeExecution } from "@openfront/engine/execution/TribeExecution";
 import { Game, Player } from "@openfront/engine/game/Game";
 import { MockInstance } from "vitest";
 import { setup } from "./util/Setup";
+import { UseRealAttackLogic } from "./util/TestConfig";
 import { executeTicks } from "./util/utils";
 
 let game: Game;
@@ -24,6 +25,8 @@ async function setupStripes(stripes: [string, PlayerType][]) {
     "big_plains",
     {},
     stripes.map(([id, type]) => new PlayerInfo(id, type, null, id)),
+    undefined,
+    UseRealAttackLogic,
   );
   const owners = stripes.map(([id]) => game.player(id));
   game.map().forEachTile((tile) => {
@@ -115,19 +118,127 @@ describe("Tribe attacks", () => {
     );
     const spy = vi.spyOn(game, "addExecution");
 
-    behavior.attackRandomTarget();
+    behavior.defend(false);
 
     expect(attackTargets(spy)).toEqual(["big"]);
   });
 
-  it("attacks a neighboring bot when it spares the humans", async () => {
+  it("answers a committed attack between decisions even below the troop trigger", async () => {
+    await setupStripes([
+      ["tribe", PlayerType.Bot],
+      ["enemy", PlayerType.Human],
+    ]);
+    const exec = tribeExecution();
+    exec.tick(exec["attackTick"]);
+    tribe.setTroops(10_000);
+    const enemy = game.player("enemy");
+    enemy.setTroops(1000);
+    enemy.createAttack(tribe, 5000, null, new Set());
+    const spy = vi.spyOn(game, "addExecution");
+    exec.tick(exec["attackTick"] + 8);
+    expect(attackTargets(spy)).toEqual(["enemy"]);
+  });
+
+  it.each([0.01, 0.7, 1.1])(
+    "keeps an incoming force of %s times its garrison covered",
+    async (fraction) => {
+      await setupStripes([
+        ["tribe", PlayerType.Bot],
+        ["enemy", PlayerType.Human],
+      ]);
+      tribe.relinquish(game.ref(10, 10));
+      const enemy = game.player("enemy");
+      const home = tribe.troops();
+      enemy.setTroops(home * 2);
+      enemy.createAttack(tribe, home * fraction, null, new Set());
+      const exec = tribeExecution();
+      const spy = vi.spyOn(game, "addExecution");
+      exec.tick(exec["attackTick"]);
+      const orders = spy.mock.calls
+        .map(([e]) => e)
+        .filter((e) => e instanceof AttackExecution);
+      if (fraction > 1) {
+        expect(orders).toHaveLength(0);
+      } else {
+        expect(orders).toHaveLength(1);
+        expect(orders[0].targetID()).toBe(game.terraNullius().id());
+        expect(home - orders[0]["startTroops"]!).toBeGreaterThanOrEqual(
+          home * fraction,
+        );
+      }
+    },
+  );
+
+  it("holds the garrison when simultaneous fronts exceed it", async () => {
+    await setupStripes([
+      ["left", PlayerType.Human],
+      ["tribe", PlayerType.Bot],
+      ["right", PlayerType.Human],
+    ]);
+    tribe.relinquish(game.ref(100, 10));
+    const home = tribe.troops();
+    for (const id of ["left", "right"]) {
+      const attacker = game.player(id);
+      attacker.setTroops(home * 2);
+      attacker.createAttack(tribe, home * 0.6, null, new Set());
+    }
+    const exec = tribeExecution();
+    const spy = vi.spyOn(game, "addExecution");
+    exec.tick(exec["attackTick"]);
+    expect(attackTargets(spy)).toEqual([]);
+  });
+
+  it("uses a small detachment to finish a tiny target", async () => {
+    await setupStripes([
+      ["tribe", PlayerType.Bot],
+      ["enemy", PlayerType.Human],
+    ]);
+    const enemy = game.player("enemy");
+    for (const tile of [...enemy.tiles()]) {
+      if (game.x(tile) !== 100 || game.y(tile) > 3) tribe.conquer(tile);
+    }
+    enemy.setTroops(10);
+    const behavior = new TribeAttackBehavior(
+      new PseudoRandom(42),
+      game,
+      tribe,
+      0.5,
+      0.3,
+      0.2,
+    );
+    const spy = vi.spyOn(game, "addExecution");
+    behavior.attackBestNeighbor();
+    const order = spy.mock.calls
+      .map(([e]) => e)
+      .find((e) => e instanceof AttackExecution);
+    expect(order?.targetID()).toBe(enemy.id());
+    expect(order!["startTroops"]).toBeLessThan(tribe.troops() * 0.1);
+    executeTicks(game, 10);
+    expect(enemy.isAlive()).toBe(false);
+  });
+
+  it("rediscovers free land after an enclosed border opens", async () => {
+    await setupStripes([
+      ["tribe", PlayerType.Bot],
+      ["enemy", PlayerType.Human],
+    ]);
+    const exec = tribeExecution();
+    playTwoRounds(exec);
+    expect(exec["neighborsTerraNullius"]).toBe(false);
+    tribe.relinquish(game.ref(10, 10));
+    const spy = vi.spyOn(game, "addExecution");
+    exec.tick(exec["attackTick"] + 4 * exec["attackRate"]);
+    expect(attackTargets(spy)).toEqual([game.terraNullius().id()]);
+  });
+
+  it("prefers the lightly defended neighbor", async () => {
     await setupStripes([
       ["human", PlayerType.Human],
       ["tribe", PlayerType.Bot],
       ["bot", PlayerType.Bot],
     ]);
     const random = new PseudoRandom(42);
-    vi.spyOn(random, "chance").mockReturnValue(true);
+    game.player("human").setTroops(tribe.troops() * 2);
     const behavior = new TribeAttackBehavior(
       random,
       game,
@@ -138,14 +249,14 @@ describe("Tribe attacks", () => {
     );
     const spy = vi.spyOn(game, "addExecution");
 
-    behavior.attackRandomTarget();
+    behavior.attackBestNeighbor();
 
     expect(attackTargets(spy)).toEqual(["bot"]);
   });
 });
 
 describe("Tribe upkeep", () => {
-  it("deletes the structures it holds, one per round", async () => {
+  it("preserves captured economic structures", async () => {
     await setupStripes([
       ["tribe", PlayerType.Bot],
       ["human", PlayerType.Human],
@@ -161,7 +272,21 @@ describe("Tribe upkeep", () => {
     const deletions = spy.mock.calls.filter(
       (c) => c[0] instanceof DeleteUnitExecution,
     );
-    expect(deletions).toHaveLength(1);
+    expect(deletions).toHaveLength(0);
+  });
+
+  it("dismantles a captured silo the tribe cannot use", async () => {
+    await setupStripes([
+      ["tribe", PlayerType.Bot],
+      ["human", PlayerType.Human],
+    ]);
+    tribe.buildUnit(UnitType.MissileSilo, game.ref(10, 10), {});
+    executeTicks(game, game.config().deleteUnitCooldown());
+    const spy = vi.spyOn(game, "addExecution");
+    playTwoRounds(tribeExecution());
+    expect(
+      spy.mock.calls.filter(([e]) => e instanceof DeleteUnitExecution),
+    ).toHaveLength(1);
   });
 
   it("renews an alliance when its ally asks", async () => {

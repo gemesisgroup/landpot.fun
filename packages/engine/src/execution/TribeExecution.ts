@@ -1,4 +1,4 @@
-import { Structures } from "@openfront/engine-api/game/GameTypes";
+import { UnitType } from "@openfront/engine-api/game/GameTypes";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
   VersionedSchema,
@@ -54,7 +54,18 @@ export class TribeExecution implements Execution {
   }
 
   tick(ticks: number) {
-    if (ticks % this.attackRate !== this.attackTick) return;
+    if (ticks % this.attackRate !== this.attackTick) {
+      // Stagger emergency reactions. Peaceful tribes keep their normal cadence.
+      if (
+        ticks % 8 === this.attackTick % 8 &&
+        this.attackBehavior &&
+        this.tribe.isAlive() &&
+        !this.mg.config().gameConfig().tutorial
+      ) {
+        this.attackBehavior.defend(true);
+      }
+      return;
+    }
 
     if (!this.tribe.isAlive()) {
       //removeOnDeath is called from tribe's PlayerExecution
@@ -73,7 +84,12 @@ export class TribeExecution implements Execution {
       );
 
       // Send an attack on the first tick
-      this.attackBehavior.sendAttack(this.mg.terraNullius());
+      if (
+        this.mg.config().gameConfig().tutorial ||
+        !this.attackBehavior.defend(true)
+      ) {
+        this.attackBehavior.sendAttack(this.mg.terraNullius());
+      }
       return;
     }
 
@@ -85,8 +101,8 @@ export class TribeExecution implements Execution {
     }
 
     this.acceptAllAllianceRequests();
-    this.deleteNextStructure();
-    this.maybeAttack();
+    this.dismantleUnusedSilo();
+    this.maybeAttack(ticks);
   }
 
   private acceptAllAllianceRequests() {
@@ -108,20 +124,29 @@ export class TribeExecution implements Execution {
     }
   }
 
-  private deleteNextStructure() {
+  private dismantleUnusedSilo() {
     if (!this.tribe.canDeleteUnit()) return;
-    for (const unit of this.tribe.units()) {
-      if (!Structures.has(unit.type())) continue;
+    for (const unit of this.tribe.units(UnitType.MissileSilo)) {
       if (unit.isMarkedForDeletion()) continue;
       this.mg.addExecution(new DeleteUnitExecution(this.tribe, unit.id()));
       return;
     }
   }
 
-  private maybeAttack() {
+  private maybeAttack(ticks: number) {
     if (this.attackBehavior === null) {
       throw new Error("not initialized");
     }
+    // Retry closed borders every fourth decision, including after snapshot restore.
+    if (
+      this.neighborsTerraNullius ||
+      Math.floor(ticks / this.attackRate) % 4 === 0
+    ) {
+      this.neighborsTerraNullius = this.tribe
+        .nearby()
+        .some((n) => !n.isPlayer());
+    }
+    if (this.attackBehavior.defend(this.neighborsTerraNullius)) return;
     const toAttack = this.attackBehavior.getNeighborTraitorToAttack(true);
     if (toAttack !== null) {
       const odds = this.tribe.isFriendly(toAttack) ? 6 : 3;
@@ -137,15 +162,12 @@ export class TribeExecution implements Execution {
       }
     }
 
-    if (this.neighborsTerraNullius) {
-      if (this.tribe.nearby().some((n) => !n.isPlayer())) {
-        if (this.attackBehavior.sendAttack(this.mg.terraNullius())) return;
-      } else {
-        this.neighborsTerraNullius = false;
-      }
-    }
-
-    this.attackBehavior.attackRandomTarget();
+    if (
+      this.neighborsTerraNullius &&
+      this.attackBehavior.sendAttack(this.mg.terraNullius())
+    )
+      return;
+    this.attackBehavior.attackBestNeighbor();
   }
 
   isActive(): boolean {

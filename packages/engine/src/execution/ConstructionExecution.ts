@@ -164,6 +164,11 @@ export class ConstructionExecution implements Execution {
       case UnitType.Factory:
         this.mg.addExecution(new FactoryExecution(this.structure!));
         break;
+      case UnitType.Mine:
+      case UnitType.OilWell:
+      case UnitType.Shipyard:
+        // New Era: NewEraEconomy reads these straight off the player.
+        break;
       default:
         console.warn(
           `unit type ${this.constructionType} cannot be constructed`,
@@ -180,6 +185,9 @@ export class ConstructionExecution implements Execution {
       case UnitType.SAMLauncher:
       case UnitType.City:
       case UnitType.Factory:
+      case UnitType.Mine:
+      case UnitType.OilWell:
+      case UnitType.Shipyard:
         return true;
       default:
         return false;

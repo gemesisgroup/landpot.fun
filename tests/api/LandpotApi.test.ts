@@ -366,6 +366,71 @@ describe("game archive", () => {
   });
 });
 
+describe("/public/stats", () => {
+  it("lists recent multiplayer games with winner names, and this week's top", async () => {
+    const owner = store.createUser();
+    const now = Date.now();
+    const rec = record("GameST01", GameType.Public, owner.id);
+    expect(
+      store.putGame(
+        {
+          id: "GameST01",
+          kind: "public",
+          start: now - 120_000,
+          end: now - 60_000,
+          map: "Caldera",
+          numPlayers: 9,
+          winnerClientIds: ["Pl000001"],
+        },
+        gzipSync(JSON.stringify(rec)),
+        [{ userId: owner.id, clientId: "Pl000001" }],
+      ),
+    ).toBe(true);
+    // Singleplayer games stay off the public feed.
+    store.putGame(
+      {
+        id: "GameST02",
+        kind: "singleplayer",
+        start: now - 30_000,
+        end: now - 10_000,
+        map: "World",
+        numPlayers: 1,
+        winnerClientIds: ["Pl000001"],
+      },
+      gzipSync(
+        JSON.stringify(record("GameST02", GameType.Singleplayer, owner.id)),
+      ),
+      [{ userId: owner.id, clientId: "Pl000001" }],
+    );
+
+    const res = await fetch(`${base}/public/stats`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      games24h: number;
+      recent: {
+        id: string;
+        map: string;
+        winners: string[];
+        durationMs: number;
+      }[];
+      top: { publicId: string; name: string | null; wins: number }[];
+    };
+    expect(body.games24h).toBeGreaterThanOrEqual(1);
+    expect(body.recent[0]).toMatchObject({
+      id: "GameST01",
+      map: "Caldera",
+      winners: ["alice"],
+      durationMs: 60_000,
+    });
+    expect(body.recent.some((g) => g.id === "GameST02")).toBe(false);
+    expect(body.top[0]).toMatchObject({
+      publicId: owner.publicId,
+      name: "alice",
+      wins: 1,
+    });
+  });
+});
+
 describe("join_verify and static", () => {
   const verify = (token: string | null) =>
     fetch(`${base}/join_verify`, {

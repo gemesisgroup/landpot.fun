@@ -394,6 +394,21 @@ export class EngineConfig extends Config {
           UnitType.Factory,
           UnitType.Port,
         );
+      case UnitType.Mine:
+        return this.costWrapper(
+          (numUnits: number) => Math.min(500_000, (numUnits + 1) * 100_000),
+          UnitType.Mine,
+        );
+      case UnitType.OilWell:
+        return this.costWrapper(
+          (numUnits: number) => Math.min(500_000, (numUnits + 1) * 100_000),
+          UnitType.OilWell,
+        );
+      case UnitType.Shipyard:
+        return this.costWrapper(
+          (numUnits: number) => Math.min(1_000_000, (numUnits + 1) * 250_000),
+          UnitType.Shipyard,
+        );
       case UnitType.TransportShip:
       case UnitType.Shell:
       case UnitType.SAMMissile:
@@ -460,7 +475,12 @@ export class EngineConfig extends Config {
           Math.min(player.unitsOwned(type), player.unitsConstructed(type)),
         0,
       );
-      return BigInt(costFn(numUnits + extraUnits));
+      const cost = BigInt(costFn(numUnits + extraUnits));
+      // New Era: metallurgy makes industrial structures cheaper.
+      const newEra = game.newEra();
+      return newEra === null
+        ? cost
+        : newEra.discountedCost(game, player, types[0], cost);
     };
   }
 

@@ -549,6 +549,68 @@ export function createApp(deps: AppDeps): express.Express {
   app.get("/game/:id", readGame);
   app.get("/public/game/:id", readGame);
 
+  // ── homepage stats ──
+
+  // Names live only in the archived records; a record never changes, so a
+  // game's names are read once and kept (bounded).
+  const nameCache = new Map<string, Map<string, string>>();
+  const namesOf = (gameId: string): Map<string, string> => {
+    const hit = nameCache.get(gameId);
+    if (hit) return hit;
+    const names = new Map<string, string>();
+    const blob = store.getGameRecord(gameId);
+    if (blob) {
+      try {
+        const rec = JSON.parse(gunzipSync(blob).toString("utf8")) as {
+          info?: { players?: { clientID?: string; username?: string }[] };
+        };
+        for (const p of rec.info?.players ?? []) {
+          if (p.clientID && p.username) names.set(p.clientID, p.username);
+        }
+      } catch {
+        // A broken record just has no names.
+      }
+    }
+    if (nameCache.size >= 500) {
+      nameCache.delete(nameCache.keys().next().value!);
+    }
+    nameCache.set(gameId, names);
+    return names;
+  };
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let statsCache: { at: number; body: unknown } | null = null;
+  app.get("/public/stats", rateLimit("stats", 240, 60_000), (_req, res) => {
+    const now = Date.now();
+    if (!statsCache || now - statsCache.at > 15_000) {
+      const recent = store.recentGames(6).map((g) => {
+        const names = namesOf(g.id);
+        return {
+          id: g.id,
+          map: g.map,
+          players: g.numPlayers,
+          endedAt: g.end,
+          durationMs: Math.max(0, g.end - g.start),
+          winners: g.winnerClientIds
+            .map((c) => names.get(c))
+            .filter((n): n is string => n !== undefined)
+            .slice(0, 3),
+        };
+      });
+      const top = store.topWinners(now - 7 * DAY_MS, 5).map((t) => ({
+        publicId: t.publicId,
+        name: namesOf(t.lastGameId).get(t.lastClientId) ?? null,
+        wins: t.wins,
+        played: t.played,
+      }));
+      statsCache = {
+        at: now,
+        body: { games24h: store.countGamesSince(now - DAY_MS), recent, top },
+      };
+    }
+    res.setHeader("Cache-Control", "public, max-age=15");
+    res.json(statsCache.body);
+  });
+
   // ── paid matches (docs/LandpotPot.md) ──
 
   const needPot = (): PotService => {
@@ -576,7 +638,8 @@ export function createApp(deps: AppDeps): express.Express {
     res.json({ seated: await needPot().seat(req.params.id as string, pid) });
   });
   app.post("/pot/start/:id", requireApiKey, async (req, res) => {
-    res.json({ depositors: await needPot().start(req.params.id as string) });
+    const id = req.params.id as string;
+    res.json({ depositors: await needPot().start(id) });
   });
   app.post("/pot/cancel/:id", requireApiKey, json, async (req, res) => {
     const seen = (req.body as { deposited?: unknown } | undefined)?.deposited;

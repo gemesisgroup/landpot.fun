@@ -1,0 +1,53 @@
+{
+  "categories": ["fictional"],
+  "id": "TwoStraits",
+  "map": {
+    "height": 900,
+    "num_land_tiles": 781840,
+    "width": 1400
+  },
+  "map16x": {
+    "height": 225,
+    "num_land_tiles": 48268,
+    "width": 350
+  },
+  "map4x": {
+    "height": 450,
+    "num_land_tiles": 195460,
+    "width": 700
+  },
+  "name": "Two Straits",
+  "nations": [
+    {
+      "coordinates": [250, 230],
+      "flag": "",
+      "name": "Northmarch"
+    },
+    {
+      "coordinates": [250, 690],
+      "flag": "",
+      "name": "Southvale"
+    },
+    {
+      "coordinates": [120, 400],
+      "flag": "",
+      "name": "Westhold"
+    },
+    {
+      "coordinates": [1149, 230],
+      "flag": "",
+      "name": "Ironreach"
+    },
+    {
+      "coordinates": [1149, 690],
+      "flag": "",
+      "name": "Coalport"
+    },
+    {
+      "coordinates": [1279, 400],
+      "flag": "",
+      "name": "Eastgate"
+    }
+  ],
+  "translation_key": "map.twostraits"
+}

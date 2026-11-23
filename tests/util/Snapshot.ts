@@ -158,6 +158,9 @@ const DERIVED_FIELDS = new Set<string>([
   "inBfs",
   // SharedWaterCache
   "playerWater",
+  // NewEraEconomy: landmass labels, worked out from the map on first use
+  "landmasses",
+  "landmassVersion",
   // Config / EngineConfig
   "unitInfoCache",
   "engineUnitInfoCache",

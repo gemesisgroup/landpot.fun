@@ -23,6 +23,8 @@ import { EmojiExecution } from "./EmojiExecution";
 import { MarkDisconnectedExecution } from "./MarkDisconnectedExecution";
 import { MoveWarshipExecution } from "./MoveWarshipExecution";
 import { NationExecution } from "./NationExecution";
+import { NewEraCommandExecution } from "./newera/NewEraCommandExecution";
+import { SetFactorySpecExecution } from "./newera/SetFactorySpecExecution";
 import { NoOpExecution } from "./NoOpExecution";
 import { PauseExecution } from "./PauseExecution";
 import { QuickChatExecution } from "./QuickChatExecution";
@@ -133,6 +135,10 @@ export class Executor {
         );
       case "delete_unit":
         return new DeleteUnitExecution(player, intent.unitId);
+      case "set_factory_spec":
+        return new SetFactorySpecExecution(player, intent.unitId, intent.spec);
+      case "new_era_command":
+        return new NewEraCommandExecution(player, intent.command);
       case "quick_chat":
         return new QuickChatExecution(
           player,

@@ -146,7 +146,7 @@ function validMirvTargets(game: Game, player: Player): Player[] {
         p !== player &&
         p.isPlayer() &&
         p.type() !== PlayerType.Bot &&
-        !player.isOnSameTeam(p),
+        !player.isFriendly(p, true),
     );
 }
 
@@ -265,28 +265,31 @@ export class NationMIRVBehavior {
       return false;
     }
 
-    const inboundMIRVSender = this.selectCounterMirvTarget();
-    if (inboundMIRVSender && this.isWorthMirving(inboundMIRVSender)) {
-      this.maybeSendMIRV(inboundMIRVSender);
-      return true;
-    }
-
+    // Protect the match outcome first if both a leader and a retaliatory target exist.
     const victoryDenialTarget = this.selectVictoryDenialTarget();
-    if (victoryDenialTarget && this.isWorthMirving(victoryDenialTarget)) {
-      this.maybeSendMIRV(victoryDenialTarget);
+    if (
+      victoryDenialTarget &&
+      this.isWorthMirving(victoryDenialTarget) &&
+      this.maybeSendMIRV(victoryDenialTarget)
+    )
       return true;
-    }
+
+    const inboundMIRVSender = this.selectCounterMirvTarget();
+    if (
+      inboundMIRVSender &&
+      this.isWorthMirving(inboundMIRVSender) &&
+      this.maybeSendMIRV(inboundMIRVSender)
+    )
+      return true;
 
     const steamrollStopTarget = this.selectSteamrollStopTarget();
     if (steamrollStopTarget && this.isWorthMirving(steamrollStopTarget)) {
-      this.maybeSendMIRV(steamrollStopTarget);
-      return true;
+      if (this.maybeSendMIRV(steamrollStopTarget)) return true;
     }
 
     const rivalTarget = this.selectRivalTarget();
     if (rivalTarget && this.isWorthMirving(rivalTarget)) {
-      this.maybeSendMIRV(rivalTarget);
-      return true;
+      if (this.maybeSendMIRV(rivalTarget)) return true;
     }
 
     return false;
@@ -437,18 +440,23 @@ export class NationMIRVBehavior {
   }
 
   // MIRV Execution Methods
-  private maybeSendMIRV(enemy: Player): void {
+  private maybeSendMIRV(enemy: Player): boolean {
     if (this.player === null) throw new Error("not initialized");
 
-    this.emojiBehavior.maybeSendAttackEmoji(enemy);
-
     const centerTile = this.calculateTerritoryCenter(enemy);
-    if (centerTile && this.player.canBuild(UnitType.MIRV, centerTile)) {
+    if (
+      centerTile !== null &&
+      this.game.owner(centerTile) === enemy &&
+      this.player.canBuild(UnitType.MIRV, centerTile) !== false
+    ) {
+      this.emojiBehavior.maybeSendAttackEmoji(enemy);
       this.game.addExecution(new MirvExecution(this.player, centerTile));
       this.recordMirvHit(enemy);
       this.emojiBehavior.sendEmoji(AllPlayers, EMOJI_NUKE);
       respondToMIRV(this.game, this.random, enemy);
+      return true;
     }
+    return false;
   }
 
   private countCities(p: Player): number {

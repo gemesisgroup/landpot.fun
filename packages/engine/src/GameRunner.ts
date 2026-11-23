@@ -32,6 +32,7 @@ import { EngineConfig } from "./configuration/EngineConfig";
 import { DoomsdayClockExecution } from "./execution/DoomsdayClockExecution";
 import { EruptionExecution } from "./execution/EruptionExecution";
 import { Executor } from "./execution/ExecutionManager";
+import { NewEraExecution } from "./execution/newera/NewEraExecution";
 import { RecomputeRailClusterExecution } from "./execution/RecomputeRailClusterExecution";
 import { SpawnTimerExecution } from "./execution/SpawnTimerExecution";
 import { WinCheckExecution } from "./execution/WinCheckExecution";
@@ -203,6 +204,9 @@ export class GameRunner {
     this.game.addExecution(new WinCheckExecution());
     if (this.game.config().doomsdayClockConfig().enabled) {
       this.game.addExecution(new DoomsdayClockExecution());
+    }
+    if (this.game.config().gameConfig().newEra !== undefined) {
+      this.game.addExecution(new NewEraExecution());
     }
     if (
       caldera !== undefined &&

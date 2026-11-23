@@ -133,6 +133,37 @@ describe("Nation nuke targeting", () => {
     expect(game.owner(nukes[0].targetTile()!)).toBe(human);
   });
 
+  it("buys the cheaper bomb when both yield the same board outcome", async () => {
+    const { game, nation, human } = await setupDuel();
+    human.buildUnit(UnitType.Factory, game.ref(150, 150), {});
+    const radius = game.config().nukeMagnitudes(UnitType.AtomBomb);
+    vi.spyOn(game.config(), "nukeMagnitudes").mockReturnValue(radius);
+    expect(launchNukes(game, nation).map((u) => u.type())).toEqual([
+      UnitType.AtomBomb,
+    ]);
+  });
+
+  it("chooses the larger bomb for a broad region of valuable tiles", async () => {
+    const { game, nation, human } = await setupDuel();
+    conquerRect(game, human, 40, 40, 200, 200);
+    for (const x of [65, 110, 155])
+      for (const y of [65, 110, 155]) {
+        human.buildUnit(UnitType.City, game.ref(x, y), {});
+      }
+    expect(launchNukes(game, nation).map((u) => u.type())).toEqual([
+      UnitType.HydrogenBomb,
+    ]);
+  });
+
+  it("preserves an enemy city when its land attack already outnumbers the garrison", async () => {
+    const { game, nation, human } = await setupDuel();
+    human.buildUnit(UnitType.City, game.ref(150, 150), {});
+    nation.conquer(game.ref(ISLAND.min - 1, 150));
+    human.setTroops(1000);
+    nation.createAttack(human, 5000, null, new Set());
+    expect(launchNukes(game, nation)).toHaveLength(0);
+  });
+
   it("does not nuke land that is mostly fallout already", async () => {
     const { game, nation, human } = await setupDuel();
     // Leave the human a 4-tile rim around a fallout crater

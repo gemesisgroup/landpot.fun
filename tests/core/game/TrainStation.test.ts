@@ -43,6 +43,7 @@ describe("TrainStation", () => {
       addUpdate: vi.fn(),
       addExecution: vi.fn(),
       stats: vi.fn().mockReturnValue(gameStats),
+      newEra: vi.fn().mockReturnValue(null),
     } as any;
 
     player = {

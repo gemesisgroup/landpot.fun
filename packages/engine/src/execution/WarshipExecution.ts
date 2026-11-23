@@ -318,7 +318,7 @@ export class WarshipExecution implements Execution {
                   mg.hasWaterComponent(port.tile(), warshipComponent!),
               );
           patrolTile = this.warship.warshipState().patrolTile;
-          patrolRangeSquared = config.warshipPatrolRange() ** 2;
+          patrolRangeSquared = this.patrolRange() ** 2;
         }
         if (
           !hasReachablePort ||
@@ -771,8 +771,16 @@ export class WarshipExecution implements Execution {
     return false;
   }
 
+  /** The patrol range: the config's, unless a New Era task narrows it. */
+  private patrolRange(): number {
+    return (
+      this.mg.newEra()?.patrolRange(this.warship) ??
+      this.mg.config().warshipPatrolRange()
+    );
+  }
+
   randomTile(allowShoreline: boolean = false): TileRef | undefined {
-    let warshipPatrolRange = this.mg.config().warshipPatrolRange();
+    let warshipPatrolRange = this.patrolRange();
     const maxAttemptBeforeExpand: number = 500;
     let attempts: number = 0;
     let expandCount: number = 0;

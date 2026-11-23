@@ -125,9 +125,9 @@ describe("Nation economy at the start", () => {
   });
 
   // The second city costs 250k, and feels like 500k while saving up for nukes. In team
-  // games one port per city is due, so the first port (125k) comes first.
+  // games and on Hard FFA, the first port (125k) comes first.
   it.each([
-    [Difficulty.Hard, ffa, [UnitType.City]],
+    [Difficulty.Hard, ffa, [UnitType.Port]],
     [Difficulty.Hard, team, [UnitType.Port]],
     [Difficulty.Easy, ffa, []],
   ])(
@@ -141,6 +141,26 @@ describe("Nation economy at the start", () => {
       nation.addGold(300_000n);
       behavior.handleStructures();
       expect(built()).toEqual(expected);
+    },
+  );
+
+  it.each([false, true])(
+    "expands an established port route before founding another port: %s",
+    (partner) => {
+      const { game, nation, cities, behavior, built, upgraded } = setupCoast(
+        { difficulty: Difficulty.Hard },
+        { size: 400 },
+      );
+      cities(3);
+      const port = nation.buildUnit(UnitType.Port, game.ref(99, 100), {});
+      if (partner)
+        game
+          .player("other_id")
+          .buildUnit(UnitType.Port, game.ref(300, 100), {});
+      nation.addGold(3_000_000n);
+      behavior.handleStructures();
+      if (partner) expect(upgraded()).toEqual([port.id()]);
+      else expect(built()).toEqual([UnitType.Port]);
     },
   );
 

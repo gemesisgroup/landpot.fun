@@ -23,6 +23,7 @@ import type {
   SnapshotWriter,
 } from "../../snapshot/SnapshotContext";
 import { ConstructionExecution } from "../ConstructionExecution";
+import { reachableTradingPorts } from "../PortExecution";
 import { UpgradeStructureExecution } from "../UpgradeStructureExecution";
 import { isMirvWorthSavingFor } from "./NationMIRVBehavior";
 import { NationStructurePlacement } from "./NationStructurePlacement";
@@ -276,9 +277,12 @@ export class NationStructureBehavior {
       if (this.tryBuildDefensePost()) {
         return true;
       }
-      // If the attack threshold is met, block other structures even when
-      // placement failed (no tile found / can't afford).
-      if (this.defensePostNeeded()) {
+      // Save for an affordable defense post next round. A covered or unbuildable
+      // front should not freeze investments when we already have its price.
+      if (
+        this.defensePostNeeded() &&
+        this.player.gold() < this.cost(UnitType.DefensePost)
+      ) {
         return false;
       }
     }
@@ -776,6 +780,16 @@ export class NationStructureBehavior {
       targetCount = Math.min(Math.floor(cityCount * ratio), MAX_MISSILE_SILOS);
     } else {
       targetCount = Math.floor(cityCount * ratio);
+      if (
+        cityCount >= 1 &&
+        difficulty !== Difficulty.Easy &&
+        type ===
+          (hasCoastalTiles && !gameConfig.isUnitDisabled(UnitType.Port)
+            ? UnitType.Port
+            : UnitType.Factory)
+      ) {
+        targetCount = Math.max(1, targetCount);
+      }
     }
 
     return targetCount - owned;
@@ -800,6 +814,27 @@ export class NationStructureBehavior {
     // Check if we should upgrade instead of building new
     const structures = this.player.units(type);
     const upgradable = game.config().unitInfo(type).upgradable === true;
+    if (
+      upgradable &&
+      game.config().gameConfig().difficulty !== Difficulty.Easy &&
+      (type === UnitType.Factory || type === UnitType.Port)
+    ) {
+      // Grow demonstrated trade routes before duplicating low-level infrastructure.
+      const productive = structures.filter(
+        (unit) =>
+          unit.level() === 1 &&
+          this.player.canUpgradeUnit(unit) &&
+          (type === UnitType.Port
+            ? !reachableTradingPorts(game, unit).next().done
+            : (game
+                .railNetwork()
+                .stationManager()
+                .findStation(unit)
+                ?.getRailroads().size ?? 0) > 0),
+      );
+      if (productive.length && this.maybeUpgradeStructure(productive))
+        return true;
+    }
     if (
       this.getTotalStructureDensity() > UPGRADE_DENSITY_THRESHOLD &&
       upgradable

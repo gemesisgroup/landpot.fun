@@ -137,6 +137,7 @@ export enum GameMapType {
   Turkiye = "Turkiye", // map-generator/assets/maps/turkiye/info.json
   Tutorial = "Tutorial", // map-generator/assets/maps/tutorial/info.json
   TwoLakes = "Two Lakes", // map-generator/assets/maps/twolakes/info.json
+  TwoStraits = "Two Straits", // map-generator/assets/maps/twostraits/info.json
   Ukraine = "Ukraine", // map-generator/assets/maps/ukraine/info.json
   UnitedStates = "United States", // map-generator/assets/maps/unitedstates/info.json
   VancouverIsland = "Vancouver Island", // map-generator/assets/maps/vancouverisland/info.json
@@ -2484,6 +2485,15 @@ export const maps: readonly MapInfo[] = [
     themes: ["europe"],
     author: "Duwibi",
     location: { lat: 40.95, lon: 20.9 },
+  },
+  {
+    id: "TwoStraits",
+    type: GameMapType.TwoStraits,
+    translationKey: "map.twostraits",
+    categories: ["fictional"],
+    defaultNationCount: 6,
+    author: "Landpot",
+    descriptionKey: "map_description.twostraits",
   },
   {
     id: "Ukraine",

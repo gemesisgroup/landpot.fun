@@ -1,4 +1,8 @@
 import { UnitType } from "@openfront/engine-api/game/GameTypes";
+import {
+  blockadedWeight,
+  blockadeSkips,
+} from "@openfront/engine-lib/game/NewEra";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
   zInt,
@@ -62,6 +66,18 @@ export class PortExecution implements Execution {
       return;
     }
 
+    // New Era: a blockade skips its share of the checks (no PRNG draws).
+    const newEra = this.mg.newEra();
+    if (
+      newEra !== null &&
+      blockadeSkips(
+        Math.floor(this.mg.ticks() / 10),
+        newEra.blockadeOf(this.mg, this.port),
+      )
+    ) {
+      return;
+    }
+
     if (!this.shouldSpawnTradeShip()) {
       return;
     }
@@ -116,29 +132,16 @@ export class PortExecution implements Execution {
   }
 
   tradingPorts(): WeightedPort[] {
-    const sourceComponents = new Set<number>();
-    for (const neighbor of this.mg.neighbors(this.port!.tile())) {
-      if (!this.mg.isWater(neighbor)) continue;
-      const comp = this.mg.getWaterComponent(neighbor);
-      if (comp !== null) sourceComponents.add(comp);
-    }
-    const ports = this.mg
-      .players()
-      .filter((p) => p !== this.port!.owner() && p.canTrade(this.port!.owner()))
-      .flatMap((p) => p.units(UnitType.Port))
-      .filter((p) => {
-        for (const comp of sourceComponents) {
-          if (this.mg.hasWaterComponent(p.tile(), comp)) return true;
-        }
-        return false;
-      })
-      .sort((p1, p2) => {
+    const ports = [...reachableTradingPorts(this.mg, this.port!)].sort(
+      (p1, p2) => {
         return (
           this.mg.manhattanDist(this.port!.tile(), p1.tile()) -
           this.mg.manhattanDist(this.port!.tile(), p2.tile())
         );
-      });
+      },
+    );
 
+    const newEra = this.mg.newEra();
     return ports.map((otherPort, i) => {
       let multiplier = 1;
       const tooClose =
@@ -152,7 +155,13 @@ export class PortExecution implements Execution {
       if (!tooClose && this.port!.owner().isFriendly(otherPort.owner())) {
         multiplier++;
       }
-      return { port: otherPort, weight: otherPort.level() * multiplier };
+      const weight = otherPort.level() * multiplier;
+      if (newEra === null) return { port: otherPort, weight };
+      // New Era: a blockaded destination is picked that much less.
+      return {
+        port: otherPort,
+        weight: blockadedWeight(weight, newEra.blockadeOf(this.mg, otherPort)),
+      };
     });
   }
 
@@ -209,3 +218,28 @@ export const PortExecutionSnapshot = execSnapshotType({
   schema: PortStateSchema,
   cls: () => PortExecution,
 });
+
+/** Foreign ports that can trade on the source port's water network. */
+export function* reachableTradingPorts(
+  game: Game,
+  source: Unit,
+): Generator<Unit> {
+  const components = new Set<number>();
+  for (const tile of game.neighbors(source.tile())) {
+    if (!game.isWater(tile)) continue;
+    const component = game.getWaterComponent(tile);
+    if (component !== null) components.add(component);
+  }
+  if (components.size === 0) return;
+  for (const player of game.players()) {
+    if (player === source.owner() || !player.canTrade(source.owner())) continue;
+    for (const port of player.units(UnitType.Port)) {
+      for (const component of components) {
+        if (game.hasWaterComponent(port.tile(), component)) {
+          yield port;
+          break;
+        }
+      }
+    }
+  }
+}

@@ -22,6 +22,10 @@ import { MirvExecutionSnapshot } from "../execution/MIRVExecution";
 import { MissileSiloExecutionSnapshot } from "../execution/MissileSiloExecution";
 import { MoveWarshipExecutionSnapshot } from "../execution/MoveWarshipExecution";
 import { NationExecutionSnapshot } from "../execution/NationExecution";
+import { FreighterExecutionSnapshot } from "../execution/newera/FreighterExecution";
+import { NewEraCommandExecutionSnapshot } from "../execution/newera/NewEraCommandExecution";
+import { NewEraExecutionSnapshot } from "../execution/newera/NewEraExecution";
+import { SetFactorySpecExecutionSnapshot } from "../execution/newera/SetFactorySpecExecution";
 import { NoOpExecutionSnapshot } from "../execution/NoOpExecution";
 import { NukeExecutionSnapshot } from "../execution/NukeExecution";
 import { PauseExecutionSnapshot } from "../execution/PauseExecution";
@@ -72,6 +76,10 @@ export const EXECUTION_SNAPSHOT_TYPES = [
   EmbargoExecutionSnapshot,
   EmojiExecutionSnapshot,
   FactoryExecutionSnapshot,
+  NewEraExecutionSnapshot,
+  NewEraCommandExecutionSnapshot,
+  FreighterExecutionSnapshot,
+  SetFactorySpecExecutionSnapshot,
   MarkDisconnectedExecutionSnapshot,
   MirvExecutionSnapshot,
   MissileSiloExecutionSnapshot,

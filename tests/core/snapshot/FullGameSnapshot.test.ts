@@ -199,7 +199,17 @@ describe.each(VARIANTS)("full game snapshots: %s", (_, overrides) => {
       // Eruption runs only in a timed Caldera match (Landpot's paid config);
       // the scripted game has no timer, and changing it would rewrite the
       // stored fixtures. Caldera.test.ts round-trips it mid-eruption.
-      const neverStored = new Set(["Pause", "Eruption"]);
+      // NewEra, NewEraCommand and Freighter run only with the New Era
+      // config (SetFactorySpec and NewEraCommand finish inside init);
+      // NewEra.test.ts and NewEraFleet.test.ts round-trip them.
+      const neverStored = new Set([
+        "Pause",
+        "Eruption",
+        "NewEra",
+        "NewEraCommand",
+        "Freighter",
+        "SetFactorySpec",
+      ]);
       const missing = EXECUTION_SNAPSHOT_TYPES.map((t) => t.name).filter(
         (name) => !reference.execTypes.has(name) && !neverStored.has(name),
       );

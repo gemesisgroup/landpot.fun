@@ -96,7 +96,10 @@ export class PlayerExecution implements Execution {
       return;
     }
 
-    const troopInc = this.config.troopIncreaseRate(this.player);
+    let troopInc = this.config.troopIncreaseRate(this.player);
+    // New Era: residential districts grow the army faster.
+    const growth = this.mg.newEra()?.growthFor(this.mg, this.player) ?? 0;
+    if (growth > 0) troopInc += (troopInc * growth) / 1000;
     this.player.addTroops(troopInc);
     const goldFromWorkers = this.config.goldAdditionRate(this.player);
     this.player.addGold(goldFromWorkers);

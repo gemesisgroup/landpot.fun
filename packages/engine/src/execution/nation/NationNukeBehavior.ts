@@ -191,7 +191,7 @@ export class NationNukeBehavior {
 
     if (
       nukeTarget.type() === PlayerType.Bot || // Don't nuke tribes (as opposed to nations and humans)
-      this.player.isOnSameTeam(nukeTarget) ||
+      this.player.isFriendly(nukeTarget, true) ||
       this.attackBehavior.shouldAttack(nukeTarget) === false
     ) {
       return;
@@ -209,6 +209,16 @@ export class NationNukeBehavior {
     }
 
     const structures = nukeTarget.units(Structures.types);
+    // Let an overwhelming land order finish and retain the economy intact.
+    if (
+      this.followsUpStrikes() &&
+      structures.length > 0 &&
+      this.player.sharesBorderWith(nukeTarget) &&
+      this.ourTroopsAttacking(nukeTarget) >
+        Math.max(1, nukeTarget.troops()) * 3 &&
+      !this.isHittingUs(nukeTarget)
+    )
+      return;
     const difficulty = this.game.config().gameConfig().difficulty;
     // Use more random tiles on Impossible difficulty to improve chances of finding a perfect SAM outranging spot
     const numRandomTiles = difficulty === Difficulty.Impossible ? 30 : 10;
@@ -223,8 +233,10 @@ export class NationNukeBehavior {
     );
     this.removeOldNukeEvents();
 
+    let best: { type: NukeType; tile: TileRef; efficiency: number } | null =
+      null;
     for (const nukeType of nukeTypes) {
-      const tile = this.findBestNukeTile(
+      const option = this.findBestNukeTile(
         nukeType,
         nukeTarget,
         candidates,
@@ -232,18 +244,29 @@ export class NationNukeBehavior {
         structures,
         strike,
       );
-      if (tile !== null) {
-        this.sendNuke(tile, nukeType, nukeTarget);
-        if (strike && this.followsUpStrikes()) {
-          this.strikes.push({
-            target: nukeTarget,
-            tile,
-            tick: this.game.ticks(),
-            nuke: null,
-          });
-        }
-        return;
+      if (option === null) continue;
+      const efficiency =
+        option.score / Math.max(1, Number(this.cost(nukeType)));
+      if (
+        !best ||
+        efficiency > best.efficiency ||
+        (efficiency === best.efficiency &&
+          this.cost(nukeType) < this.cost(best.type))
+      ) {
+        best = { type: nukeType, tile: option.tile, efficiency };
       }
+    }
+    if (best !== null) {
+      this.sendNuke(best.tile, best.type, nukeTarget);
+      if (strike && this.followsUpStrikes()) {
+        this.strikes.push({
+          target: nukeTarget,
+          tile: best.tile,
+          tick: this.game.ticks(),
+          nuke: null,
+        });
+      }
+      return;
     }
     if (difficulty === Difficulty.Impossible && !saving) {
       this.maybeDestroyEnemySam(nukeTarget);
@@ -281,9 +304,14 @@ export class NationNukeBehavior {
     silos: Unit[],
     structures: Unit[],
     strike: boolean,
-  ): TileRef | null {
+  ): { tile: TileRef; score: number } | null {
     const difficulty = this.game.config().gameConfig().difficulty;
     const range = this.game.config().nukeMagnitudes(nukeType).outer;
+    const atomRadius = Math.max(
+      1,
+      this.game.config().nukeMagnitudes(UnitType.AtomBomb).outer,
+    );
+    const relativeArea = (range / atomRadius) ** 2;
     const scored: { tile: TileRef; score: number }[] = [];
 
     outer: for (const tile of candidates) {
@@ -330,7 +358,7 @@ export class NationNukeBehavior {
       }
       scored.push({
         tile,
-        score: value + coverage * FULL_BLAST_COVERAGE_VALUE,
+        score: value + coverage * FULL_BLAST_COVERAGE_VALUE * relativeArea,
       });
     }
     // Stable sort: on ties the earlier candidate wins
@@ -340,7 +368,7 @@ export class NationNukeBehavior {
       ({ tile }) =>
         !blastHitsFriendlyLand(this.game, this.player, tile, nukeType, margin),
     );
-    return best?.tile ?? null;
+    return best ?? null;
   }
 
   /** Who to nuke, and whether it's a strike: a nuke that softens a player up for our attack. */
@@ -600,7 +628,8 @@ export class NationNukeBehavior {
   private ourTroopsAttacking(target: Player): number {
     let troops = 0;
     for (const attack of this.player.outgoingAttacks()) {
-      if (attack.target() === target) troops += attack.troops();
+      if (!attack.retreating() && attack.target() === target)
+        troops += attack.troops();
     }
     return troops;
   }

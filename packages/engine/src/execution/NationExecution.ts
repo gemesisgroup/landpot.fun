@@ -259,13 +259,13 @@ export class NationExecution implements Execution {
     this.updateRelationsFromEmbargos();
     this.allianceBehavior.handleAllianceRequests();
     this.allianceBehavior.handleAllianceExtensionRequests();
-    this.mirvBehavior.considerMIRV();
+    const launchedMirv = this.mirvBehavior.considerMIRV();
     this.structureBehavior.handleStructures();
     this.warshipBehavior.maybeSpawnWarship();
     this.handleEmbargoesToHostileNations();
     this.attackBehavior.maybeAttack();
     this.warshipBehavior.counterWarshipInfestation();
-    this.nukeBehavior.maybeSendNuke();
+    if (!launchedMirv) this.nukeBehavior.maybeSendNuke();
   }
 
   private initializeBehaviors(): void {

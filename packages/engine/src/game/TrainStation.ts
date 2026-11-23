@@ -47,6 +47,12 @@ class TradeStationStopHandler implements TrainStopHandler {
     trainOwner.addGold(gold, station.tile());
     trainOwner.addTrainGold(gold);
     mg.stats().trainSelfTrade(trainOwner, gold);
+    // New Era: a commercial district pays its city's owner on every stop.
+    const commerce = mg.newEra()?.commerceOnTrain(station.unit, gold) ?? 0n;
+    if (commerce > 0n) {
+      stationOwner.addGold(commerce, station.tile());
+      stationOwner.addTrainGold(commerce);
+    }
   }
 }
 

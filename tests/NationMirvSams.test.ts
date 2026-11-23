@@ -147,6 +147,25 @@ describe("Nations and MIRVs against SAM-covered leaders", () => {
     expect(behavior["isSavingForMirv"]()).toBe(saving);
   });
 
+  it("keeps the MIRV when the leader is an ally", () => {
+    const { game, nation, leader } = setupLeader(Difficulty.Hard, {
+      sams: false,
+    });
+    nation.addGold(100_000_000n);
+    vi.spyOn(nation, "isAlliedWith").mockImplementation(
+      (other) => other === leader,
+    );
+    const random = new PseudoRandom(1);
+    vi.spyOn(random, "chance").mockReturnValue(false);
+    const behavior = new NationMIRVBehavior(
+      random,
+      game,
+      nation,
+      new NationEmojiBehavior(random, game, nation),
+    );
+    expect(behavior.considerMIRV()).toBe(false);
+  });
+
   it.each([
     [Difficulty.Hard, false, true],
     [Difficulty.Hard, true, false],

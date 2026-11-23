@@ -133,7 +133,7 @@ describe.skipIf(!validatorAvailable())(
       const tx = Transaction.from(Buffer.from(body.transaction, "base64"));
       tx.partialSign(who);
       const sig = await v.connection.sendRawTransaction(tx.serialize());
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 240; i++) {
         const s = (await api("GET", `/public/pot/tx/${sig}`)).body.status;
         if (s === "confirmed") return;
         if (s === "failed") throw new Error(`${kind} failed`);

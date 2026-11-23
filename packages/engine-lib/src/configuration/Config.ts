@@ -10,6 +10,7 @@ import { PlayerLike } from "@openfront/engine-api/game/ReadViews";
 import { GameConfig } from "@openfront/engine-api/Schemas";
 import { pow } from "../DetMath";
 import { DoomsdayClockSpeed } from "../game/DoomsdayClock";
+import { NEW_ERA_UNITS } from "../game/NewEra";
 import { assertNever } from "../Util";
 
 export interface NukeMagnitude {
@@ -177,6 +178,13 @@ export class Config {
   }
 
   isUnitDisabled(unitType: UnitType): boolean {
+    // Mines, oil wells and shipyards only exist in New Era.
+    if (
+      this._gameConfig.newEra === undefined &&
+      NEW_ERA_UNITS.includes(unitType)
+    ) {
+      return true;
+    }
     return this._gameConfig.disabledUnits?.includes(unitType) ?? false;
   }
   instantBuild(): boolean {
@@ -244,6 +252,19 @@ export class Config {
       case UnitType.Factory:
         info = {
           constructionDuration: this.instantBuild() ? 0 : 2 * 10,
+          upgradable: true,
+        };
+        break;
+      case UnitType.Mine:
+      case UnitType.OilWell:
+        info = {
+          constructionDuration: this.instantBuild() ? 0 : 3 * 10,
+          upgradable: true,
+        };
+        break;
+      case UnitType.Shipyard:
+        info = {
+          constructionDuration: this.instantBuild() ? 0 : 5 * 10,
           upgradable: true,
         };
         break;

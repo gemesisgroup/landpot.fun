@@ -1,4 +1,12 @@
-import { AllPlayersStats, ClientID, Winner } from "../Schemas";
+import {
+  AllPlayersStats,
+  ClientID,
+  District,
+  FactorySpec,
+  ShipClass,
+  ShipTask,
+  Winner,
+} from "../Schemas";
 import { TileRef } from "./GameMap";
 import {
   EmojiMessage,
@@ -124,6 +132,7 @@ export enum GameUpdateType {
   SpawnPhaseEnd,
   GamePaused,
   DonateEvent,
+  NewEra,
 }
 
 export type GameUpdate =
@@ -149,7 +158,109 @@ export type GameUpdate =
   | EmbargoUpdate
   | SpawnPhaseEndUpdate
   | GamePausedUpdate
-  | DonateEventUpdate;
+  | DonateEventUpdate
+  | NewEraUpdate;
+
+/**
+ * New Era's land economy, once a second (engine/game/NewEraEconomy.ts).
+ * Iron is in units of 1/600 iron; rates are units per tick (= iron/minute).
+ */
+export interface NewEraUpdate {
+  type: GameUpdateType.NewEra;
+  players: {
+    id: number;
+    stock: number;
+    production: number;
+    demand: number;
+    /** Share of factory demand met, permille. */
+    utilization: number;
+    /** Metallurgy gold discount, permille. */
+    discount: number;
+    /** Oil (rules v2), same units; demand is what ships on tasks burn. */
+    oilStock: number;
+    oilProduction: number;
+    oilDemand: number;
+    oilUtilization: number;
+    /** Rules v4: fuel the refineries save (permille), gold a tick from
+     * veins, residential troop-growth bonus (permille). */
+    refining: number;
+    veinGold: number;
+    growth: number;
+  }[];
+  factories: { unitId: number; spec: FactorySpec }[];
+  /** Rules v4: cities' profile districts. */
+  districts: { unitId: number; district: District }[];
+  /** Rules v4: platforms (wells on offshore fields), the deposit each
+   * works, and the share of its output it keeps (permille). */
+  shelves: { unitId: number; deposit: number; permille: number }[];
+  /** Presence (permille) per sea zone, by config order; zero rows left out. */
+  zones: { presence: { id: number; value: number }[] }[];
+  /** Overseas mines and wells: their pile, freighter and route options. */
+  sites: {
+    unitId: number;
+    owner: number;
+    kind: "iron" | "oil";
+    cargo: number;
+    inFlight: boolean;
+    /** Chosen route: -1 the shortest way, else through this sea zone. */
+    via: number;
+    /** A port on the site's landmass and one at home both stand. */
+    hasPorts: boolean;
+    /** What escorts add to the convoys' side now. */
+    escort: number;
+    options: {
+      via: number;
+      ticks: number;
+      zones: number[];
+      /** Cargo lost (permille) in each zone, at today's presence. */
+      losses: number[];
+    }[];
+  }[];
+  ships: {
+    unitId: number;
+    cls: ShipClass;
+    task: ShipTask;
+    target: number;
+  }[];
+  /** Shipyard orders, each yard's in queue order (readyTick -1: waiting). */
+  orders: {
+    shipyardId: number;
+    cls: ShipClass;
+    readyTick: number;
+  }[];
+  /** Trade contracts (rules v3): offers and running ones. */
+  contracts: {
+    id: number;
+    buyer: number;
+    seller: number;
+    kind: "iron" | "oil";
+    /** Whole units a minute, and gold per whole unit. */
+    rate: number;
+    price: number;
+    state: "offered" | "active";
+    /** Tick an offer lapses (offers only). */
+    expires: number;
+    /** Units waiting at the seller's port; a freighter is at sea. */
+    pile: number;
+    inFlight: boolean;
+    via: number;
+    /** Share of the rate the seller's stock covered last tick, permille. */
+    supply: number;
+    /** Totals so far: units landed, gold paid. */
+    delivered: number;
+    paid: number;
+    /** Both sides have a port the freighters can use. */
+    hasPorts: boolean;
+    options: {
+      via: number;
+      ticks: number;
+      zones: number[];
+      losses: number[];
+    }[];
+  }[];
+  /** Ports under blockade, with the share of throughput taken (permille). */
+  blockades: { portId: number; permille: number }[];
+}
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;

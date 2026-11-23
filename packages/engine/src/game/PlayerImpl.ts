@@ -34,6 +34,12 @@ import {
 import { ReadonlyTileSet } from "@openfront/engine-api/game/ReadViews";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { andFN, manhattanDistFN } from "@openfront/engine-lib/game/GameMapImpl";
+import {
+  MINE_REACH,
+  MINE_SNAP,
+  PLATFORM_REACH,
+  depositFor,
+} from "@openfront/engine-lib/game/NewEra";
 import { TileSet } from "@openfront/engine-lib/game/TileSet";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
@@ -1423,6 +1429,7 @@ export class PlayerImpl implements Player {
     this._myUnitsVersion++;
     this.recordUnitConstructed(type);
     this.removeGold(cost);
+    this.mg.newEra()?.payBuild(this, type);
     this.removeTroops("troops" in params ? (params.troops ?? 0) : 0);
     this.mg.addUpdate(b.toUpdate());
     this.mg.addUnit(b);
@@ -1467,6 +1474,10 @@ export class PlayerImpl implements Player {
     if (this._gold < cost) {
       return false;
     }
+    const newEra = this.mg.newEra();
+    if (newEra !== null && !newEra.canPayBuild(this, unitType)) {
+      return false;
+    }
     if (unitType !== UnitType.MIRVWarhead && !this.isAlive()) {
       return false;
     }
@@ -1487,11 +1498,20 @@ export class PlayerImpl implements Player {
     if (unit.owner() !== this) {
       return false;
     }
+    // New Era: a mine or well stops at its deposit's useful level.
+    if (this.mg.newEra()?.upgradesLeft(this.mg, unit) === 0) {
+      return false;
+    }
     return true;
   }
 
   public canUpgradeUnit(unit: Unit): boolean {
     if (!this.canUpgradeUnitType(unit.type())) {
+      return false;
+    }
+    // New Era: factory upgrades order iron.
+    const newEra = this.mg.newEra();
+    if (newEra !== null && !newEra.canPayUpgrade(unit)) {
       return false;
     }
     if (!this.canBuildUnitType(unit.type())) {
@@ -1506,6 +1526,7 @@ export class PlayerImpl implements Player {
   upgradeUnit(unit: Unit) {
     const cost = this.mg.unitInfo(unit.type()).cost(this.mg, this);
     this.removeGold(cost);
+    this.mg.newEra()?.payUpgrade(unit);
     unit.increaseLevel();
     this.recordUnitConstructed(unit.type());
   }
@@ -1558,9 +1579,19 @@ export class PlayerImpl implements Player {
       // already had n extra units — cost(mg, this, n).
       let upgradeCosts: Gold[] | undefined;
       if (canUpgrade !== false) {
-        upgradeCosts = new Array<Gold>(MAX_UPGRADE_AMOUNT);
+        // A capped unit (New Era mine or well) prices only the levels left.
+        const target = mg.unit(canUpgrade);
+        const left =
+          target === undefined
+            ? null
+            : (mg.newEra()?.upgradesLeft(mg, target) ?? null);
+        const steps =
+          left === null
+            ? MAX_UPGRADE_AMOUNT
+            : Math.min(MAX_UPGRADE_AMOUNT, left);
+        upgradeCosts = new Array<Gold>(steps);
         let total = 0n;
-        for (let n = 0; n < MAX_UPGRADE_AMOUNT; n++) {
+        for (let n = 0; n < steps; n++) {
           total += config.unitInfo(u).cost(mg, this, n);
           upgradeCosts[n] = total;
         }
@@ -1631,6 +1662,11 @@ export class PlayerImpl implements Player {
       case UnitType.City:
       case UnitType.Factory:
         return this.landBasedStructureSpawn(targetTile, validTiles);
+      case UnitType.Mine:
+      case UnitType.OilWell:
+        return this.mineSpawn(targetTile, unitType);
+      case UnitType.Shipyard:
+        return this.portSpawn(targetTile, validTiles);
       default:
         assertNever(unitType);
     }
@@ -1702,6 +1738,10 @@ export class PlayerImpl implements Player {
     if (!this.mg.isWater(tile)) {
       return false;
     }
+    // New Era: warships come only from shipyards, by order (NewEraEconomy).
+    if (this.mg.newEra() !== null) {
+      return false;
+    }
 
     const tileComponent = this.mg.getWaterComponent(tile);
     const bestPort = findClosestBy(
@@ -1730,6 +1770,32 @@ export class PlayerImpl implements Player {
       return false;
     }
     return tiles[0];
+  }
+
+  /**
+   * New Era: a mine (or an oil well) goes on a free spot within MINE_REACH of
+   * the deposit it works (an iron or gold vein; an oil field) nearest the
+   * click (within MINE_SNAP), on the player's land, if nothing works it yet.
+   * An offshore field's well is a platform: on the player's shore, within
+   * PLATFORM_REACH of the field, searched from the click.
+   */
+  private mineSpawn(tile: TileRef, type: UnitType): TileRef | false {
+    const economy = this.mg.newEra();
+    if (economy === null) return false;
+    const index = depositFor(this.mg, economy.deposits, tile, type, MINE_SNAP);
+    if (index < 0 || economy.depositTaken(this.mg, index)) return false;
+    const d = economy.deposits[index];
+    if (!this.mg.isValidCoord(d.x, d.y)) return false;
+    const offshore = d.offshore === true;
+    const reach = offshore ? PLATFORM_REACH : MINE_REACH;
+    const centre = offshore ? tile : this.mg.ref(d.x, d.y);
+    for (const t of this.validStructureSpawnTiles(centre)) {
+      if (offshore && !this.mg.isShore(t)) continue;
+      const dx = this.mg.x(t) - d.x;
+      const dy = this.mg.y(t) - d.y;
+      if (dx * dx + dy * dy <= reach * reach) return t;
+    }
+    return false;
   }
 
   private validStructureSpawnTiles(tile: TileRef): TileRef[] {

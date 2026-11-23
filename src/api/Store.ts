@@ -41,6 +41,26 @@ export interface GameMeta {
   winnerClientIds: string[];
 }
 
+/** An archived multiplayer game, for the homepage feed. */
+export interface RecentGameRow {
+  id: string;
+  kind: string;
+  start: number;
+  end: number;
+  map: string;
+  numPlayers: number;
+  winnerClientIds: string[];
+}
+
+/** A player's wins over a window, with the game to read their name from. */
+export interface TopWinnerRow {
+  publicId: string;
+  wins: number;
+  played: number;
+  lastGameId: string;
+  lastClientId: string;
+}
+
 export interface GamePlayerRow {
   userId: string;
   clientId: string;
@@ -101,6 +121,12 @@ export interface Store {
   putGame(meta: GameMeta, record: Buffer, players: GamePlayerRow[]): boolean;
   getGameRecord(id: string): Buffer | null;
   countGames(userId: string): { played: number; won: number };
+  /** Newest multiplayer games first (singleplayer games stay private). */
+  recentGames(limit: number): RecentGameRow[];
+  /** Multiplayer games that ended at or after `since` (ms). */
+  countGamesSince(since: number): number;
+  /** Most multiplayer wins since `since` (ms), then most games played. */
+  topWinners(since: number, limit: number): TopWinnerRow[];
 
   /** The latest settlement attempt for a paid game (docs/LandpotPot.md). */
   putSettlement(row: SettlementRow): void;
@@ -306,6 +332,27 @@ export class SqliteStore implements Store {
       countGames: p(
         "SELECT COUNT(*) AS played, COALESCE(SUM(won), 0) AS won FROM game_players WHERE user_id = ?",
       ),
+      recentGames: p(
+        "SELECT id, kind, start_ms, end_ms, map, num_players, winners FROM games WHERE kind != 'singleplayer' ORDER BY end_ms DESC LIMIT ?",
+      ),
+      countGamesSince: p(
+        "SELECT COUNT(*) AS n FROM games WHERE kind != 'singleplayer' AND end_ms >= ?",
+      ),
+      topWinners: p(
+        `SELECT u.public_id AS public_id, SUM(gp.won) AS wins, COUNT(*) AS played,
+           (SELECT gp2.game_id FROM game_players gp2 JOIN games g2 ON g2.id = gp2.game_id
+              WHERE gp2.user_id = gp.user_id ORDER BY g2.end_ms DESC LIMIT 1) AS last_game,
+           (SELECT gp2.client_id FROM game_players gp2 JOIN games g2 ON g2.id = gp2.game_id
+              WHERE gp2.user_id = gp.user_id ORDER BY g2.end_ms DESC LIMIT 1) AS last_client
+         FROM game_players gp
+         JOIN games g ON g.id = gp.game_id
+         JOIN users u ON u.id = gp.user_id
+         WHERE g.kind != 'singleplayer' AND g.end_ms >= ?
+         GROUP BY gp.user_id
+         HAVING wins > 0
+         ORDER BY wins DESC, played DESC
+         LIMIT ?`,
+      ),
       sweepRefresh: p("DELETE FROM refresh_tokens WHERE expires_at < ?"),
       sweepChallenges: p("DELETE FROM wallet_challenges WHERE expires_at < ?"),
     };
@@ -440,6 +487,32 @@ export class SqliteStore implements Store {
   countGames(userId: string): { played: number; won: number } {
     const row = this.q.countGames.get(userId) as Row;
     return { played: Number(row.played), won: Number(row.won) };
+  }
+
+  recentGames(limit: number): RecentGameRow[] {
+    return (this.q.recentGames.all(limit) as Row[]).map((r) => ({
+      id: r.id as string,
+      kind: r.kind as string,
+      start: r.start_ms as number,
+      end: r.end_ms as number,
+      map: r.map as string,
+      numPlayers: r.num_players as number,
+      winnerClientIds: JSON.parse(r.winners as string) as string[],
+    }));
+  }
+
+  countGamesSince(since: number): number {
+    return (this.q.countGamesSince.get(since) as Row).n as number;
+  }
+
+  topWinners(since: number, limit: number): TopWinnerRow[] {
+    return (this.q.topWinners.all(since, limit) as Row[]).map((r) => ({
+      publicId: r.public_id as string,
+      wins: r.wins as number,
+      played: r.played as number,
+      lastGameId: r.last_game as string,
+      lastClientId: r.last_client as string,
+    }));
   }
 
   putSettlement(row: SettlementRow): void {

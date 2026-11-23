@@ -208,6 +208,9 @@ export enum UnitType {
   MIRVWarhead = "MIRV Warhead",
   Train = "Train",
   Factory = "Factory",
+  Mine = "Mine",
+  OilWell = "Oil Well",
+  Shipyard = "Shipyard",
 }
 
 export enum TrainType {
@@ -237,6 +240,9 @@ export const Structures = unitTypeGroup([
   UnitType.MissileSilo,
   UnitType.Port,
   UnitType.Factory,
+  UnitType.Mine,
+  UnitType.OilWell,
+  UnitType.Shipyard,
 ] as const);
 
 export const BuildMenus = unitTypeGroup([

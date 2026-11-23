@@ -50,6 +50,7 @@ import type { EngineConfig } from "../configuration/EngineConfig";
 import { AbstractGraph } from "../pathfinding/algorithms/AbstractGraph";
 import { PathFinder } from "../pathfinding/types";
 import type { ExecRecord, SnapshotWriter } from "../snapshot/SnapshotContext";
+import type { NewEraEconomy } from "./NewEraEconomy";
 import { RailNetwork } from "./RailNetwork";
 import { Stats } from "./Stats";
 
@@ -115,6 +116,12 @@ export interface UnitParamsMap {
   [UnitType.SAMLauncher]: Record<string, never>;
 
   [UnitType.City]: Record<string, never>;
+
+  [UnitType.Mine]: Record<string, never>;
+
+  [UnitType.OilWell]: Record<string, never>;
+
+  [UnitType.Shipyard]: Record<string, never>;
 }
 
 // Type helper to get params type for a specific unit type
@@ -652,6 +659,9 @@ export interface Game extends GameLike {
 
   addUpdate(update: GameUpdate): void;
   railNetwork(): RailNetwork;
+  /** New Era's land economy; null in Classic games. */
+  newEra(): NewEraEconomy | null;
+  setNewEra(economy: NewEraEconomy | null): void;
   /**
    * Bumped whenever a City, Port or Factory is added or removed (the
    * structures the rail network connects) and whenever land turns to water

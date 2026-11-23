@@ -46,6 +46,8 @@ export type Intent =
   | KickPlayerIntent
   | TogglePauseIntent
   | UpdateGameConfigIntent
+  | SetFactorySpecIntent
+  | NewEraCommandIntent
   | ToggleGameStartTimer;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
@@ -75,6 +77,9 @@ export type AllianceExtensionIntent = z.infer<
   typeof AllianceExtensionIntentSchema
 >;
 export type DeleteUnitIntent = z.infer<typeof DeleteUnitIntentSchema>;
+export type SetFactorySpecIntent = z.infer<typeof SetFactorySpecIntentSchema>;
+export type NewEraCommandIntent = z.infer<typeof NewEraCommandIntentSchema>;
+export type NewEraCommand = NewEraCommandIntent["command"];
 export type KickPlayerIntent = z.infer<typeof KickPlayerIntentSchema>;
 export type TogglePauseIntent = z.infer<typeof TogglePauseIntentSchema>;
 export type UpdateGameConfigIntent = z.infer<
@@ -231,6 +236,73 @@ export const CalderaConfigSchema = z.object({
 });
 export type CalderaConfig = z.infer<typeof CalderaConfigSchema>;
 
+// Landpot New Era (docs/LandpotNewEra.md, engine-lib/game/NewEra.ts): the
+// economy rules on top of Classic. The deposits are part of the config, so a
+// replay carries the exact ones its match was played with. Richness is iron
+// per minute a fully built mine can draw.
+// Rules v2 adds oil fields (`kind: "oil"`, worked by oil wells) and the
+// map's strategic sea zones.
+// Rules v4 adds gold veins (`kind: "gold"`, worked by mines, paid straight
+// into the treasury) and offshore oil (`offshore`: the field lies in the
+// water, worked by a well on the shore — a platform).
+export const ResourceKinds = ["iron", "oil"] as const;
+export type ResourceKind = (typeof ResourceKinds)[number];
+export const DepositKinds = ["iron", "oil", "gold"] as const;
+export type DepositKind = (typeof DepositKinds)[number];
+export const IronDepositSchema = z.object({
+  x: zb.uint({ max: 65535 }),
+  y: zb.uint({ max: 65535 }),
+  richness: zb.uint({ min: 1, max: 60 }),
+  // Absent: iron (rules v1 had only iron).
+  kind: z.enum(DepositKinds).optional(),
+  offshore: z.boolean().optional(),
+});
+export type IronDeposit = z.infer<typeof IronDepositSchema>;
+// A strategic sea zone: water inside its rectangles (x0, y0, x1, y1,
+// inclusive; the first zone listed wins an overlap), and the tile ships
+// head for when they patrol it or a route goes through it.
+export const SeaZoneSchema = z.object({
+  name: z.string().max(32),
+  rects: z
+    .array(z.array(zb.uint({ max: 65535 })).length(4))
+    .min(1)
+    .max(8),
+  waypoint: z.object({
+    x: zb.uint({ max: 65535 }),
+    y: zb.uint({ max: 65535 }),
+  }),
+});
+export type SeaZone = z.infer<typeof SeaZoneSchema>;
+export const NewEraConfigSchema = z.object({
+  rulesVersion: zb.uint({ min: 1, max: 1000 }),
+  deposits: z.array(IronDepositSchema).max(128),
+  zones: z.array(SeaZoneSchema).max(8).optional(),
+});
+export type NewEraConfig = z.infer<typeof NewEraConfigSchema>;
+
+export const FactorySpecs = [
+  "none",
+  "logistics",
+  "metallurgy",
+  "refinery",
+] as const;
+export type FactorySpec = (typeof FactorySpecs)[number];
+export const ShipClasses = ["patrol", "destroyer", "cruiser"] as const;
+export type ShipClass = (typeof ShipClasses)[number];
+export const ShipTasks = ["harbor", "patrol", "escort", "blockade"] as const;
+export type ShipTask = (typeof ShipTasks)[number];
+// Rules v3: a trade contract waits for the seller's answer, then runs.
+export const ContractStates = ["offered", "active"] as const;
+export type ContractState = (typeof ContractStates)[number];
+// Rules v4: a city's one profile district.
+export const Districts = [
+  "none",
+  "residential",
+  "commercial",
+  "industrial",
+] as const;
+export type District = (typeof Districts)[number];
+
 // Overtime (anti-stalemate). After startMinutes of game time the tile share
 // required to win drops steadily from the 80% base at a fixed rate (see
 // OVERTIME_DEFAULTS in Config.ts), so the leading side eventually crosses the
@@ -281,6 +353,7 @@ export const GameConfigSchema = z.object({
   doomsdayClock: DoomsdayClockConfigSchema.optional(),
   overtime: OvertimeConfigSchema.optional(),
   caldera: CalderaConfigSchema.optional(),
+  newEra: NewEraConfigSchema.optional(),
   publicGameModifiers: z
     .object({
       isCompact: z.boolean().optional(),
@@ -520,6 +593,72 @@ export const UpgradeStructureIntentSchema = z.object({
   amount: zb.uint({ min: 1, max: MAX_UPGRADE_AMOUNT }).optional(),
 });
 
+// New Era: what a factory's capacity is used for.
+export const SetFactorySpecIntentSchema = z.object({
+  type: z.literal("set_factory_spec"),
+  unitId: zb.uint(),
+  spec: z.enum(FactorySpecs),
+});
+
+// New Era fleet and shipping orders (engine/execution/newera).
+export const NewEraCommandIntentSchema = z.object({
+  type: z.literal("new_era_command"),
+  command: z.discriminatedUnion("action", [
+    // Which way an overseas mine's or well's freighters sail: -1 the
+    // shortest way, otherwise through this sea zone.
+    z.object({
+      action: z.literal("route"),
+      siteId: zb.uint(),
+      via: zb.int({ min: -1, max: 7 }),
+    }),
+    z.object({
+      action: z.literal("order_ship"),
+      shipyardId: zb.uint(),
+      cls: z.enum(ShipClasses),
+    }),
+    // target: the sea zone to patrol, the site whose route to escort, or
+    // the rival port to blockade.
+    z.object({
+      action: z.literal("ship_task"),
+      shipId: zb.uint(),
+      task: z.enum(ShipTasks),
+      target: zb.uint().optional(),
+    }),
+    // Rules v4: give a city of level DISTRICT_MIN_LEVEL+ its profile.
+    z.object({
+      action: z.literal("set_district"),
+      cityId: zb.uint(),
+      district: z.enum(Districts),
+    }),
+    // Rules v3 trade. The buyer offers: `seller` is a player's small id,
+    // `rate` whole units a minute, `price` gold per whole unit.
+    z.object({
+      action: z.literal("offer_contract"),
+      seller: zb.uint({ max: 65535 }),
+      kind: z.enum(ResourceKinds),
+      rate: zb.uint({ min: 1, max: 20 }),
+      price: zb.uint({ max: 1_000_000 }),
+    }),
+    // The seller's answer to an offer.
+    z.object({
+      action: z.literal("answer_contract"),
+      contractId: zb.uint(),
+      accept: z.boolean(),
+    }),
+    // Either side ends a contract (or the buyer withdraws an offer).
+    z.object({
+      action: z.literal("end_contract"),
+      contractId: zb.uint(),
+    }),
+    // Either side picks the way the contract's freighters sail.
+    z.object({
+      action: z.literal("contract_route"),
+      contractId: zb.uint(),
+      via: zb.int({ min: -1, max: 7 }),
+    }),
+  ]),
+});
+
 export const CancelAttackIntentSchema = z.object({
   type: z.literal("cancel_attack"),
   attackID: z.string(),
@@ -609,6 +748,8 @@ export const IntentSchema = z.discriminatedUnion("type", [
   TogglePauseIntentSchema,
   UpdateGameConfigIntentSchema,
   ToggleGameStartTimerIntentSchema,
+  SetFactorySpecIntentSchema,
+  NewEraCommandIntentSchema,
 ]);
 
 // StampedIntent = Intent with server-stamped clientID (used in turns and execution)

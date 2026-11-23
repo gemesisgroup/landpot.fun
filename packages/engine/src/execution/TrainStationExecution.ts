@@ -70,7 +70,11 @@ export class TrainStationExecution implements Execution {
         this.unit.owner().unitCount(UnitType.Factory),
         this.mg.unitCount(UnitType.Train),
       );
-    for (let i = 0; i < this.unit!.level(); i++) {
+    // New Era: a supplied logistics factory rolls more often.
+    const rolls =
+      this.unit!.level() +
+      (this.mg.newEra()?.extraTrainRolls(this.mg, this.unit) ?? 0);
+    for (let i = 0; i < rolls; i++) {
       if (this.random.chance(spawnRate)) {
         return true;
       }

@@ -4,6 +4,7 @@ import {
   PlayerType,
   Structures,
   TerraNullius,
+  TerrainType,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
@@ -207,6 +208,37 @@ export abstract class AiAttackBehavior {
     const useReserve = target.isPlayer() && !botWithStructures;
     const reserveRatio = useReserve ? this.reserveRatio : this.expandRatio;
     return maxTroops * reserveRatio;
+  }
+
+  // Cap the bonus: even a valuable economy cannot make an unaffordable front profitable.
+  protected captureValue(enemy: Player): number {
+    const levels =
+      enemy.unitsOwned(UnitType.City) +
+      enemy.unitsOwned(UnitType.Factory) +
+      enemy.unitsOwned(UnitType.Port);
+    return 1 + Math.min(0.75, levels * 0.15);
+  }
+
+  /** Estimated casualties per conquered tile on an unfortified highland front. */
+  protected estimatedTileLoss(target: Player, stack: number): number {
+    return this.game.config().attackLogic({
+      terrain: TerrainType.Highland,
+      attackTroops: Math.max(1, stack),
+      attacker: {
+        type: this.player.type(),
+        numTiles: this.player.numTilesOwned(),
+      },
+      defender: {
+        type: target.type(),
+        numTiles: Math.max(1, target.numTilesOwned()),
+        troops: target.troops(),
+        isTraitor: target.isTraitor(),
+        isDisconnectedTeammate: false,
+      },
+      defenderHasDefensePost: false,
+      falloutRatio: null,
+      borderSize: 1,
+    }).attackerTroopLoss;
   }
 
   // `opponent` is a player we take on on purpose (see NationAttackBehavior)

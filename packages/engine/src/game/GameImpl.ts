@@ -96,6 +96,7 @@ import {
   Player,
   Unit,
 } from "./Game";
+import type { NewEraEconomy } from "./NewEraEconomy";
 import { PlayerImpl } from "./PlayerImpl";
 import { RailNetwork } from "./RailNetwork";
 import {
@@ -1624,6 +1625,14 @@ export class GameImpl implements Game {
   }
   railNetwork(): RailNetwork {
     return this._railNetwork;
+  }
+  // New Era only. Owned (and snapshotted) by NewEraExecution, which sets it.
+  private _newEra: NewEraEconomy | null = null;
+  newEra(): NewEraEconomy | null {
+    return this._newEra ?? null;
+  }
+  setNewEra(economy: NewEraEconomy | null): void {
+    this._newEra = economy;
   }
   mirvsLaunched(): number {
     return this._mirvsLaunched;

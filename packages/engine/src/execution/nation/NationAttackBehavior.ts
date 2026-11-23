@@ -107,6 +107,7 @@ export class NationAttackBehavior extends AiAttackBehavior {
 
   maybeAttack() {
     const routes = new Map<Player, BoatRoute | null>();
+    this.botAttackTroopsSent = 0;
     this.boatRoutes = routes;
     let landFront = false;
     try {
@@ -208,8 +209,11 @@ export class NationAttackBehavior extends AiAttackBehavior {
         this.attackWithRandomBoat();
       }
     } else {
-      if (!holdBoats && this.random.chance(10)) {
-        this.attackWithRandomBoat(borderingEnemies);
+      if (
+        !holdBoats &&
+        this.random.chance(10) &&
+        this.attackWithRandomBoat(borderingEnemies)
+      ) {
         return;
       }
 
@@ -219,11 +223,11 @@ export class NationAttackBehavior extends AiAttackBehavior {
     this.attackBestTarget(borderingFriends, borderingEnemies);
   }
 
-  private attackWithRandomBoat(borderingEnemies: Player[] = []) {
+  private attackWithRandomBoat(borderingEnemies: Player[] = []): boolean {
     if (this.player === null) throw new Error("not initialized");
 
     if (this.game.config().isUnitDisabled(UnitType.TransportShip)) {
-      return;
+      return false;
     }
 
     // Check if we've already sent out the maximum number of transport ships
@@ -231,13 +235,13 @@ export class NationAttackBehavior extends AiAttackBehavior {
       this.player.unitCount(UnitType.TransportShip) >=
       this.game.config().boatMaxNumber()
     ) {
-      return;
+      return false;
     }
 
     // Check if we have any shore tiles to launch from
     const shore = this.shoreTiles(this.player);
     if (shore.length === 0) {
-      return;
+      return false;
     }
 
     const src = this.random.randElement(shore);
@@ -248,29 +252,29 @@ export class NationAttackBehavior extends AiAttackBehavior {
       // None found? Then look for players
       found = this.findRandomBoatTarget(src, borderingEnemies, false);
       if (found === null) {
-        return;
+        return false;
       }
     }
     const { tile: dst, launch } = found;
-    if (this.sail(launch, dst).blocker !== null) return;
+    if (this.sail(launch, dst).blocker !== null) return false;
 
     const owner = this.game.owner(dst);
     if (this.landsBeachheads()) {
-      this.sendBeachhead(owner, dst);
-      return;
+      return this.sendBeachhead(owner, dst);
     }
     const cap = owner.isPlayer()
       ? this.troopSendCap()
       : this.expansionTroopCap();
     const troops = Math.min(this.homeTroops() / 5, cap);
-    if (troops < 1) return;
+    if (troops < 1) return false;
 
     // Hard & Impossible: don't attack if we'd send less than 20% of target's troops
     if (owner.isPlayer() && this.isAttackTooWeak(troops, owner)) {
-      return;
+      return false;
     }
 
     this.send(new TransportShipExecution(this.player, dst, troops), troops);
+    return true;
   }
 
   private findRandomBoatTarget(
@@ -379,6 +383,8 @@ export class NationAttackBehavior extends AiAttackBehavior {
     // Maybe save up troops until we reach the trigger ratio
     if (!this.hasTriggerRatioTroops() && !this.random.chance(10)) return;
 
+    if (this.isFFA() && this.tryUncontestedFront(borderingEnemies)) return;
+
     // Get attack strategies in priority order based on difficulty
     const strategies = this.getAttackStrategies(
       borderingFriends,
@@ -388,6 +394,44 @@ export class NationAttackBehavior extends AiAttackBehavior {
     for (const strategy of strategies) {
       if (strategy()) return;
     }
+  }
+
+  /** Prefer an equally viable opening over dividing the spoils with another attacker. */
+  private tryUncontestedFront(enemies: Player[]): boolean {
+    if (
+      enemies.length < 2 ||
+      this.player.incomingAttacks().some((a) => !a.retreating())
+    )
+      return false;
+    const fronts = enemies.filter(
+      (enemy) => enemy.type() !== PlayerType.Bot && this.bordersByLand(enemy),
+    );
+    if (fronts.length < 2) return false;
+    const crowded = fronts.filter((enemy) => {
+      let competingTroops = 0;
+      for (const attack of enemy.incomingAttacks()) {
+        if (attack.attacker() !== this.player && !attack.retreating())
+          competingTroops += attack.troops();
+      }
+      return competingTroops >= Math.max(1, enemy.troops());
+    });
+    if (crowded.length === 0 || crowded.length === fronts.length) return false;
+    const leader = findRunawayLeader(this.game);
+    if (leader && crowded.includes(leader)) return false;
+    // Neighbors arrive weakest first. A much stronger alternative is not an opening.
+    const limit = Math.min(
+      this.homeTroops(),
+      Math.max(1, crowded[0].troops()) * 1.5,
+    );
+    for (const enemy of fronts) {
+      if (
+        !crowded.includes(enemy) &&
+        enemy.troops() <= limit &&
+        this.sendAttack(enemy)
+      )
+        return true;
+    }
+    return false;
   }
 
   private getAttackStrategies(
@@ -448,6 +492,58 @@ export class NationAttackBehavior extends AiAttackBehavior {
 
     // Define all strategies as functions that return true if they attacked
     const retaliate = (): boolean => this.retaliate();
+
+    const compareLandTargets = (): boolean => {
+      const fronts = borderingEnemies.filter((enemy) =>
+        this.bordersByLand(enemy),
+      );
+      if (fronts.length < 2) return false;
+      const competingWithBot =
+        fronts.some((p) => p.type() === PlayerType.Bot) &&
+        fronts.some((p) => p.type() !== PlayerType.Bot);
+      const home = this.homeTroops();
+      const candidates = [];
+      for (const enemy of fronts) {
+        const budget = Math.min(
+          home - this.reserveTroops(enemy),
+          this.troopSendCap(enemy),
+        );
+        if (budget < 1 || this.isAttackTooWeak(budget, enemy)) continue;
+        const committed = enemy
+          .outgoingAttacks()
+          .reduce(
+            (sum, attack) => sum + (attack.retreating() ? 0 : attack.troops()),
+            0,
+          );
+        const gain = Math.min(
+          enemy.numTilesOwned(),
+          budget / Math.max(1, this.estimatedTileLoss(enemy, budget)),
+        );
+        // A depleted garrison gives us a short window before its army returns.
+        const exposure = committed / Math.max(1, committed + enemy.troops());
+        const value = this.captureValue(enemy);
+        candidates.push({
+          enemy,
+          score: gain * value * (1 + exposure),
+          exposure,
+          value,
+        });
+      }
+      // Keep established priorities unless a competing land front has opened up.
+      if (
+        candidates.length < 2 ||
+        (!competingWithBot &&
+          !candidates.some(
+            (candidate) => candidate.exposure >= 0.5 || candidate.value > 1,
+          ))
+      )
+        return false;
+      candidates.sort((a, b) => b.score - a.score);
+      for (const { enemy } of candidates) {
+        if (this.sendLandAttack(enemy, undefined, enemy)) return true;
+      }
+      return false;
+    };
 
     const bots = (): boolean => this.attackBots();
 
@@ -567,10 +663,10 @@ export class NationAttackBehavior extends AiAttackBehavior {
       case Difficulty.Hard:
         // Strong veryWeak and juicy strats after the distracting hated strat, to make the nations weaker than impossible
         // prettier-ignore
-        return [bots, assist, betray, nuked, traitor, afk, hated, veryWeak, juicy, victim, crown, weakest, island, donate];
+        return [compareLandTargets, bots, assist, betray, nuked, traitor, afk, hated, veryWeak, juicy, victim, crown, weakest, island, donate];
       case Difficulty.Impossible:
         // prettier-ignore
-        return [bots, veryWeak, betray, assist, victim, crown, traitor, juicy, afk, nuked, hated, weakest, island, donate];
+        return [compareLandTargets, bots, veryWeak, betray, assist, victim, crown, traitor, juicy, afk, nuked, hated, weakest, island, donate];
       default:
         assertNever(difficulty);
     }
