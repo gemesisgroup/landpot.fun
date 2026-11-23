@@ -237,7 +237,7 @@ export function lobbyCard({
       @click=${onClick}
       ?disabled=${disabled}
       aria-disabled=${blocked}
-      class="group @container relative block w-full ${heightClass} overflow-hidden rounded-2xl bg-surface text-left uppercase text-white transition-shadow duration-200 hover:shadow-[var(--shadow-lobby-card-hover)] ${state}"
+      class="lp-lobby-card group @container relative block w-full ${heightClass} overflow-hidden rounded-2xl bg-surface text-left uppercase text-white transition-shadow duration-200 hover:shadow-[var(--shadow-lobby-card-hover)] ${state}"
     >
       <img
         src=${terrainMapFileLoader.getMapData(mapType).webpPath}
@@ -299,7 +299,7 @@ export function lobbyCard({
         ${
           title
             ? html`<p
-                class="text-sm font-bold leading-tight tracking-wider @[20rem]:text-base"
+                class="lp-card-title text-sm font-bold leading-tight tracking-wider @[20rem]:text-base"
               >
                 ${title}
               </p>`

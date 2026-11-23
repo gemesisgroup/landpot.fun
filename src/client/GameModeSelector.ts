@@ -61,11 +61,10 @@ import { isReplayShellHost } from "./VersionedReplay";
 // Ranked card stays hidden; the page and its modal are kept for later.
 const RANKED_ENABLED = false;
 const PRIMARY_ACTION = "bg-malibu-blue hover:bg-aquarius";
-const SECONDARY_ACTION = "lp-glass lp-lift hover:border-malibu-blue/40";
+const SECONDARY_ACTION = "lp-mode-btn";
 const DISABLED = "opacity-50 cursor-not-allowed pointer-events-none";
 /** Tutorial card: the panel's gold, dark text for contrast. */
-const TUTORIAL_ACTION =
-  "lp-lift bg-cyber-yellow hover:bg-yellow-300 active:bg-cyber-yellow/80 !text-gray-900";
+const TUTORIAL_ACTION = "lp-mode-btn lp-mode-btn-gold";
 
 /** The Tutorial card shows beside Solo until the player has played this many games. */
 const TUTORIAL_CARD_MAX_GAMES = 5;

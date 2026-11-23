@@ -197,6 +197,8 @@ export interface GameConfigSettingsData {
     randomMapDivider?: boolean;
     showMedals?: boolean;
     mapWins?: Map<GameMapType, Set<Difficulty>>;
+    /** Leave the map picker out (Landpot New Era plays on its own map). */
+    hidden?: boolean;
   };
   difficulty: {
     selected: Difficulty;
@@ -438,24 +440,28 @@ export class GameConfigSettings extends LitElement {
 
     return html`
       <div class=${this.sectionGapClass}>
-        ${renderSection(
-          MAP_ICON,
-          "text-aquarius",
-          "bg-malibu-blue/20",
-          "map.map",
-          html`<map-picker
-            .selectedMap=${settings.map.selected}
-            .useRandomMap=${settings.map.useRandom}
-            .randomMapDivider=${settings.map.randomMapDivider ?? false}
-            .showMedals=${settings.map.showMedals ?? false}
-            .mapWins=${settings.map.mapWins ?? new Map()}
-            .onSelectMap=${this.handleSelectMap}
-            .onSelectRandom=${this.handleSelectRandom}
-            .searchQuery=${this.mapSearchQuery}
-          ></map-picker>`,
-          undefined,
-          this.renderMapSearchInput(),
-        )}
+        ${
+          settings.map.hidden
+            ? nothing
+            : renderSection(
+                MAP_ICON,
+                "text-aquarius",
+                "bg-malibu-blue/20",
+                "map.map",
+                html`<map-picker
+                  .selectedMap=${settings.map.selected}
+                  .useRandomMap=${settings.map.useRandom}
+                  .randomMapDivider=${settings.map.randomMapDivider ?? false}
+                  .showMedals=${settings.map.showMedals ?? false}
+                  .mapWins=${settings.map.mapWins ?? new Map()}
+                  .onSelectMap=${this.handleSelectMap}
+                  .onSelectRandom=${this.handleSelectRandom}
+                  .searchQuery=${this.mapSearchQuery}
+                ></map-picker>`,
+                undefined,
+                this.renderMapSearchInput(),
+              )
+        }
         ${renderSection(
           DIFFICULTY_ICON,
           "text-green-400",

@@ -311,6 +311,11 @@ export class LangSelector extends LitElement {
       // Re-sends its strings to the clan map frame.
       "clan-map-view",
       "landpot-wallet-button",
+      "landpot-map-hero",
+      "landpot-strip",
+      "landpot-paid-match",
+      "landpot-live",
+      "landpot-arsenal",
     ];
 
     document.title = this.translateText("main.title") ?? document.title;

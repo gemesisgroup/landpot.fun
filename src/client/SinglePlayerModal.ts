@@ -10,6 +10,11 @@ import {
 import type { SnapshotHeader } from "@openfront/engine-api/game/SnapshotHeader";
 import { TeamCountConfig } from "@openfront/engine-api/Schemas";
 import { DoomsdayClockSpeed } from "@openfront/engine-lib/game/DoomsdayClock";
+import {
+  newEraConfig,
+  newEraDepositsFor,
+  newEraZonesFor,
+} from "@openfront/engine-lib/game/NewEra";
 import { UserMeResponse } from "@openfront/shared/ApiSchemas";
 import { assetUrl } from "@openfront/shared/AssetUrls";
 import {
@@ -154,6 +159,7 @@ const DEFAULT_OPTIONS = {
   doomsdayClockSpeed: "normal" as DoomsdayClockSpeed,
   overtime: false,
   overtimeStartMinutes: undefined as number | undefined,
+  newEra: false,
 } as const;
 
 // A map earns achievements only if it has nations to conquer — the same rule
@@ -203,6 +209,10 @@ export class SinglePlayerModal extends BaseModal {
   protected routerName = "single-player";
 
   @state() private selectedMap: GameMapType = DEFAULT_OPTIONS.selectedMap;
+  /** Landpot New Era rules: plays Two Straits at Normal size. */
+  @state() private newEra: boolean = DEFAULT_OPTIONS.newEra;
+  /** The map picked before switching to New Era, restored on the way back. */
+  private classicMap: GameMapType | null = null;
   @state() private selectedDifficulty: Difficulty =
     DEFAULT_OPTIONS.selectedDifficulty;
   @state() private nations: number = 0;
@@ -548,6 +558,7 @@ export class SinglePlayerModal extends BaseModal {
         <div
           class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-6 pt-4 pb-6 mr-1 mx-auto w-full max-w-5xl"
         >
+          ${this.renderModePick()}
           <saved-games-panel
             class="block mb-6"
             .signedIn=${responseHasLinkedIdentity(this.userMeResponse)}
@@ -564,6 +575,7 @@ export class SinglePlayerModal extends BaseModal {
               map: {
                 selected: this.selectedMap,
                 useRandom: this.useRandomMap,
+                hidden: this.newEra,
                 showMedals: this.showAchievements,
                 mapWins: this.mapWins,
               },
@@ -824,6 +836,7 @@ export class SinglePlayerModal extends BaseModal {
     this.doomsdayClockSpeed = DEFAULT_OPTIONS.doomsdayClockSpeed;
     this.overtime = DEFAULT_OPTIONS.overtime;
     this.overtimeStartMinutes = DEFAULT_OPTIONS.overtimeStartMinutes;
+    this.newEra = DEFAULT_OPTIONS.newEra;
   }
 
   protected onOpen(args?: Record<string, unknown>): void {
@@ -1007,6 +1020,77 @@ export class SinglePlayerModal extends BaseModal {
       this.defaultNationCount,
       val,
     );
+  }
+
+  /** Landpot: switch between the classic rules and New Era. */
+  private setNewEra(on: boolean): void {
+    if (on === this.newEra) return;
+    this.newEra = on;
+    if (on) {
+      this.classicMap = this.selectedMap;
+      this.useRandomMap = false;
+      this.selectedMap = GameMapType.TwoStraits;
+      this.handleCompactMapChange(false);
+    } else if (this.classicMap !== null) {
+      this.selectedMap = this.classicMap;
+    }
+  }
+
+  /** Landpot: the two ways to play, as two big cards above everything else. */
+  private renderModePick(): TemplateResult {
+    const card = (
+      on: boolean,
+      key: "classic" | "new_era",
+      art: TemplateResult,
+      tags: string[],
+    ) =>
+      html`<button
+        type="button"
+        role="radio"
+        aria-checked=${on}
+        class="lp-mode-card ${on ? "is-on" : ""}"
+        @click=${() => this.setNewEra(key === "new_era")}
+      >
+        <span class="lp-mode-art" aria-hidden="true">${art}</span>
+        <span class="lp-mode-text">
+          <span class="lp-mode-name"
+            >${translateText(`game_settings.mode_${key}`)}</span
+          >
+          <span class="lp-mode-desc"
+            >${translateText(`game_settings.mode_${key}_desc`)}</span
+          >
+          <span class="lp-mode-tags">
+            ${tags.map((t) => html`<span class="lp-mode-tag">${t}</span>`)}
+          </span>
+        </span>
+        <span class="lp-mode-check" aria-hidden="true"></span>
+      </button>`;
+    return html`<div
+      class="lp-mode-pick"
+      role="radiogroup"
+      aria-label=${translateText("game_settings.mode")}
+    >
+      ${card(
+        !this.newEra,
+        "classic",
+        html`<span class="lp-mode-icon is-classic"></span>`,
+        [
+          translateText("game_settings.mode_tag_any_map"),
+          translateText("game_settings.mode_tag_nukes"),
+        ],
+      )}
+      ${card(
+        this.newEra,
+        "new_era",
+        html`<span class="lp-ne-ore"></span><span class="lp-ne-oil"></span
+          ><span class="lp-ne-coin"></span>`,
+        [
+          translateText("game_settings.mode_tag_two_straits"),
+          translateText("game_settings.mode_tag_economy"),
+          translateText("game_settings.mode_tag_sea"),
+        ],
+      )}
+    </div>`;
   }
 
   private handleConfigOptionToggleChanged = (e: Event) => {
@@ -1331,10 +1415,20 @@ export class SinglePlayerModal extends BaseModal {
             },
           ],
           config: {
-            gameMap: this.selectedMap,
-            gameMapSize: this.compactMap
-              ? GameMapSize.Compact
-              : GameMapSize.Normal,
+            gameMap: this.newEra ? GameMapType.TwoStraits : this.selectedMap,
+            // New Era's deposits are placed on the Normal grid.
+            gameMapSize:
+              this.compactMap && !this.newEra
+                ? GameMapSize.Compact
+                : GameMapSize.Normal,
+            ...(this.newEra
+              ? {
+                  newEra: newEraConfig(
+                    newEraDepositsFor(GameMapType.TwoStraits),
+                    newEraZonesFor(GameMapType.TwoStraits),
+                  ),
+                }
+              : {}),
             gameType: GameType.Singleplayer,
             gameMode: this.gameMode,
             playerTeams: this.teamCount,

@@ -2,7 +2,9 @@ import { assetUrl } from "@openfront/shared/AssetUrls";
 import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
 import "./CosmeticBackground";
-import "./LandpotHero";
+import "./LandpotMapHero";
+import "./LandpotArsenal";
+import "./LandpotLive";
 import "./NavUtilityIcons";
 import "./LandpotStrip";
 import "./PaidMatch";
@@ -79,7 +81,9 @@ export class PlayPage extends LitElement {
         <!-- Mobile: spacer for fixed top bar -->
         <div class="lg:hidden h-[calc(env(safe-area-inset-top)+56px)]"></div>
 
-        <landpot-hero class="block sm:-mx-4 lg:mx-0"></landpot-hero>
+        <landpot-map-hero class="block sm:-mx-4 lg:mx-0"></landpot-map-hero>
+
+        <landpot-live class="block sm:-mx-4 lg:mx-0 mb-4"></landpot-live>
 
         <!-- Landpot: the open paid lobby and anything to claim (renders
              nothing while paid matches are off). -->
@@ -124,6 +128,8 @@ export class PlayPage extends LitElement {
         </div>
 
         <game-mode-selector></game-mode-selector>
+
+        <landpot-arsenal class="block sm:-mx-4 lg:mx-0 mt-6"></landpot-arsenal>
 
         <!-- Desktop gets the compact footer button instead. -->
         <steam-wishlist

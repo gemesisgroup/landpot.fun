@@ -1,4 +1,3 @@
-import { assetUrl } from "@openfront/shared/AssetUrls";
 import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
 import "./NavUtilityIcons";
@@ -54,13 +53,16 @@ export class DesktopNavBar extends LitElement {
         class="landpot-nav hidden lg:flex w-full bg-[rgb(11_13_16/0.72)] backdrop-blur-md border-b border-white/[0.06] items-center gap-7 px-8 py-3 shrink-0 z-50 relative compact:[zoom:0.75]"
       >
         <div class="flex items-center gap-3 mr-auto">
-          <div class="h-7">
-            <img
-              class="block h-full w-auto"
-              src=${assetUrl("images/OpenFrontLogo.svg")}
-              alt="Landpot"
-            />
-          </div>
+          <a
+            class="lp-wordmark"
+            href="/"
+            aria-label="Landpot"
+            @click=${(e: Event) => {
+              e.preventDefault();
+              window.showPage?.("page-play");
+            }}
+            ><span>land</span><span class="lp-wordmark-pot">pot</span></a
+          >
           <div
             id="game-version"
             class="l-header__highlightText lp-mono text-[11px] text-gray-500"

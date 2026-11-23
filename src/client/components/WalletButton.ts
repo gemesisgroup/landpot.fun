@@ -186,7 +186,7 @@ export class WalletButton extends LitElement {
     return html`<div class="relative ${this.full ? "w-full" : ""}">
       <button
         type="button"
-        class="lp-mono text-[13px] rounded-[10px] border px-4 py-2 flex items-center justify-center gap-2 transition-colors cursor-pointer
+        class="lp-wallet-btn lp-mono text-[13px] rounded-[10px] border px-4 py-2 flex items-center justify-center gap-2 transition-colors cursor-pointer
           ${this.full ? "w-full" : ""}
           ${
           connected

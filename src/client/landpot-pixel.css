@@ -1,0 +1,2521 @@
+/* Landpot pixel kit (design/DESIGN.md, direction C "Pixel"): chunky pixel
+   frames with notched corners, a pixel face for numbers and titles, lime
+   pixel buttons with a pressed bottom edge. Unlayered so it wins over
+   Tailwind utilities, like landpot.css. */
+
+:root {
+  --font-pixel: "Pixelify Sans", "IBM Plex Mono", ui-monospace, monospace;
+  --px-bg: #0d1220;
+  --px-bg-2: #141a2c;
+  --px-bg-glass: rgb(13 18 32 / 0.9);
+  --px-edge: #46506a;
+  --px-edge-dim: #2a3146;
+  --px-edge-hi: #c6ff3d;
+  --px-ink: #f4f5f7;
+  --px-muted: #8d95a8;
+  --px-gold: #ffd23f;
+  --px-lime: #c6ff3d;
+  --px-lime-deep: #6f9a10;
+  --px-red: #ff5a4e;
+}
+
+/* Pixel corners: the outer pixel of every corner is cut, so a 2px border
+   reads as a pixel-art frame. */
+.px-corners,
+.px-panel,
+.px-btn,
+.px-chip,
+.px-cell {
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+}
+
+.px-panel {
+  background: var(--px-bg-glass);
+  border: 2px solid var(--px-edge);
+  box-shadow:
+    inset 0 0 0 2px #070a12,
+    inset 0 4px 0 0 rgb(255 255 255 / 0.03);
+}
+.px-panel-hi {
+  border-color: var(--px-edge-hi);
+}
+.px-panel-flat {
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+
+.px-font,
+.px-title,
+.px-num {
+  font-family: var(--font-pixel);
+}
+.px-title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.px-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.px-img,
+.px-img img {
+  image-rendering: pixelated;
+}
+
+/* Lime pixel button: dark outline, light top edge, darker bottom edge that
+   flattens when pressed. */
+.px-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0b0d10;
+  background: var(--px-lime);
+  border: 2px solid #0b0d10;
+  box-shadow:
+    inset 0 -4px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.55),
+    0 0 0 2px var(--px-lime);
+  transition:
+    transform 0.08s steps(2),
+    filter 0.12s ease;
+  cursor: pointer;
+}
+.px-btn:hover {
+  filter: brightness(1.08);
+}
+.px-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -2px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.4),
+    0 0 0 2px var(--px-lime);
+}
+.px-btn-ghost {
+  color: var(--px-ink);
+  background: var(--px-bg-2);
+  border-color: var(--px-edge);
+  box-shadow:
+    inset 0 -4px 0 0 #070a12,
+    inset 0 2px 0 0 rgb(255 255 255 / 0.06);
+}
+.px-btn-ghost:active {
+  box-shadow: inset 0 -2px 0 0 #070a12;
+}
+.px-btn:disabled {
+  filter: grayscale(1) brightness(0.6);
+  cursor: not-allowed;
+}
+
+/* LIVE chip */
+.px-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1px 6px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0b0d10;
+  background: var(--px-lime);
+}
+.px-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: #0b0d10;
+  animation: px-blink 1.2s steps(2) infinite;
+}
+@keyframes px-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* Segmented progress bar: --px-fill 0..1 */
+.px-bar {
+  height: 12px;
+  background: #070a12;
+  border: 2px solid var(--px-edge);
+  position: relative;
+}
+.px-bar::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  width: calc((100% - 2px) * var(--px-fill, 0));
+  background: repeating-linear-gradient(
+    90deg,
+    var(--px-lime) 0 10px,
+    transparent 10px 12px
+  );
+}
+
+/* A cell inside a panel (list rows, build buttons). */
+.px-cell {
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+
+/* ── Homepage ─────────────────────────────────────────────────────────── */
+
+.landpot-hero-world {
+  background-color: #0b0d14;
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: auto 100%;
+  image-rendering: pixelated;
+}
+
+/* ── In game: the upstream HUD panels become pixel frames ─────────────── */
+
+.bg-gray-800\/92,
+.bg-gray-800\/90,
+.bg-zinc-900\/95 {
+  background-color: var(--px-bg-glass) !important;
+  border: 2px solid var(--px-edge) !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 0 2px #070a12 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+}
+
+[data-game-timer],
+control-panel,
+game-left-sidebar table,
+events-display,
+attacks-display,
+pot-share {
+  font-family: var(--font-pixel) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pixel icons anywhere in the HUD stay crisp. */
+img[src*="landpot/icons/"] {
+  image-rendering: pixelated;
+}
+
+/* Build bar: each unit is a notched pixel cell; the selected one gets the
+   lime frame, the hotkey sits in a little dark tag. */
+.unit-display-grid > div > div {
+  border: 2px solid var(--px-edge-dim) !important;
+  border-radius: 0 !important;
+  background: var(--px-bg-2);
+  box-shadow: inset 0 -3px 0 0 #070a12;
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+}
+.unit-display-grid > div > div:hover {
+  border-color: var(--px-edge) !important;
+}
+.unit-display-grid > div > div.bg-slate-400\/20 {
+  border-color: var(--px-lime) !important;
+  background: rgb(198 255 61 / 0.12);
+}
+.unit-display-grid img {
+  width: 24px;
+  height: 24px;
+}
+.unit-display-grid span,
+.unit-display-hotkey {
+  font-family: var(--font-pixel);
+  font-weight: 700;
+}
+.unit-display-hotkey {
+  color: var(--px-lime) !important;
+  opacity: 0.85;
+}
+
+/* Control panel: square pixel boxes and a chunky pixel slider. */
+control-panel .rounded-md,
+control-panel .rounded-lg,
+control-panel .rounded-full,
+attacks-display .rounded-md,
+events-display .rounded-md,
+game-left-sidebar .rounded-md,
+game-right-sidebar .rounded-md {
+  border-radius: 0 !important;
+}
+control-panel .border-yellow-400 {
+  border-width: 2px;
+  border-color: var(--px-gold) !important;
+}
+control-panel input[type="range"] {
+  accent-color: var(--px-lime);
+}
+control-panel input[type="range"]::-webkit-slider-thumb {
+  border-radius: 0 !important;
+  box-shadow: 0 0 0 2px #070a12;
+}
+control-panel input[type="range"]::-moz-range-thumb {
+  border-radius: 0 !important;
+}
+control-panel input[type="range"]::-webkit-slider-runnable-track {
+  border-radius: 0 !important;
+}
+@media (min-width: 1024px) {
+  .unit-display-grid {
+    width: 100% !important;
+    grid-auto-columns: minmax(0, 1fr) !important;
+  }
+  .unit-display-grid > div > div {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+    justify-content: center !important;
+    overflow: hidden;
+  }
+  .unit-display-grid img {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ── Leaderboard (StatsTable) ─────────────────────────────────────────── */
+.stats-table {
+  font-family: var(--font-pixel);
+  font-variant-numeric: tabular-nums;
+}
+.stats-table > div {
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.stats-table-header {
+  background: var(--px-bg-2) !important;
+  color: var(--px-lime);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stats-table-header > div,
+.stats-table-header-cell {
+  border-bottom: 2px solid var(--px-edge) !important;
+}
+.stats-table-row:nth-child(even of .stats-table-row) {
+  background: rgb(255 255 255 / 0.025);
+}
+.stats-table-row:hover {
+  background: rgb(198 255 61 / 0.08) !important;
+}
+.stats-table-pinned-row {
+  background: rgb(198 255 61 / 0.14) !important;
+  box-shadow: inset 3px 0 0 0 var(--px-lime);
+  color: #fff;
+}
+.stats-table-cell {
+  font-weight: 500;
+}
+.stats-table-row.font-bold .stats-table-cell {
+  font-weight: 700;
+}
+/* The leaderboard tab buttons. */
+game-left-sidebar [role="button"] {
+  border-radius: 0 !important;
+  border-width: 2px !important;
+  border-color: var(--px-edge) !important;
+  background: var(--px-bg-2) !important;
+}
+game-left-sidebar [role="button"][aria-pressed="true"] {
+  border-color: var(--px-lime) !important;
+}
+
+/* ── Timer and match controls (top right) ─────────────────────────────── */
+[data-game-timer] {
+  font-weight: 700;
+  font-size: 1.15em;
+  color: var(--px-lime);
+  text-shadow: 2px 2px 0 #070a12;
+}
+game-right-sidebar .rounded-bl-lg {
+  border-radius: 0 !important;
+}
+
+/* ── Event feed and attacks ───────────────────────────────────────────── */
+.events-container,
+.important-events-container {
+  border-radius: 0 !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--px-edge) transparent;
+}
+.events-container tr + tr td {
+  border-top: 2px solid rgb(70 80 106 / 0.35);
+}
+.important-events-container {
+  background: var(--px-bg-glass) !important;
+  border: 2px solid var(--px-red) !important;
+  border-left-width: 6px !important;
+}
+events-display button,
+attacks-display button {
+  border-radius: 0 !important;
+}
+attacks-display .bg-gray-800\/92 {
+  border-left: 4px solid var(--px-red) !important;
+}
+
+/* ── Tooltips and hover cards ─────────────────────────────────────────── */
+player-info-overlay .rounded-lg,
+player-info-overlay .rounded-md,
+player-info-overlay .rounded-sm,
+player-info-overlay .rounded,
+unit-display .rounded-lg,
+unit-display .rounded-md {
+  border-radius: 0 !important;
+}
+player-info-overlay {
+  font-variant-numeric: tabular-nums;
+}
+player-info-overlay .font-bold,
+player-info-overlay .font-semibold {
+  font-family: var(--font-pixel);
+}
+
+/* ── Win modal ────────────────────────────────────────────────────────── */
+win-modal > div:not(.hidden) {
+  background: var(--px-bg-glass) !important;
+  border: 2px solid var(--px-edge-hi);
+  border-radius: 0 !important;
+  box-shadow:
+    inset 0 0 0 2px #070a12,
+    0 0 0 4px rgb(7 10 18 / 0.7) !important;
+  backdrop-filter: none !important;
+}
+win-modal h2 {
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--px-lime) !important;
+  text-shadow: 3px 3px 0 #070a12;
+}
+win-modal h3 {
+  font-family: var(--font-pixel);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+win-modal .rounded-sm {
+  border-radius: 0 !important;
+}
+win-modal .win-action {
+  border-radius: 0;
+  border-width: 2px;
+  font-family: var(--font-pixel);
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+}
+win-modal .win-action::after {
+  display: none;
+}
+win-modal .win-action-main {
+  color: #0b0d10;
+  background: var(--px-lime);
+  border-color: #0b0d10;
+  box-shadow:
+    inset 0 -4px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.55);
+}
+win-modal .win-action-main:hover,
+win-modal .win-action-main:focus-visible {
+  background: var(--px-lime);
+  border-color: #0b0d10;
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 -4px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.55);
+}
+win-modal .win-action-main img {
+  filter: brightness(0);
+}
+win-modal .win-action-quiet {
+  background: var(--px-bg-2);
+  border-color: var(--px-edge);
+  box-shadow: inset 0 -4px 0 0 #070a12;
+}
+win-modal .win-action-quiet:hover,
+win-modal .win-action-quiet:focus-visible {
+  background: var(--px-bg-2);
+  border-color: var(--px-ink);
+  box-shadow: inset 0 -4px 0 0 #070a12;
+}
+
+/* ── Homepage and its modals (everything in <main-layout>) ────────────── */
+main-layout
+  :is(
+    .rounded,
+    .rounded-sm,
+    .rounded-md,
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-3xl,
+    .rounded-\[10px\],
+    .sm\:rounded-xl,
+    .sm\:rounded-lg
+  ) {
+  border-radius: 0 !important;
+}
+/* Cards and big buttons get the notched pixel corner. */
+main-layout
+  :is(
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-3xl,
+    .rounded-\[10px\],
+    .rounded-lg
+  ):not(img):not(input) {
+  clip-path: polygon(
+    3px 0,
+    calc(100% - 3px) 0,
+    calc(100% - 3px) 3px,
+    100% 3px,
+    100% calc(100% - 3px),
+    calc(100% - 3px) calc(100% - 3px),
+    calc(100% - 3px) 100%,
+    3px 100%,
+    3px calc(100% - 3px),
+    0 calc(100% - 3px),
+    0 3px,
+    3px 3px
+  );
+}
+/* Mode buttons, modal titles and section headings in the pixel face. */
+main-layout .lp-display,
+main-layout h2,
+main-layout h3 {
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+/* The hero headline keeps the display face. */
+main-layout landpot-hero h1 {
+  font-family: var(--font-display);
+}
+/* Lime buttons: the pixel button's hard bottom edge, no glow. */
+main-layout button.bg-malibu-blue,
+main-layout button.bg-bright-blue,
+main-layout .lp-plate-btn {
+  font-family: var(--font-pixel);
+  border-radius: 0 !important;
+  border: 2px solid #0b0d10;
+  box-shadow:
+    inset 0 -4px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.55) !important;
+  transition:
+    transform 0.08s steps(2),
+    filter 0.12s ease;
+}
+main-layout button.bg-malibu-blue:hover,
+main-layout button.bg-bright-blue:hover,
+main-layout .lp-plate-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+main-layout button.bg-malibu-blue:active,
+main-layout button.bg-bright-blue:active,
+main-layout .lp-plate-btn:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 -2px 0 0 var(--px-lime-deep),
+    inset 0 2px 0 0 rgb(255 255 255 / 0.4) !important;
+}
+/* Modal titles (ModalHeader's DEFAULT_TITLE_CLASS and its copies). */
+main-layout .uppercase.tracking-widest.break-words {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.08em;
+}
+/* The modal shell: a pixel frame instead of the rounded glass sheet. */
+main-layout .lg\:rounded-2xl,
+main-layout .lg\:rounded-lg {
+  border-radius: 0 !important;
+}
+@media (min-width: 1024px) {
+  main-layout .lg\:rounded-2xl.lg\:border {
+    border: 2px solid var(--px-edge) !important;
+    box-shadow: inset 0 0 0 2px #070a12;
+    backdrop-filter: none;
+    background: var(--px-bg-glass);
+  }
+}
+
+/* ── Battle cards (BattleCards.ts): one card over each front ──────────── */
+.battle-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px 7px;
+  color: var(--px-ink);
+  font-size: 11px;
+  line-height: 1.1;
+  background: rgb(13 18 32 / 0.97);
+  will-change: transform;
+  transition: opacity 0.2s ease;
+}
+.battle-card-out {
+  border-color: var(--px-lime);
+}
+.battle-card-in {
+  border-color: var(--px-red);
+}
+.battle-card-off {
+  opacity: 0.55;
+}
+.battle-card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-family: var(--font-pixel);
+  font-weight: 600;
+}
+.battle-card-head img {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.battle-card-side {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.battle-card-side:last-child {
+  text-align: right;
+}
+.battle-card-arrow {
+  flex-shrink: 0;
+  font-size: 8px;
+  color: var(--px-muted);
+}
+.battle-card-in .battle-card-arrow {
+  color: var(--px-red);
+}
+.battle-card-out .battle-card-arrow {
+  color: var(--px-lime);
+}
+.battle-card-nums {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 15px;
+}
+.battle-card-ours {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--px-lime);
+}
+.battle-card-ours img {
+  width: 14px;
+  height: 14px;
+}
+.battle-card-theirs {
+  color: var(--px-red);
+}
+.battle-card-vs {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: var(--px-muted);
+  text-transform: uppercase;
+}
+/* Split bar: our share in lime from the left, theirs in red, in 4px pixel
+   segments, with a white notch where the line stands. */
+.battle-card-bar {
+  position: relative;
+  height: 10px;
+  border: 2px solid #070a12;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--px-red) 0 3px,
+    #b8362d 3px 4px
+  );
+}
+.battle-card-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--share, 0.5) * 100%);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--px-lime) 0 3px,
+    var(--px-lime-deep) 3px 4px
+  );
+  transition: width 0.25s steps(6);
+}
+.battle-card-bar::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: calc(var(--share, 0.5) * 100% - 1px);
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #070a12;
+  transition: left 0.25s steps(6);
+}
+.battle-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.battle-card-status {
+  font-size: 10px;
+  padding: 0 4px;
+  color: #0b0d10;
+  background: var(--px-muted);
+}
+.battle-winning .battle-card-status {
+  background: var(--px-lime);
+}
+.battle-even .battle-card-status {
+  background: var(--px-gold);
+}
+.battle-losing .battle-card-status {
+  background: var(--px-red);
+}
+.battle-retreat .battle-card-status {
+  background: var(--px-edge);
+  color: var(--px-ink);
+}
+.battle-card-ratio {
+  color: var(--px-muted);
+}
+.battle-card-rate {
+  margin-left: auto;
+  color: var(--px-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-card-bar::before,
+  .battle-card-bar::after {
+    transition: none;
+  }
+}
+
+/* ── Motion: short, stepped, pixel-style ──────────────────────────────── */
+@keyframes px-card-in {
+  0% {
+    scale: 0.7;
+    opacity: 0;
+  }
+  50% {
+    scale: 1.06;
+    opacity: 1;
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+@keyframes px-row-in {
+  0% {
+    translate: 14px 0;
+    opacity: 0;
+  }
+  100% {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+@keyframes px-rise {
+  0% {
+    translate: 0 10px;
+    opacity: 0;
+  }
+  100% {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+@keyframes px-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes px-status-flash {
+  0%,
+  50% {
+    filter: brightness(1.8);
+  }
+  25%,
+  75% {
+    filter: brightness(0.9);
+  }
+  100% {
+    filter: none;
+  }
+}
+@keyframes px-select-pulse {
+  50% {
+    box-shadow:
+      inset 0 -3px 0 0 #070a12,
+      0 0 0 2px rgb(198 255 61 / 0.45);
+  }
+}
+@keyframes px-bob {
+  50% {
+    translate: 0 -4px;
+  }
+}
+
+/* Battle cards pop in where the fight starts; a new verdict blinks. Scale,
+   not transform: the frame loop owns the card's transform. */
+.battle-card {
+  transform-origin: 50% 100%;
+  animation: px-card-in 0.28s steps(5) both;
+}
+.battle-card-status {
+  animation: px-status-flash 0.5s steps(4) both;
+}
+
+/* Feed rows and attack cards slide in from the right. */
+.events-container tbody tr,
+.important-events-container tbody tr,
+attacks-display .bg-gray-800\/92 {
+  animation: px-row-in 0.24s steps(4) both;
+}
+
+/* HUD panels and the build menu appear in three frames. */
+player-info-overlay .bg-gray-800\/92,
+control-panel,
+game-left-sidebar .stats-table,
+pot-share .px-panel {
+  animation: px-fade 0.3s steps(3) both;
+}
+win-modal > div:not(.hidden) {
+  animation: px-card-in 0.36s steps(6) both;
+}
+
+/* The selected build slot breathes. */
+.unit-display-grid > div > div.bg-slate-400\/20 {
+  animation: px-select-pulse 1.2s steps(2) infinite;
+}
+
+/* Homepage: the live row rises in panel by panel; the island bobs. */
+landpot-live .px-panel {
+  animation: px-rise 0.4s steps(4) both;
+}
+landpot-live .px-panel:nth-child(2) {
+  animation-delay: 0.06s;
+}
+landpot-live .px-panel:nth-child(3) {
+  animation-delay: 0.12s;
+}
+landpot-live .px-panel:nth-child(4) {
+  animation-delay: 0.18s;
+}
+landpot-live .px-panel:nth-child(5) {
+  animation-delay: 0.24s;
+}
+landpot-live .px-panel:nth-child(6) {
+  animation-delay: 0.3s;
+}
+.landpot-hero-world {
+  animation: px-bob 4s steps(2) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-card,
+  .battle-card-status,
+  .events-container tbody tr,
+  .important-events-container tbody tr,
+  attacks-display .bg-gray-800\/92,
+  player-info-overlay .bg-gray-800\/92,
+  control-panel,
+  game-left-sidebar .stats-table,
+  pot-share .px-panel,
+  win-modal > div:not(.hidden),
+  .unit-display-grid > div > div.bg-slate-400\/20,
+  landpot-live .px-panel,
+  .landpot-hero-world {
+    animation: none !important;
+  }
+}
+
+/* ── Homepage, one system (Landpot) ───────────────────────────────────────
+   Pixel face for every label, chip and button; body copy stays in the text
+   face. Panels are 2 px frames with notched corners; actions are lime
+   (primary), dark plates (secondary) or gold (tutorial). */
+
+/* Wordmark */
+.lp-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--px-ink);
+  text-decoration: none;
+  text-shadow: 0 2px 0 #070a12;
+}
+.lp-wordmark-pot {
+  display: inline-block;
+  color: var(--px-lime);
+}
+.lp-wordmark:hover .lp-wordmark-pot {
+  animation: px-hop 0.4s steps(3);
+}
+@keyframes px-hop {
+  50% {
+    translate: 0 -3px;
+  }
+}
+
+/* Top bar */
+.landpot-nav {
+  background: rgb(10 13 22 / 0.86) !important;
+  border-bottom: 2px solid var(--px-edge-dim) !important;
+  box-shadow: 0 2px 0 0 #070a12;
+}
+.landpot-nav .nav-menu-item {
+  font-family: var(--font-pixel) !important;
+  font-size: 15px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: var(--px-muted) !important;
+  padding: 4px 2px;
+  border-bottom: 2px solid transparent;
+}
+.landpot-nav .nav-menu-item:hover,
+.landpot-nav .nav-menu-item.active {
+  color: var(--px-lime) !important;
+  border-bottom-color: var(--px-lime);
+}
+#game-version {
+  font-family: var(--font-pixel) !important;
+  font-size: 11px !important;
+  color: var(--px-muted) !important;
+  padding: 1px 6px;
+  border: 2px solid var(--px-edge-dim);
+}
+#game-version:empty {
+  display: none;
+}
+
+/* Wallet: a dark pixel plate, lime once connected */
+.lp-wallet-btn {
+  font-family: var(--font-pixel) !important;
+  font-size: 14px !important;
+  border-radius: 0 !important;
+  border-width: 2px !important;
+  background: var(--px-bg-2);
+  box-shadow: inset 0 -3px 0 0 #070a12;
+  transition:
+    translate 0.08s steps(2),
+    border-color 0.12s ease,
+    color 0.12s ease !important;
+}
+.lp-wallet-btn:hover {
+  translate: 0 -2px;
+  border-color: var(--px-lime) !important;
+  color: var(--px-lime) !important;
+}
+
+/* Small labels and chips: the pixel face everywhere on the page */
+main-layout .lp-mono,
+main-layout .font-mono,
+.landpot-nav .lp-mono {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.03em;
+}
+
+/* Mode buttons (GameModeSelector SECONDARY_ACTION / TUTORIAL_ACTION) */
+main-layout .lp-mode-btn {
+  font-family: var(--font-pixel) !important;
+  font-size: 15px !important;
+  letter-spacing: 0.06em !important;
+  color: var(--px-ink) !important;
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge);
+  box-shadow:
+    inset 0 -4px 0 0 #070a12,
+    inset 0 2px 0 0 rgb(255 255 255 / 0.06);
+  transition:
+    translate 0.08s steps(2),
+    border-color 0.12s ease,
+    color 0.12s ease !important;
+}
+main-layout .lp-mode-btn:hover {
+  translate: 0 -2px;
+  border-color: var(--px-lime);
+  color: var(--px-lime) !important;
+}
+main-layout .lp-mode-btn:active {
+  translate: 0 1px;
+  box-shadow: inset 0 -2px 0 0 #070a12;
+}
+main-layout .lp-mode-btn-gold {
+  color: #1d1604 !important;
+  background: var(--px-gold);
+  border-color: #0b0d10;
+  box-shadow:
+    inset 0 -4px 0 0 #b0790f,
+    inset 0 2px 0 0 rgb(255 255 255 / 0.55);
+}
+main-layout .lp-mode-btn-gold:hover {
+  color: #1d1604 !important;
+  border-color: #0b0d10;
+  filter: brightness(1.06);
+}
+
+/* Lobby cards: pixel title, a lime frame on hover, the map wakes up */
+main-layout .lp-lobby-card {
+  outline: 2px solid var(--px-edge-dim);
+  outline-offset: -2px;
+  transition: outline-color 0.12s ease;
+}
+main-layout .lp-lobby-card:hover {
+  outline-color: var(--px-lime);
+}
+main-layout .lp-lobby-card .lp-card-title {
+  font-family: var(--font-pixel);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+main-layout .lp-lobby-card h3 {
+  font-family: var(--font-pixel);
+  font-weight: 500;
+}
+/* Maps sit in a cold night tint; hovering a card lights its terrain up. */
+main-layout .lp-lobby-card .lp-map-thumb {
+  filter: grayscale(1) brightness(0.5) contrast(1.3) sepia(0.5)
+    hue-rotate(180deg) saturate(1.8);
+  transition:
+    filter 0.25s steps(3),
+    transform 0.2s ease;
+}
+main-layout .lp-lobby-card:hover .lp-map-thumb {
+  filter: grayscale(0) brightness(0.85) contrast(1.1) saturate(1.2);
+}
+
+/* Name row and the round strip: framed like every other panel */
+main-layout landpot-strip .lp-glass,
+main-layout .group\/strip > div > div.bg-surface {
+  border: 2px solid var(--px-edge-dim) !important;
+  background: var(--px-bg-glass) !important;
+  box-shadow: inset 0 -3px 0 0 #070a12;
+  backdrop-filter: none;
+}
+main-layout username-input input {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.02em;
+}
+
+/* Hero: the island fades into the page instead of sitting in a box, and a
+   few pixels twinkle over it. */
+.landpot-hero-world {
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 70% at 60% 50%,
+    #000 62%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 70% at 60% 50%,
+    #000 62%,
+    transparent 100%
+  );
+}
+.landpot-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 58% 22%, #fff 99%, transparent),
+    radial-gradient(2px 2px at 71% 64%, #c6ff3d 99%, transparent),
+    radial-gradient(2px 2px at 86% 30%, #ffd23f 99%, transparent),
+    radial-gradient(2px 2px at 64% 80%, #fff 99%, transparent),
+    radial-gradient(2px 2px at 92% 72%, #c6ff3d 99%, transparent),
+    radial-gradient(2px 2px at 78% 14%, #fff 99%, transparent);
+  animation: px-twinkle 2.4s steps(2) infinite;
+}
+@keyframes px-twinkle {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* Live widgets: empty lists get an icon, a hint and a way in */
+.lp-live-empty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px;
+  border: 2px dashed var(--px-edge-dim);
+}
+.lp-live-empty .px-img {
+  width: 36px;
+  height: 36px;
+  filter: grayscale(0.6) brightness(0.8);
+  animation: px-bob 2.6s steps(2) infinite;
+}
+.lp-live-empty .px-btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* Tools of conquest */
+.lp-arsenal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+.lp-arsenal-head h2 {
+  font-size: 26px;
+  color: var(--px-ink);
+}
+.lp-arsenal-head p {
+  margin-top: 4px;
+  max-width: 560px;
+  font-size: 15px;
+  color: var(--px-muted);
+}
+.lp-arsenal-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .lp-arsenal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .lp-arsenal-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.lp-arsenal-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    translate 0.08s steps(2),
+    border-color 0.12s ease;
+}
+.lp-arsenal-card:hover {
+  translate: 0 -3px;
+  border-color: var(--accent);
+}
+.lp-arsenal-sea,
+.lp-arsenal-land {
+  position: relative;
+  height: 132px;
+  overflow: hidden;
+  border-bottom: 2px solid var(--px-edge-dim);
+}
+/* Water: dark sea with a scrolling pixel swell. */
+.lp-arsenal-sea {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 14px,
+      rgb(120 170 255 / 0.12) 14px 20px,
+      transparent 20px 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 24px,
+      rgb(120 170 255 / 0.08) 24px 30px,
+      transparent 30px 52px
+    ),
+    linear-gradient(180deg, #0b1830, #0a1222);
+  background-size:
+    40px 4px,
+    52px 4px,
+    auto;
+  background-position:
+    0 72%,
+    0 34%,
+    0 0;
+  background-repeat: repeat-x, repeat-x, no-repeat;
+  animation: lp-swell 3s steps(10) infinite;
+}
+@keyframes lp-swell {
+  to {
+    background-position:
+      -40px 72%,
+      52px 34%,
+      0 0;
+  }
+}
+.lp-arsenal-ship {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150px;
+  height: 150px;
+  margin: -78px 0 0 -75px;
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: lp-ship-bob 1.6s steps(2) infinite;
+  z-index: 1;
+}
+@keyframes lp-ship-bob {
+  50% {
+    translate: 0 -3px;
+  }
+}
+/* Foam behind the stern: pixel crests that drift back and fade. */
+.lp-arsenal-wake {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90px;
+  height: 36px;
+  margin: 4px 0 0 -136px;
+  background:
+    radial-gradient(3px 3px at 90% 30%, #d0eaff 99%, transparent),
+    radial-gradient(3px 3px at 90% 70%, #d0eaff 99%, transparent),
+    radial-gradient(3px 3px at 62% 18%, #b8dcff 99%, transparent),
+    radial-gradient(3px 3px at 62% 82%, #b8dcff 99%, transparent),
+    radial-gradient(3px 3px at 34% 8%, #8fbfee 99%, transparent),
+    radial-gradient(3px 3px at 34% 92%, #8fbfee 99%, transparent),
+    radial-gradient(3px 3px at 8% 0%, #6d9cd0 99%, transparent),
+    radial-gradient(3px 3px at 8% 100%, #6d9cd0 99%, transparent);
+  animation: lp-wake 0.8s steps(4) infinite;
+}
+@keyframes lp-wake {
+  to {
+    translate: -12px 0;
+    opacity: 0.55;
+  }
+}
+/* Land: scorched ground under the cloud. */
+.lp-arsenal-land {
+  background:
+    linear-gradient(180deg, transparent 80%, #2b2420 80%, #1c1714 100%),
+    linear-gradient(180deg, #131a2b, #1d1a24);
+}
+.lp-arsenal-mushroom {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 134px;
+  height: 126px;
+  margin-left: -67px;
+  background-size: 1608px 126px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  animation: lp-mushroom 2.6s steps(12) infinite;
+}
+@keyframes lp-mushroom {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -1608px 0;
+  }
+}
+.lp-arsenal-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 14px;
+}
+.lp-arsenal-copy h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  color: var(--px-ink);
+}
+.lp-arsenal-copy h3 .px-img {
+  width: 22px;
+  height: 22px;
+}
+.lp-arsenal-copy p {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--px-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-wordmark:hover .lp-wordmark-pot,
+  .landpot-hero::after,
+  .lp-live-empty .px-img,
+  .lp-arsenal-sea,
+  .lp-arsenal-ship,
+  .lp-arsenal-wake,
+  .lp-arsenal-mushroom {
+    animation: none !important;
+  }
+}
+
+/* ---------- Showtime: battle-start banner, victory fireworks ---------- */
+.lp-show-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.lp-show-banner {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  animation: lp-show-banner 2.6s steps(26) both;
+}
+.lp-show-banner .px-title {
+  display: block;
+  padding: 14px 28px 12px;
+  font-size: 32px;
+  line-height: 1;
+  color: #1a1410;
+  background: var(--px-gold);
+  box-shadow:
+    inset 0 -6px 0 0 #c48a12,
+    0 0 0 4px #1a1410,
+    0 8px 0 4px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+}
+@keyframes lp-show-banner {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -40px) scale(1.4);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  18% {
+    transform: translate(-50%, 4px) scale(0.98);
+  }
+  24% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -16px) scale(1);
+  }
+}
+@media (max-width: 640px) {
+  .lp-show-banner .px-title {
+    font-size: 20px;
+    padding: 10px 16px 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-show-banner {
+    animation: none;
+  }
+}
+
+/* ---------- Minimap ---------- */
+.lp-minimap {
+  padding: 6px;
+  width: 252px;
+}
+.lp-minimap-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 6px;
+  color: var(--px-gold);
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  cursor: pointer;
+}
+.lp-minimap.is-closed .lp-minimap-head {
+  padding-bottom: 0;
+}
+.lp-minimap-canvas {
+  display: block;
+  width: 240px;
+  height: auto;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  box-shadow:
+    0 0 0 2px #0b0a10,
+    0 0 0 4px rgba(198, 255, 61, 0.25);
+  touch-action: none;
+}
+.lp-minimap.is-closed .lp-minimap-canvas {
+  display: none;
+}
+
+/* New Era (Landpot): iron deposits layer and the economy panel. */
+.lp-deposits-canvas,
+.lp-raids-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* Raid alert: your trade ship was taken; a button flies the camera there. */
+.lp-raid-alert {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 12px;
+  background: #0b0d14;
+  border: 2px solid #ff5a4e;
+  box-shadow: 0 0 0 2px #0b0d14;
+  color: #e8eefc;
+  font:
+    500 13px "Pixelify Sans",
+    ui-monospace,
+    monospace;
+  pointer-events: auto;
+  animation: lp-raid-in 220ms steps(4) both;
+}
+.lp-raid-alert b {
+  color: #ff8a80;
+  font-weight: 500;
+}
+.lp-raid-alert-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  background: #ff5a4e;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  animation: lp-raid-blink 900ms steps(2) infinite;
+}
+.lp-raid-alert-go {
+  flex: none;
+  padding: 4px 10px;
+  background: #ff5a4e;
+  color: #0b0d14;
+  font:
+    700 12px "Pixelify Sans",
+    ui-monospace,
+    monospace;
+  cursor: pointer;
+}
+.lp-raid-alert-go:hover,
+.lp-raid-alert-go:focus-visible {
+  background: #ff8a80;
+  outline: 2px solid #e8eefc;
+  outline-offset: 1px;
+}
+@keyframes lp-raid-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+@keyframes lp-raid-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-raid-alert,
+  .lp-raid-alert-icon {
+    animation: none;
+  }
+}
+/* The panel: a fixed head (title, resource strip, tabs) over a body that
+   scrolls. It starts at 34% of the height, so it stops well above the
+   build bar and its detail card. */
+.lp-newera {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 8px;
+  width: 276px;
+  max-height: calc(66vh - 132px);
+  min-height: 0;
+  color: var(--px-ink);
+  font-size: 12px;
+}
+.lp-newera.is-closed {
+  width: 200px;
+}
+@keyframes lp-ne-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.lp-ne-body > *,
+.lp-ne-resgrid,
+.lp-ne-list,
+.lp-ne-card {
+  animation: lp-ne-in 160ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-ne-body > *,
+  .lp-ne-resgrid,
+  .lp-ne-list,
+  .lp-ne-card {
+    animation: none;
+  }
+}
+.lp-ne-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin-right: -4px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--px-edge) transparent;
+}
+.lp-ne-muted {
+  color: var(--px-muted);
+}
+.lp-ne-warn,
+.lp-ne-warn-ink {
+  color: #ffb27a;
+}
+.lp-ne-warn {
+  margin-top: 2px;
+}
+.lp-ne-stock {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.lp-ne-big {
+  font-size: 22px;
+  line-height: 1;
+}
+.lp-ne-flow {
+  margin-left: auto;
+  font-size: 12px;
+}
+.lp-ne-in {
+  color: var(--px-lime);
+}
+.lp-ne-out {
+  color: #ffb27a;
+  margin-left: 4px;
+}
+/* Iron: a pixel ingot (the same art as the map's iron deposits). */
+.lp-ne-ore {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6' shape-rendering='crispEdges'%3E%3Cpath fill='%2310131a' d='M2 0h5v1h1v1h1v4H0V2h1V1h1z'/%3E%3Cpath fill='%23b9c3d3' d='M2 1h5v1h1v1H1V2h1z'/%3E%3Cpath fill='%23f4f7ff' d='M4 1h1v1H4z'/%3E%3Cpath fill='%237b8597' d='M1 3h7v1H1z'/%3E%3Cpath fill='%23535b6b' d='M1 4h7v1H1z'/%3E%3Cpath fill='none' d='M0 5h1v1H0zM8 5h1v1H8z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  align-self: center;
+  flex: none;
+}
+.lp-ne-ore.sm {
+  width: 12px;
+  height: 8px;
+  margin-left: 3px;
+}
+.lp-ne-mines {
+  margin: 4px 0 2px;
+}
+.lp-ne-factory,
+.lp-ne-card {
+  margin-top: 5px;
+  padding: 5px 6px 6px;
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.lp-ne-name {
+  color: var(--px-gold);
+  font-size: 12px;
+  cursor: pointer;
+}
+.lp-ne-specs {
+  display: flex;
+  gap: 3px;
+  margin: 4px 0;
+}
+.lp-ne-spec {
+  flex: 1;
+  padding: 2px 0;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--px-muted);
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+  cursor: pointer;
+}
+.lp-ne-spec.is-on {
+  color: #0b0d10;
+  background: var(--px-lime);
+  border-color: #0b0d10;
+}
+.lp-ne-bar {
+  position: relative;
+  height: 14px;
+  background: #070a12;
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--px-lime) 0 6px,
+    var(--px-lime-deep) 6px 8px
+  );
+}
+.lp-ne-bar span {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 10px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+.lp-ne-up {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.lp-ne-spec:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.lp-ne-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 6px 0 4px;
+  border-bottom: 2px solid var(--px-edge-dim);
+}
+.lp-ne-tab {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 3px 0 4px;
+  margin-bottom: -2px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--px-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.lp-ne-tab:hover {
+  color: var(--px-ink);
+}
+.lp-ne-tab.is-on {
+  color: var(--px-lime);
+  border-bottom-color: var(--px-lime);
+}
+.lp-ne-badge {
+  min-width: 12px;
+  padding: 0 2px;
+  font-size: 9px;
+  line-height: 11px;
+  color: #0b0d10;
+  background: var(--px-gold);
+}
+.lp-ne-badge.is-warn {
+  background: #ffb27a;
+}
+/* Section heads: a fold button on the Land tab, a plain label elsewhere. */
+.lp-ne-section {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0 1px;
+  color: var(--px-gold);
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  text-align: left;
+}
+button.lp-ne-section {
+  cursor: pointer;
+}
+.lp-ne-caret {
+  width: 8px;
+  color: var(--px-muted);
+  font-size: 10px;
+}
+.lp-ne-count {
+  margin-left: auto;
+  color: var(--px-muted);
+  font-size: 11px;
+}
+/* Oil: a pixel drop, light enough to read on the dark panels. */
+.lp-ne-oil {
+  display: inline-block;
+  width: 10px;
+  height: 13px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 9' shape-rendering='crispEdges'%3E%3Cpath fill='%23383f5a' d='M3 0h1v1h1v1h1v2h1v3H6v1H5v1H2V8H1V7H0V4h1V2h1V1h1z'/%3E%3Cpath fill='%23767f9e' d='M2 2h1v1H2zM1 4h1v3H1z'/%3E%3Cpath fill='%23e6ecff' d='M2 3h1v1H2z'/%3E%3Cpath fill='%23232838' d='M5 5h1v2H5zM3 7h2v1H3z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  align-self: center;
+  flex: none;
+}
+.lp-ne-mid {
+  font-size: 16px;
+  line-height: 1;
+}
+.lp-ne-oilrow {
+  margin-top: 4px;
+}
+.lp-ne-zone {
+  margin-top: 4px;
+}
+.lp-ne-chip {
+  padding: 0 4px;
+  font-size: 10px;
+  border: 2px solid currentColor;
+}
+.lp-ne-chip.is-open {
+  color: #8fa3c4;
+}
+.lp-ne-chip.is-contested {
+  color: #ffb27a;
+}
+.lp-ne-chip.is-advantage {
+  color: var(--px-lime);
+}
+.lp-ne-duel {
+  position: relative;
+  height: 8px;
+  margin-top: 2px;
+  background: #070a12;
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-duel i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.lp-ne-duel i.own {
+  right: 50%;
+  background: var(--px-lime);
+}
+.lp-ne-duel i.rival {
+  left: 50%;
+  background: #ffb27a;
+}
+.lp-ne-route {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 3px;
+  padding: 2px 4px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--px-ink);
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+  cursor: pointer;
+  text-align: left;
+}
+.lp-ne-route > span:first-child {
+  flex: 1;
+}
+.lp-ne-route.is-on {
+  border-color: var(--px-lime);
+}
+.lp-ne-ship {
+  margin-top: 4px;
+  gap: 6px;
+}
+.lp-ne-select {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--px-ink);
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.lp-ne-fields {
+  gap: 6px;
+  align-items: stretch;
+}
+.lp-ne-input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 4px;
+  font-size: 12px;
+  color: var(--px-ink);
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-input:focus,
+.lp-ne-select:focus {
+  outline: none;
+  border-color: var(--px-lime);
+}
+.lp-ne-send {
+  width: 100%;
+  margin-top: 5px;
+  justify-content: center;
+  font-size: 12px;
+}
+.lp-ne-offer {
+  border-color: var(--px-gold);
+}
+.lp-ne-upbtn {
+  padding: 2px 6px;
+  font-size: 12px;
+  gap: 0;
+  flex: none;
+}
+
+/* Iron and oil at a glance: always shown, also while the panel is folded. */
+.lp-ne-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  background: #070a12;
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-strip-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lp-ne-strip-stock {
+  font-size: 14px;
+  line-height: 1;
+}
+.lp-ne-strip-net {
+  font-size: 12px;
+}
+.lp-ne-strip-unit {
+  margin-left: auto;
+  font-size: 10px;
+}
+.lp-ne-hint {
+  margin: 3px 0 2px;
+  color: var(--px-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.lp-ne-push {
+  margin-left: auto;
+}
+.lp-ne-card .lp-ne-row {
+  gap: 6px;
+  align-items: center;
+}
+/* Resource cards: stock, made against used, and how it stands. */
+.lp-ne-resgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 3px;
+}
+.lp-ne-res {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-ne-res.is-warn {
+  border-color: #7a4a2c;
+}
+.lp-ne-res-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lp-ne-res-name {
+  color: var(--px-muted);
+  font-size: 11px;
+}
+.lp-ne-res-head .lp-ne-big {
+  margin-left: auto;
+  font-size: 18px;
+}
+.lp-ne-flowrow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+.lp-ne-flowrow .lp-ne-out {
+  margin-left: 0;
+}
+.lp-ne-balance {
+  position: relative;
+  height: 6px;
+  background: #070a12;
+}
+.lp-ne-balance i {
+  position: absolute;
+  left: 0;
+  height: 3px;
+}
+.lp-ne-balance i.made {
+  top: 0;
+  background: var(--px-lime);
+}
+.lp-ne-balance i.used {
+  bottom: 0;
+  background: #ffb27a;
+}
+.lp-ne-state {
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--px-muted);
+}
+.lp-ne-state.is-warn {
+  color: #ffb27a;
+}
+.lp-ne-state.is-ok {
+  color: var(--px-lime);
+}
+.lp-ne-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+.lp-ne-effect {
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--px-lime);
+  border: 2px solid #3d5414;
+}
+/* First steps until the economy is running. */
+.lp-ne-start {
+  margin-top: 4px;
+  padding: 5px 6px;
+  border: 2px dashed var(--px-edge);
+}
+.lp-ne-start-title {
+  display: flex;
+  justify-content: space-between;
+  color: var(--px-gold);
+  font-size: 11px;
+}
+.lp-ne-card .lp-ne-spec {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.lp-ne-start ol {
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lp-ne-start li {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.lp-ne-start li.is-done {
+  color: var(--px-muted);
+  text-decoration: line-through;
+}
+.lp-ne-tick {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 7px;
+  text-align: center;
+  color: var(--px-lime);
+  border: 2px solid var(--px-edge);
+}
+/* Spawn phase: what the map's markers mean. */
+.lp-ne-guide-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.lp-ne-guide-icon {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 20px;
+}
+/* Mines and wells: one row each, click to find it on the map. */
+.lp-ne-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 3px;
+}
+.lp-ne-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--px-ink);
+  text-align: left;
+  background: var(--px-bg-2);
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.lp-ne-item:hover {
+  border-color: var(--px-edge);
+}
+.lp-ne-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-ne-lvl {
+  min-width: 30px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  color: var(--px-ink);
+  border: 2px solid var(--px-edge);
+}
+.lp-ne-lvl.is-max {
+  color: #0b0d10;
+  background: var(--px-lime);
+  border-color: var(--px-lime);
+}
+.lp-ne-item > .px-num:last-child,
+.lp-ne-item > span:last-child {
+  min-width: 52px;
+  text-align: right;
+}
+.lp-ne-coin {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  background: var(--px-gold);
+  border: 2px solid #8a6a00;
+  border-radius: 50%;
+}
+/* Bold pixel digits blur at small sizes (a 2 reads as an 8): small
+   numbers in the panel use the regular weight, big stock figures stay bold. */
+.lp-newera .px-num {
+  font-weight: 500;
+}
+.lp-newera .lp-ne-big,
+.lp-newera .lp-ne-strip-stock {
+  font-weight: 700;
+}
+/* Sea and Trade read at the same size as Land. */
+.lp-ne-body > .lp-ne-muted,
+.lp-ne-body > .lp-ne-warn,
+.lp-ne-zone,
+.lp-ne-factory {
+  font-size: 11px;
+}
+.lp-ne-zone {
+  margin-top: 3px;
+}
+.lp-ne-zone .lp-ne-row {
+  align-items: center;
+}
+.lp-ne-more {
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+/* ── Build bar: price under each button and the detail card ───────────── */
+
+/* The bottom panel holds the build bar, whose detail card rises above it
+   and may reach past the panel's sides. A clip-path would cut the card off
+   there, so this one panel keeps square corners instead of notched ones. */
+.bg-gray-800\/92:has(> unit-display) {
+  clip-path: none;
+}
+.unit-display-cost {
+  margin-top: 1px;
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--px-gold);
+  font-variant-numeric: tabular-nums;
+}
+.unit-display-cost.is-short {
+  color: #ff6b5e;
+}
+.unit-display-tooltip {
+  font-family: var(--font-pixel);
+  line-height: 1.35;
+}
+.ud-tip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--px-edge-dim);
+}
+.ud-tip-head img {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.ud-tip-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+.ud-tip-key {
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--px-lime);
+  border: 2px solid currentColor;
+}
+.ud-tip-desc {
+  margin: 6px 0;
+  color: #c8d0de;
+}
+.ud-tip-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.ud-tip-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--px-gold);
+  font-variant-numeric: tabular-nums;
+}
+.ud-tip-price .lp-ne-ore.sm {
+  margin-left: 0;
+}
+.ud-tip-price.is-short {
+  color: #ff6b5e;
+}
+.ud-tip-built {
+  margin-left: auto;
+  color: #8fa3c4;
+}
+.ud-tip-note {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 2px solid var(--px-edge-dim);
+  color: #8fa3c4;
+}
+.ud-tip-hint {
+  color: #67e8f9;
+}
+.ud-tip-warn {
+  margin-top: 6px;
+  padding: 2px 6px;
+  color: #ffb4ab;
+  background: rgb(255 80 60 / 0.12);
+  border-left: 2px solid #ff6b5e;
+}
+/* The card sits over the control panel's text: keep it solid. */
+.unit-display-tooltip.bg-gray-800\/90 {
+  background-color: #0c1019 !important;
+}
+
+/* ── Solo: the two ways to play, as cards above the settings ───────────── */
+.lp-mode-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 640px) {
+  .lp-mode-pick {
+    grid-template-columns: 1fr;
+  }
+}
+.lp-mode-card {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 16px 14px;
+  text-align: left;
+  color: var(--px-ink);
+  background: var(--px-bg-2);
+  border: 2px solid var(--px-edge-dim);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out,
+    transform 120ms ease-out;
+}
+.lp-mode-card:hover {
+  border-color: var(--px-edge);
+  transform: translateY(-1px);
+}
+.lp-mode-card.is-on {
+  border-color: var(--px-lime);
+  background:
+    linear-gradient(180deg, rgb(198 255 61 / 0.1), transparent 70%),
+    var(--px-bg-2);
+}
+.lp-mode-card:focus-visible {
+  outline: 2px solid var(--px-lime);
+  outline-offset: 2px;
+}
+.lp-mode-art {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 64px;
+  height: 64px;
+  background: #070a12;
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-mode-card.is-on .lp-mode-art {
+  border-color: #3d5414;
+}
+.lp-mode-art .lp-ne-ore {
+  width: 24px;
+  height: 16px;
+}
+.lp-mode-art .lp-ne-oil {
+  width: 12px;
+  height: 16px;
+}
+.lp-mode-art .lp-ne-coin {
+  width: 13px;
+  height: 13px;
+}
+/* Classic: a pixel flag on a pole. */
+.lp-mode-icon.is-classic {
+  width: 32px;
+  height: 40px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10' shape-rendering='crispEdges'%3E%3Cpath fill='%238d95a8' d='M1 0h1v10H1z'/%3E%3Cpath fill='%23ff5a4e' d='M2 1h5v1h1v2H7v1H2z'/%3E%3Cpath fill='%23ff8a80' d='M2 1h3v1H2z'/%3E%3Cpath fill='%23c43b30' d='M2 4h5v1H2z'/%3E%3Cpath fill='%2346506a' d='M0 9h4v1H0z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+.lp-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.lp-mode-name {
+  font-family: var(--font-pixel);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+.lp-mode-card.is-on .lp-mode-name {
+  color: var(--px-lime);
+}
+.lp-mode-desc {
+  color: var(--px-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.lp-mode-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.lp-mode-tag {
+  padding: 1px 6px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--px-ink);
+  border: 2px solid var(--px-edge-dim);
+}
+.lp-mode-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--px-edge);
+}
+.lp-mode-card.is-on .lp-mode-check {
+  border-color: var(--px-lime);
+  background: var(--px-lime);
+  box-shadow: inset 0 0 0 3px #0b0d10;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-mode-card {
+    transition: none;
+  }
+}
+
+/* ---- Homepage hero A: the live demo map ------------------------------- */
+.lp-mh {
+  height: clamp(560px, 82vh, 800px);
+  background: radial-gradient(120% 70% at 50% 100%, #0e1420 0%, #0b0d10 70%);
+}
+.lp-mh-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* The map dissolves into the page at the bottom. */
+.lp-mh-fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 22%;
+  background: linear-gradient(180deg, rgb(11 13 16 / 0), #0b0d10);
+  pointer-events: none;
+}
+.lp-mh-text {
+  padding: 40px 20px 0;
+  max-width: 760px;
+}
+.lp-mh-scrim {
+  display: none;
+}
+@media (min-width: 640px) {
+  .lp-mh-text {
+    padding: 48px 32px 0;
+  }
+}
+@media (min-width: 1024px) {
+  .lp-mh-text {
+    padding: 56px 48px 0;
+  }
+}
+.lp-mh-title {
+  font-size: clamp(36px, 5.4vw, 64px);
+  line-height: 1;
+  color: #f4f5f7;
+}
+.lp-mh-accent {
+  display: block;
+  color: #c6ff3d;
+}
+.lp-mh-sub {
+  margin-top: 14px;
+  max-width: 520px;
+  color: #a7adb8;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.lp-mh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+.lp-mh-chips {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.lp-mh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 10px;
+  background: rgb(18 21 26 / 0.78);
+  backdrop-filter: blur(8px);
+  color: #a7adb8;
+  font:
+    500 14px "IBM Plex Mono",
+    ui-monospace,
+    monospace;
+  white-space: nowrap;
+}
+.lp-mh-chip b {
+  color: #f4f5f7;
+  font-weight: 500;
+}
+.lp-mh-coin {
+  width: 10px;
+  height: 10px;
+  background: #c6ff3d;
+  box-shadow: 0 0 10px #c6ff3d88;
+}
+.lp-mh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff5a4e;
+  animation: lp-mh-live 1.2s steps(2) infinite;
+}
+@keyframes lp-mh-live {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (max-width: 639px) {
+  .lp-mh {
+    height: 640px;
+  }
+  .lp-mh-chip {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .lp-mh-chip-wide {
+    display: none;
+  }
+}
+/* Wide: the map fills the hero edge to edge and the text sits over its left
+   side, on a scrim that lets the map show through. */
+.lp-mh.is-overlay {
+  height: clamp(560px, 41vw, calc(100svh - 64px));
+  max-height: 920px;
+  background: #0b0d10;
+}
+.lp-mh.is-overlay .lp-mh-scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgb(11 13 16 / 0.62) 0%,
+      rgb(11 13 16 / 0.55) calc(var(--lp-mh-inset) + 360px),
+      rgb(11 13 16 / 0.12) calc(var(--lp-mh-inset) + 680px),
+      rgb(11 13 16 / 0) 75%
+    ),
+    linear-gradient(180deg, rgb(11 13 16 / 0.75), rgb(11 13 16 / 0) 18%),
+    radial-gradient(140% 100% at 60% 50%, transparent 60%, rgb(11 13 16 / 0.7));
+}
+.lp-mh.is-overlay .lp-mh-fade {
+  height: 18%;
+}
+.lp-mh.is-overlay .lp-mh-text {
+  position: absolute;
+  top: 50%;
+  left: var(--lp-mh-inset);
+  transform: translateY(-50%);
+  padding: 0;
+  max-width: 620px;
+}
+.lp-mh.is-overlay .lp-mh-title {
+  font-size: clamp(48px, 4.6vw, 80px);
+  text-shadow:
+    0 2px 0 rgb(11 13 16 / 0.9),
+    0 2px 28px rgb(11 13 16 / 0.95);
+}
+.lp-mh.is-overlay .lp-mh-sub {
+  font-size: 18px;
+  color: #d3d7de;
+  text-shadow: 0 1px 12px rgb(11 13 16 / 1);
+}
+.lp-mh.is-overlay .lp-mh-chips {
+  top: auto;
+  left: auto;
+  right: var(--lp-mh-inset);
+  bottom: 32px;
+  padding: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-mh-dot {
+    animation: none;
+  }
+}

@@ -231,7 +231,7 @@ export class OModal extends LitElement {
         ? "relative flex flex-col w-full h-full max-w-[400px] min-w-0"
         : this.fitContent
           ? "relative flex flex-col w-[calc(100%-2rem)] max-h-[calc(100%-2rem)]"
-          : `relative flex flex-col w-full h-full lg:w-[90%] lg:h-auto lg:min-w-[400px] lg:max-w-[900px] lg:m-8 lg:rounded-lg lg:max-h-[calc(100vh-4rem)] ${
+          : `relative flex flex-col w-full h-full lg:w-[90%] lg:h-auto lg:min-w-[400px] lg:max-w-[900px] lg:m-8 lg:max-h-[calc(100vh-4rem)] ${
               this.alwaysMaximized ? "h-auto" : ""
             }`;
     const wrapperStyle =
@@ -244,10 +244,10 @@ export class OModal extends LitElement {
     // which body.page-open can't reach, and an inline modal only shows while
     // its page is open anyway.
     const sectionClass = this.sidePanel
-      ? "graphics-panel-surface relative flex-1 min-h-0 flex flex-col text-white rounded-lg border overflow-hidden"
-      : `relative flex-1 min-h-0 flex flex-col text-white bg-black/70 backdrop-blur-xl lg:rounded-2xl lg:border border-white/10 overflow-hidden ${
+      ? "graphics-panel-surface relative flex-1 min-h-0 flex flex-col text-white border-2 overflow-hidden"
+      : `relative flex-1 min-h-0 flex flex-col text-white bg-[#0d1220]/95 lg:border-2 border-[#46506a] shadow-[inset_0_0_0_2px_#070a12] overflow-hidden ${
           this.inline ? "compact:rounded-none! compact:border-0!" : ""
-        } ${this.fitContent ? "rounded-2xl border" : ""} ${
+        } ${this.fitContent ? "border-2" : ""} ${
           // On compact screens body.page-open drops its bottom padding so the
           // page reaches the bottom of the screen; keep the content above the
           // home indicator.
