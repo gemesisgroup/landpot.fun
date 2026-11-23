@@ -21,10 +21,19 @@ Saturday 17:00 UTC event. The first new paid lobby opened in that hour is
 the cup. Other lobbies use the regular rules. Without the setting every
 lobby uses the regular rules. A running lobby finishes its funding cycle first.
 
-Four pairs play on Caldera. Sign in with your wallet and enter your
-partner's wallet on the paid match card. When both choices match, the pair
-locks for this round and both players can pay. All eight depositors must
-be present to start. Each pair chooses positions in its highlighted starting
+Four pairs play on Caldera. Sign in with your wallet, copy the invite link
+from the Cup card and send it to your partner. The link shows the round,
+your address, the entry and the prize; opening it confirms nothing. When
+the partner presses Confirm, the pair locks for this round and each of you
+pays your own entry (entering the partner's wallet by hand still works).
+An expired link, a link you made yourself, a pair that is already taken and
+a full roster each get their own message. The card shows the entry, pairs,
+paid seats, each winner's prize and the partner's payment from that round's
+own snapshot of the fees. All eight depositors must be present to start;
+otherwise the lobby is cancelled and every entry is refundable in full. A
+host can force the next lobby to be a Cup with `POST /pot/cup-next` and
+read the playtest metrics at `GET /pot/cup-stats/:id`
+([CalderaCupHost.md](CalderaCupHost.md)). Each pair chooses positions in its highlighted starting
 area and can place temporary hold, attack and help markers for its partner.
 
 The last pair holding land wins. At 12 minutes the eruption continues for

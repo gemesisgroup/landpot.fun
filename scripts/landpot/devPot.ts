@@ -28,6 +28,12 @@ import {
  * review instead of a day. LANDPOT_POT_FUNDING_MINUTES (default 3) sets how
  * long a lobby takes deposits.
  *
+ *   npm run dev:pot -- --cup
+ *
+ * The same, with the first paid lobby a Caldera Cup (four pairs) that takes
+ * deposits for 10 minutes: for trying the Cup, and for
+ * scripts/landpot/cup_e2e.py.
+ *
  *   npm run dev:pot -- --devnet
  *
  * The same stack against the devnet escrow that `npm run solana:deploy`
@@ -168,12 +174,20 @@ async function main() {
       LANDPOT_POT_ORACLE_KEY: path.resolve(oracleFile),
       LANDPOT_POT_OPERATOR_KEY: path.resolve(operatorFile),
       LANDPOT_POT_STAKE: "10",
-      LANDPOT_POT_FUNDING_MINUTES: "3",
+      LANDPOT_POT_FUNDING_MINUTES: process.argv.includes("--cup") ? "10" : "3",
+      ...(process.argv.includes("--cup")
+        ? { LANDPOT_CUP_WEEK_HOUR_UTC: String(weekHourUTC(new Date())) }
+        : {}),
     },
     dataDir,
     children,
     stop,
   );
+}
+
+/** 0 = Sunday 00:00 UTC, as LANDPOT_CUP_WEEK_HOUR_UTC counts. */
+function weekHourUTC(d: Date): number {
+  return d.getUTCDay() * 24 + d.getUTCHours();
 }
 
 main().catch((e) => {

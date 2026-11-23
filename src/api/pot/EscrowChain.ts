@@ -42,7 +42,12 @@ export interface EscrowChain {
   readonly cluster: string;
   /** The escrow program id. */
   readonly escrow: string;
-  fees(): Promise<{ burnBps: number; treasuryBps: number }>;
+  /** The escrow's cuts (basis points) and review hold (seconds). */
+  fees(): Promise<{
+    burnBps: number;
+    treasuryBps: number;
+    reviewDelay: number;
+  }>;
   status(roundId: Hex): Promise<RoundStatus>;
   /** Depositors in deposit order: the order `propose` takes amounts in. */
   players(roundId: Hex): Promise<string[]>;

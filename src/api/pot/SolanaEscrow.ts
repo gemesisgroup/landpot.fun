@@ -131,6 +131,7 @@ interface ConfigData {
   decimals: number;
   burnBps: number;
   treasuryBps: number;
+  reviewDelay: { toNumber(): number } | number;
 }
 
 export interface SolanaEscrowOptions {
@@ -248,9 +249,20 @@ export class SolanaEscrow implements EscrowChain {
     }
   }
 
-  async fees(): Promise<{ burnBps: number; treasuryBps: number }> {
+  async fees(): Promise<{
+    burnBps: number;
+    treasuryBps: number;
+    reviewDelay: number;
+  }> {
     const c = await this.config();
-    return { burnBps: c.burnBps, treasuryBps: c.treasuryBps };
+    return {
+      burnBps: c.burnBps,
+      treasuryBps: c.treasuryBps,
+      reviewDelay:
+        typeof c.reviewDelay === "number"
+          ? c.reviewDelay
+          : c.reviewDelay.toNumber(),
+    };
   }
 
   async status(roundId: Hex): Promise<RoundStatus> {

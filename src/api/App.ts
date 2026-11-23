@@ -629,6 +629,11 @@ export function createApp(deps: AppDeps): express.Express {
   app.post("/pot/open/:id", requireApiKey, async (req, res) => {
     sendJson(res, await needPot().open(req.params.id as string));
   });
+  // The host: make the next paid lobby a Cup (docs/CalderaCupHost.md).
+  app.post("/pot/cup-next", requireApiKey, (_req, res) => {
+    needPot().armCup();
+    res.json({ armed: true });
+  });
   app.get("/pot/lobby/:id", requireApiKey, async (req, res) => {
     sendJson(res, await needPot().lobby(req.params.id as string));
   });
@@ -676,6 +681,9 @@ export function createApp(deps: AppDeps): express.Express {
       ...(await pot.fees()),
       minPlayers: pot.rules.minPlayers,
       maxPlayers: pot.rules.maxPlayers,
+      ...(pot.rules.cupHourUTC === undefined
+        ? {}
+        : { cupHourUTC: pot.rules.cupHourUTC }),
     });
   });
   app.get(
@@ -724,6 +732,56 @@ export function createApp(deps: AppDeps): express.Express {
       res.sendStatus(204);
     },
   );
+  // Cup invite links: the inviter gets a link, the friend opens it, sees
+  // the tournament and who invited them, and confirms. Opening the link
+  // confirms nothing.
+  app.post("/public/pot/invite/:id", txLimit, requireUser, (req, res) => {
+    const wallet = (req as Authed).user.wallet;
+    if (!wallet) throw new HttpError(403, "Sign in with your wallet");
+    res.setHeader("Cache-Control", "no-store");
+    res.json(needPot().invite(req.params.id as string, wallet));
+  });
+  app.get(
+    "/public/pot/invite/:token",
+    rateLimit("pot", 120, 60_000),
+    (req, res) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(
+        needPot().inviteView(
+          String(req.params.token),
+          walletParam(req.query.wallet),
+        ),
+      );
+    },
+  );
+  app.post(
+    "/public/pot/invite/:token/accept",
+    txLimit,
+    requireUser,
+    (req, res) => {
+      const wallet = (req as Authed).user.wallet;
+      if (!wallet) throw new HttpError(403, "Sign in with your wallet");
+      needPot().acceptInvite(String(req.params.token), wallet);
+      res.sendStatus(204);
+    },
+  );
+  app.post(
+    "/public/pot/rematch/:id",
+    txLimit,
+    requireUser,
+    json,
+    async (req, res) => {
+      const wallet = (req as Authed).user.wallet;
+      if (!wallet) throw new HttpError(403, "Sign in with your wallet");
+      const again = (req.body as { again?: unknown } | undefined)?.again;
+      if (typeof again !== "boolean") throw new HttpError(400, "again");
+      await needPot().rematch(req.params.id as string, wallet, again);
+      res.sendStatus(204);
+    },
+  );
+  app.get("/pot/cup-stats/:id", requireApiKey, async (req, res) => {
+    res.json(await needPot().cupStats(req.params.id as string));
+  });
   app.post("/public/pot/deposit-tx", txLimit, json, async (req, res) => {
     const body = TxBody.safeParse(req.body);
     if (!body.success) throw new HttpError(400, z.prettifyError(body.error));

@@ -29,13 +29,24 @@ export interface PotConfig {
   /** The escrow's cuts of the pot at settlement, basis points. */
   burnBps: number;
   treasuryBps: number;
+  /** How long a result is held for review before it can be claimed, s. */
+  reviewDelay: number;
   minPlayers: number;
   maxPlayers: number;
+  /** The weekly Cup's hour of the week, UTC (0 = Sunday 00:00). */
+  cupHourUTC?: number;
 }
 
 export interface PaidLobby {
   cup?: boolean;
   partner?: string;
+  /** Whether the signed-in wallet's partner has paid (Cup). */
+  partnerPaid?: boolean;
+  /** Locked pairs so far (Cup). */
+  pairs?: number;
+  /** The escrow's cuts when this round opened; absent on older rounds. */
+  burnBps?: number;
+  treasuryBps?: number;
   gameId: string;
   roundId: `0x${string}`;
   stake: string;
@@ -51,12 +62,35 @@ export interface PaidLobby {
 export interface Claim {
   gameId: string;
   roundId: `0x${string}`;
-  kind: "winnings" | "refund";
+  /** refund_pending: a void result, refundable from releaseAt. */
+  kind: "winnings" | "refund" | "refund_pending";
   amount: string;
-  /** 3 Proposed (in review), 4 Final, 5 Refunding. */
+  /** 2 Started, 3 Proposed (in review), 4 Final, 5 Refunding. */
   phase: number;
   releaseAt: number;
   frozen: boolean;
+  /** Why a Cup round pays nothing out. */
+  reason?: "tie" | "unverified" | "cancelled";
+}
+
+/** What a Cup invite link is for, and whether this wallet can accept it. */
+export interface CupInvite {
+  gameId: string;
+  inviter: string;
+  stake: string;
+  burnBps: number;
+  treasuryBps: number;
+  fundingEnds: number;
+  pairs: number;
+  state:
+    | "open"
+    | "accepted"
+    | "self"
+    | "taken"
+    | "you_paired"
+    | "full"
+    | "expired"
+    | "revoked";
 }
 
 export const PHASE_PROPOSED = 3;
@@ -99,6 +133,103 @@ export function netEntryPot(
     (gross * BigInt(config.burnBps)) / 10_000n -
     (gross * BigInt(config.treasuryBps)) / 10_000n
   );
+}
+
+/** A Cup pair's winnings: each winner's share of a full 8-seat pot. */
+export function cupPrize(
+  stake: string,
+  fees: Pick<PotConfig, "burnBps" | "treasuryBps">,
+): { perWinner: bigint; profit: bigint } {
+  const perWinner = netEntryPot(stake, 8, fees) / 2n;
+  return { perWinner, profit: perWinner - BigInt(stake) };
+}
+
+/** The next start of the weekly Cup at `hourUTC` of the week, after `now`. */
+export function nextCupStart(hourUTC: number, now: number): Date {
+  const d = new Date(now);
+  const weekStart = Date.UTC(
+    d.getUTCFullYear(),
+    d.getUTCMonth(),
+    d.getUTCDate() - d.getUTCDay(),
+  );
+  const week = 7 * 86_400_000;
+  let at = weekStart + hourUTC * 3_600_000;
+  // The Cup hour itself still counts as "now": its lobby may be open.
+  if (at + 3_600_000 <= now) at += week;
+  return new Date(at);
+}
+
+const INVITE_PARAM = "cup_invite";
+
+/** The invite link a player sends their partner. */
+export function inviteLink(token: string): string {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set(INVITE_PARAM, token);
+  return url.toString();
+}
+
+/** The invite token in this page's address, if any. */
+export function inviteTokenFromUrl(): string | null {
+  return new URL(window.location.href).searchParams.get(INVITE_PARAM);
+}
+
+/** Drop the invite token from the address bar once it's dealt with. */
+export function clearInviteFromUrl(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(INVITE_PARAM)) return;
+  url.searchParams.delete(INVITE_PARAM);
+  history.replaceState(history.state, "", url.toString());
+}
+
+async function authed(path: string, body?: unknown): Promise<Response> {
+  return fetch(`${getApiBase()}${path}`, {
+    method: "POST",
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      Authorization: await getAuthHeader(),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+/** This wallet's invite link token for a Cup round. */
+export async function createInvite(gameId: string): Promise<string> {
+  const res = await authed(`/public/pot/invite/${encodeURIComponent(gameId)}`);
+  if (!res.ok) throw new Error(`invite ${res.status}`);
+  return ((await res.json()) as { token: string }).token;
+}
+
+export function readInvite(token: string, wallet?: string): Promise<CupInvite> {
+  const q = wallet ? `?wallet=${encodeURIComponent(wallet)}` : "";
+  return get<CupInvite>(`/public/pot/invite/${encodeURIComponent(token)}${q}`);
+}
+
+/**
+ * Confirm an invite. Resolves "ok", or the reason it can't be accepted
+ * (the same states readInvite reports).
+ */
+export async function acceptInvite(token: string): Promise<string> {
+  const res = await authed(
+    `/public/pot/invite/${encodeURIComponent(token)}/accept`,
+  );
+  if (res.ok) return "ok";
+  if (res.status === 404) return "revoked";
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  if (body.error === "Registration closed") return "expired";
+  return body.error ?? "failed";
+}
+
+/** "Play again with the same partner?" after a Cup match. */
+export async function sendRematch(
+  gameId: string,
+  again: boolean,
+): Promise<void> {
+  await authed(`/public/pot/rematch/${encodeURIComponent(gameId)}`, {
+    again,
+  });
 }
 
 export async function nominatePartner(

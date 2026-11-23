@@ -91,7 +91,30 @@ export interface PotRoundRow {
   /** funding → started → closed, or cancelled. */
   state: PotRoundState;
   createdAt: number;
+  /** The escrow's cuts when this round opened, basis points. */
+  burnBps?: number;
+  treasuryBps?: number;
+  /** When the last seat was paid, ms; unset until the round is full. */
+  filledAt?: number;
 }
+
+/** A Cup invite link: whoever accepts it pairs with the inviter. */
+export interface CupInvite {
+  token: string;
+  gameId: string;
+  inviter: string;
+  createdAt: number;
+  acceptedBy: string | null;
+  acceptedAt: number | null;
+}
+
+export type AcceptResult =
+  | "ok"
+  | "self"
+  | "taken"
+  | "you_paired"
+  | "full"
+  | "revoked";
 
 export type PotRoundState = "funding" | "started" | "closed" | "cancelled";
 
@@ -133,6 +156,20 @@ export interface Store {
   getSettlement(gameId: string): SettlementRow | null;
   cupPairs(gameId: string): string[][];
   pickPartner(gameId: string, wallet: string, partner: string): void;
+  /** The inviter's invite for a game, replacing any older open one. */
+  putInvite(invite: CupInvite): void;
+  getInvite(token: string): CupInvite | null;
+  liveInvite(gameId: string, inviter: string): CupInvite | null;
+  /**
+   * Pair the invite's inviter with `wallet`, both ways, in one transaction.
+   * Checks that neither is paired with someone else and a pair slot is free.
+   */
+  acceptInvite(token: string, wallet: string, now: number): AcceptResult;
+  invites(gameId: string): CupInvite[];
+  setRoundFilled(gameId: string, at: number): void;
+  /** A player's answer to "play again with the same partner?". */
+  putRematch(gameId: string, wallet: string, again: boolean): void;
+  rematches(gameId: string): { wallet: string; again: boolean }[];
   putRound(row: PotRoundRow): void;
   getRound(gameId: string): PotRoundRow | null;
   setRoundState(gameId: string, state: PotRoundState): void;
@@ -219,6 +256,22 @@ CREATE TABLE IF NOT EXISTS pot_rounds (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS pot_rounds_state ON pot_rounds(state);
+CREATE TABLE IF NOT EXISTS cup_invites (
+  token       TEXT PRIMARY KEY,
+  game_id     TEXT NOT NULL,
+  inviter     TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  accepted_by TEXT,
+  accepted_at INTEGER,
+  revoked     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS cup_invites_game ON cup_invites(game_id, inviter);
+CREATE TABLE IF NOT EXISTS cup_rematch (
+  game_id TEXT NOT NULL,
+  wallet  TEXT NOT NULL,
+  again   INTEGER NOT NULL,
+  PRIMARY KEY (game_id, wallet)
+);
 CREATE INDEX IF NOT EXISTS pot_rounds_created ON pot_rounds(created_at);
 `;
 
@@ -261,6 +314,30 @@ function toRound(row: Row): PotRoundRow {
     resultEnds: Number(row.result_ends),
     state: row.state as PotRoundState,
     createdAt: Number(row.created_at),
+    ...(row.burn_bps === null || row.burn_bps === undefined
+      ? {}
+      : {
+          burnBps: Number(row.burn_bps),
+          treasuryBps: Number(row.treasury_bps),
+        }),
+    ...(row.filled_at === null || row.filled_at === undefined
+      ? {}
+      : { filledAt: Number(row.filled_at) }),
+  };
+}
+
+function toInvite(row: Row | undefined): CupInvite | null {
+  if (!row) return null;
+  return {
+    token: row.token as string,
+    gameId: row.game_id as string,
+    inviter: row.inviter as string,
+    createdAt: Number(row.created_at),
+    acceptedBy: (row.accepted_by as string | null) ?? null,
+    acceptedAt:
+      row.accepted_at === null || row.accepted_at === undefined
+        ? null
+        : Number(row.accepted_at),
   };
 }
 
@@ -273,15 +350,21 @@ export class SqliteStore implements Store {
     if (file !== ":memory:") mkdirSync(path.dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
     this.db.exec(SCHEMA);
-    if (
-      !this.db
+    const columns = new Set(
+      this.db
         .prepare("PRAGMA table_info(pot_rounds)")
         .all()
-        .some((c) => c.name === "cup")
-    ) {
-      this.db.exec(
-        "ALTER TABLE pot_rounds ADD COLUMN cup INTEGER NOT NULL DEFAULT 0",
-      );
+        .map((c) => String(c.name)),
+    );
+    for (const [name, type] of [
+      ["cup", "INTEGER NOT NULL DEFAULT 0"],
+      ["burn_bps", "INTEGER"],
+      ["treasury_bps", "INTEGER"],
+      ["filled_at", "INTEGER"],
+    ]) {
+      if (!columns.has(name)) {
+        this.db.exec(`ALTER TABLE pot_rounds ADD COLUMN ${name} ${type}`);
+      }
     }
     const p = (sql: string) => this.db.prepare(sql);
     this.q = {
@@ -319,7 +402,7 @@ export class SqliteStore implements Store {
       ),
       getSettlement: p("SELECT * FROM pot_settlements WHERE game_id = ?"),
       putRound: p(
-        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup, burn_bps, treasury_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ),
       getRound: p("SELECT * FROM pot_rounds WHERE game_id = ?"),
       setRoundState: p("UPDATE pot_rounds SET state = ? WHERE game_id = ?"),
@@ -553,6 +636,110 @@ export class SqliteStore implements Store {
       .run(gameId, wallet, partner);
   }
 
+  putInvite(i: CupInvite): void {
+    this.db
+      .prepare(
+        "UPDATE cup_invites SET revoked = 1 WHERE game_id = ? AND inviter = ? AND accepted_by IS NULL",
+      )
+      .run(i.gameId, i.inviter);
+    this.db
+      .prepare(
+        "INSERT INTO cup_invites (token, game_id, inviter, created_at) VALUES (?, ?, ?, ?)",
+      )
+      .run(i.token, i.gameId, i.inviter, i.createdAt);
+  }
+
+  getInvite(token: string): CupInvite | null {
+    const row = this.db
+      .prepare("SELECT * FROM cup_invites WHERE token = ?")
+      .get(token) as Row | undefined;
+    if (row && row.revoked && !row.accepted_by) return null;
+    return toInvite(row);
+  }
+
+  liveInvite(gameId: string, inviter: string): CupInvite | null {
+    return toInvite(
+      this.db
+        .prepare(
+          "SELECT * FROM cup_invites WHERE game_id = ? AND inviter = ? AND revoked = 0 AND accepted_by IS NULL ORDER BY created_at DESC LIMIT 1",
+        )
+        .get(gameId, inviter) as Row | undefined,
+    );
+  }
+
+  acceptInvite(token: string, wallet: string, now: number): AcceptResult {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = this.acceptLocked(token, wallet, now);
+      this.db.exec("COMMIT");
+      return result;
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  private acceptLocked(
+    token: string,
+    wallet: string,
+    now: number,
+  ): AcceptResult {
+    const row = this.db
+      .prepare("SELECT * FROM cup_invites WHERE token = ?")
+      .get(token) as Row | undefined;
+    const invite = toInvite(row);
+    if (!invite || (row!.revoked && !invite.acceptedBy)) return "revoked";
+    if (invite.inviter === wallet) return "self";
+    const pairs = this.cupPairs(invite.gameId);
+    const mine = pairs.find((p) => p.includes(wallet));
+    const theirs = pairs.find((p) => p.includes(invite.inviter));
+    // Accepting twice is fine: the pair is already this one.
+    if (mine && theirs && mine.join() === theirs.join()) return "ok";
+    if (theirs || invite.acceptedBy !== null) return "taken";
+    if (mine) return "you_paired";
+    if (pairs.length >= 4) return "full";
+    this.pickPartner(invite.gameId, invite.inviter, wallet);
+    this.pickPartner(invite.gameId, wallet, invite.inviter);
+    this.db
+      .prepare(
+        "UPDATE cup_invites SET accepted_by = ?, accepted_at = ? WHERE token = ?",
+      )
+      .run(wallet, now, token);
+    return "ok";
+  }
+
+  invites(gameId: string): CupInvite[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT * FROM cup_invites WHERE game_id = ? ORDER BY created_at",
+        )
+        .all(gameId) as Row[]
+    ).map((r) => toInvite(r)!);
+  }
+
+  setRoundFilled(gameId: string, at: number): void {
+    this.db
+      .prepare(
+        "UPDATE pot_rounds SET filled_at = ? WHERE game_id = ? AND filled_at IS NULL",
+      )
+      .run(at, gameId);
+  }
+
+  putRematch(gameId: string, wallet: string, again: boolean): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO cup_rematch VALUES (?, ?, ?)")
+      .run(gameId, wallet, again ? 1 : 0);
+  }
+
+  rematches(gameId: string): { wallet: string; again: boolean }[] {
+    return (
+      this.db
+        .prepare("SELECT wallet, again FROM cup_rematch WHERE game_id = ?")
+        .all(gameId) as Row[]
+    ).map((r) => ({ wallet: String(r.wallet), again: Boolean(r.again) }));
+  }
+
   putRound(r: PotRoundRow): void {
     this.q.putRound.run(
       r.gameId,
@@ -565,6 +752,8 @@ export class SqliteStore implements Store {
       r.state,
       r.createdAt,
       r.cup ? 1 : 0,
+      r.burnBps ?? null,
+      r.treasuryBps ?? null,
     );
   }
 

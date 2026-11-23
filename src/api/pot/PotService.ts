@@ -1,5 +1,6 @@
 import { GameRecordSchema } from "@openfront/shared/WireSchemas";
-import type { PotRoundRow, Store } from "../Store";
+import { randomBytes } from "node:crypto";
+import type { AcceptResult, PotRoundRow, Store } from "../Store";
 import {
   InsufficientBalanceError,
   RoundPhase,
@@ -84,12 +85,54 @@ export interface LobbyView {
 export interface Claimable {
   gameId: string;
   roundId: Hex;
-  kind: "winnings" | "refund";
+  /** refund_pending: a void result; the refund opens at releaseAt. */
+  kind: "winnings" | "refund" | "refund_pending";
   amount: string;
-  /** Final/Refunding: claim now. Proposed: claimable after releaseAt. */
+  /**
+   * Final/Refunding: claim now. Proposed: claimable after releaseAt.
+   * Started (refund_pending): refundable after releaseAt, or sooner if the
+   * guardian cancels the round.
+   */
   phase: RoundPhase;
   releaseAt: number;
   frozen: boolean;
+  /** Why a Cup round pays nothing out: tie, unverified, or cancelled. */
+  reason?: CupVoidReason;
+}
+
+export type CupVoidReason = "tie" | "unverified" | "cancelled";
+
+/** What a Cup invite link shows before anyone confirms anything. */
+export interface InviteView {
+  gameId: string;
+  inviter: string;
+  stake: string;
+  burnBps: number;
+  treasuryBps: number;
+  fundingEnds: number;
+  pairs: number;
+  state:
+    | "open"
+    | "accepted"
+    | "self"
+    | "taken"
+    | "you_paired"
+    | "full"
+    | "expired"
+    | "revoked";
+}
+
+export interface CupStats {
+  gameId: string;
+  invitesCreated: number;
+  invitesAccepted: number;
+  pairs: number;
+  /** Pairs where both wallets paid. */
+  pairsPaid: number;
+  openedAt: number;
+  filledAt: number | null;
+  fillSeconds: number | null;
+  rematch: { yes: number; no: number };
 }
 
 // open() caps resultEnds at fundingEnds + 2 days; a little under that keeps
@@ -110,6 +153,8 @@ export class PotService {
   private readonly opening = new Map<string, Promise<PotRoundRow>>();
   private readonly openingCupHours = new Set<number>();
   private readonly starting = new Map<string, Promise<string[]>>();
+  /** The host asked for the next lobby to be a Cup, outside the schedule. */
+  private cupArmed = false;
 
   constructor(private readonly deps: PotServiceDeps) {
     this.chain = deps.chain;
@@ -137,8 +182,12 @@ export class PotService {
     return this.chain.token();
   }
 
-  /** The escrow's burn and treasury cuts, basis points of the pot. */
-  fees(): Promise<{ burnBps: number; treasuryBps: number }> {
+  /** The escrow's burn and treasury cuts (bps) and review hold (s). */
+  fees(): Promise<{
+    burnBps: number;
+    treasuryBps: number;
+    reviewDelay: number;
+  }> {
     return this.chain.fees();
   }
 
@@ -148,6 +197,14 @@ export class PotService {
   }
 
   // ── lobby lifecycle, asked by the game server ──
+
+  /**
+   * Make the next paid lobby opened a Cup, whatever the schedule says: for
+   * a closed playtest at an agreed time, and for tests.
+   */
+  armCup(): void {
+    this.cupArmed = true;
+  }
 
   open(gameId: string): Promise<PotRoundRow> {
     const existing = this.store.getRound(gameId);
@@ -164,10 +221,13 @@ export class PotService {
     const rules = this.deps.rules;
     const date = new Date(this.now());
     const hourStart = Math.floor(date.getTime() / 3_600_000) * 3_600_000;
+    const armed = this.cupArmed;
+    this.cupArmed = false;
     const cup =
-      rules.cupHourUTC === date.getUTCDay() * 24 + date.getUTCHours() &&
-      !this.openingCupHours.has(hourStart) &&
-      !this.store.recentRounds(hourStart).some((round) => round.cup);
+      armed ||
+      (rules.cupHourUTC === date.getUTCDay() * 24 + date.getUTCHours() &&
+        !this.openingCupHours.has(hourStart) &&
+        !this.store.recentRounds(hourStart).some((round) => round.cup));
     if (cup) this.openingCupHours.add(hourStart);
     try {
       return await this.openRound(gameId, cup, date.getTime());
@@ -187,6 +247,9 @@ export class PotService {
     const fundingSeconds = rules.fundingSeconds;
     const roundId = roundIdOf(gameId);
     const stake = await this.stakeUnits();
+    // The round keeps the terms it opened with, so its card stays right
+    // after the settings for the next one change.
+    const { burnBps, treasuryBps } = await this.chain.fees();
     const chainNow = await this.chain.now();
     const fundingEnds = chainNow + BigInt(fundingSeconds);
     const resultEnds = fundingEnds + BigInt(RESULT_WINDOW_SECONDS);
@@ -209,6 +272,8 @@ export class PotService {
       resultEnds: Number(resultEnds),
       state: "funding",
       createdAt,
+      burnBps,
+      treasuryBps,
     };
     this.store.putRound(row);
     this.log("pot round opened", { gameId, roundId });
@@ -249,6 +314,127 @@ export class PotService {
     )
       throw new PotError(409, "Team slot unavailable");
     this.store.pickPartner(gameId, wallet, partner);
+  }
+
+  // ── Cup invite links ──
+
+  private cupFunding(gameId: string): PotRoundRow {
+    const row = this.round(gameId);
+    if (
+      !row.cup ||
+      row.state !== "funding" ||
+      row.fundingEnds <= this.now() / 1000
+    )
+      throw new PotError(409, "Registration closed");
+    return row;
+  }
+
+  /** The wallet's open invite link for a Cup round, made if needed. */
+  invite(gameId: string, wallet: string): { token: string } {
+    this.cupFunding(gameId);
+    if (this.store.cupPairs(gameId).some((p) => p.includes(wallet)))
+      throw new PotError(409, "Already in a pair");
+    const live = this.store.liveInvite(gameId, wallet);
+    if (live) return { token: live.token };
+    const token = randomBytes(12).toString("base64url");
+    this.store.putInvite({
+      token,
+      gameId,
+      inviter: wallet,
+      createdAt: this.now(),
+      acceptedBy: null,
+      acceptedAt: null,
+    });
+    return { token };
+  }
+
+  /** What an invite link is for and whether `wallet` can accept it now. */
+  inviteView(token: string, wallet?: string): InviteView {
+    const invite = this.store.getInvite(token);
+    if (!invite) throw new PotError(404, "Invite not found");
+    const row = this.store.getRound(invite.gameId);
+    if (!row?.cup) throw new PotError(404, "Invite not found");
+    const pairs = this.store.cupPairs(invite.gameId);
+    const theirs = pairs.find((p) => p.includes(invite.inviter));
+    const mine = wallet ? pairs.find((p) => p.includes(wallet)) : undefined;
+    const open = row.state === "funding" && row.fundingEnds > this.now() / 1000;
+    let state: InviteView["state"];
+    if (wallet !== undefined && theirs?.includes(wallet)) state = "accepted";
+    else if (!open) state = "expired";
+    else if (wallet === invite.inviter) state = "self";
+    else if (theirs || invite.acceptedBy !== null) state = "taken";
+    else if (mine) state = "you_paired";
+    else if (pairs.length >= 4) state = "full";
+    else state = "open";
+    return {
+      gameId: invite.gameId,
+      inviter: invite.inviter,
+      stake: row.stake,
+      burnBps: row.burnBps ?? 0,
+      treasuryBps: row.treasuryBps ?? 0,
+      fundingEnds: row.fundingEnds,
+      pairs: pairs.length,
+      state,
+    };
+  }
+
+  /** Confirm an invite: the inviter and `wallet` become a locked pair. */
+  acceptInvite(token: string, wallet: string): AcceptResult {
+    const invite = this.store.getInvite(token);
+    if (!invite) throw new PotError(404, "Invite not found");
+    this.cupFunding(invite.gameId);
+    const result = this.store.acceptInvite(token, wallet, this.now());
+    if (result !== "ok") throw new PotError(409, result);
+    return result;
+  }
+
+  /** Invites, pairs, fill time and rematch answers, for the host. */
+  async cupStats(gameId: string): Promise<CupStats> {
+    const row = this.round(gameId);
+    const invites = this.store.invites(gameId);
+    const pairs = this.store.cupPairs(gameId);
+    const paid = new Set(await this.depositors(row));
+    const rematch = this.store.rematches(gameId);
+    return {
+      gameId,
+      invitesCreated: invites.length,
+      invitesAccepted: invites.filter((i) => i.acceptedBy !== null).length,
+      pairs: pairs.length,
+      pairsPaid: pairs.filter((p) => p.every((w) => paid.has(w))).length,
+      openedAt: row.createdAt,
+      filledAt: row.filledAt ?? null,
+      fillSeconds:
+        row.filledAt === undefined
+          ? null
+          : Math.round((row.filledAt - row.createdAt) / 1000),
+      rematch: {
+        yes: rematch.filter((r) => r.again).length,
+        no: rematch.filter((r) => !r.again).length,
+      },
+    };
+  }
+
+  /**
+   * Who paid into a round. A closed round's account is gone from the chain,
+   * so after that the settlement's own record of the players answers.
+   */
+  private async depositors(row: PotRoundRow): Promise<string[]> {
+    const live = await this.chain.players(row.roundId as Hex);
+    if (live.length > 0) return live;
+    const settled = this.store.getSettlement(row.gameId);
+    const players = settled
+      ? (JSON.parse(settled.detail) as { players?: unknown }).players
+      : undefined;
+    return Array.isArray(players) ? players.map(String) : [];
+  }
+
+  /** "Play again with the same partner?" from a wallet that played. */
+  async rematch(gameId: string, wallet: string, again: boolean) {
+    const row = this.round(gameId);
+    if (!row.cup) throw new PotError(404, "not a cup game");
+    const players = await this.depositors(row);
+    if (!players.includes(wallet)) throw new PotError(403, "not a player");
+    this.store.putRematch(gameId, wallet, again);
   }
 
   cupAccounts(gameId: string): string[][] | undefined {
@@ -379,6 +565,12 @@ export class PotService {
       deposited: number;
       cup?: boolean;
       partner?: string;
+      /** Whether the signed-in wallet's partner has paid. */
+      partnerPaid?: boolean;
+      /** Locked pairs so far (Cup). */
+      pairs?: number;
+      burnBps?: number;
+      treasuryBps?: number;
       joined: boolean;
     }[]
   > {
@@ -394,16 +586,24 @@ export class PotService {
           this.chain.players(roundId),
         ]);
         if (status.phase !== RoundPhase.Funding) return null;
+        if (players.length >= r.maxPlayers)
+          this.store.setRoundFilled(r.gameId, this.now());
+        const pairs = r.cup ? this.store.cupPairs(r.gameId) : [];
+        const partner = pairs
+          .find((pair) => wallet && pair.includes(wallet))
+          ?.find((w) => w !== wallet);
         return {
           ...(r.cup
             ? {
                 cup: true,
-                partner: this.store
-                  .cupPairs(r.gameId)
-                  .find((pair) => wallet && pair.includes(wallet))
-                  ?.find((w) => w !== wallet),
+                partner,
+                partnerPaid: partner ? players.includes(partner) : false,
+                pairs: pairs.length,
               }
             : {}),
+          ...(r.burnBps === undefined
+            ? {}
+            : { burnBps: r.burnBps, treasuryBps: r.treasuryBps }),
           gameId: r.gameId,
           roundId: r.roundId,
           stake: r.stake,
@@ -426,6 +626,32 @@ export class PotService {
       rows.map(async (r) => {
         const roundId = r.roundId as Hex;
         const status = await this.chain.status(roundId);
+        const settlement = this.store.getSettlement(r.gameId);
+        const voidReason = (): CupVoidReason => {
+          const code = settlement
+            ? (JSON.parse(settlement.detail) as { code?: string }).code
+            : undefined;
+          return code === "tie" ? "tie" : "unverified";
+        };
+        // A void result: entries come back once the result window ends.
+        if (
+          status.phase === RoundPhase.Started &&
+          settlement?.status === "void"
+        ) {
+          const owed = await this.chain.owed(roundId, wallet);
+          if (owed.deposit === 0n) return;
+          out.push({
+            gameId: r.gameId,
+            roundId,
+            kind: "refund_pending",
+            amount: owed.deposit.toString(),
+            phase: status.phase,
+            releaseAt: r.resultEnds,
+            frozen: false,
+            ...(r.cup ? { reason: voidReason() } : {}),
+          });
+          return;
+        }
         if (
           status.phase !== RoundPhase.Proposed &&
           status.phase !== RoundPhase.Final &&
@@ -445,6 +671,12 @@ export class PotService {
           phase: status.phase,
           releaseAt: Number(status.releaseAt),
           frozen: status.frozen,
+          ...(r.cup && refund
+            ? {
+                reason:
+                  settlement?.status === "void" ? voidReason() : "cancelled",
+              }
+            : {}),
         });
       }),
     );

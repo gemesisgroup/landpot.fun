@@ -16,7 +16,14 @@ import { Keypair, Transaction, type PublicKey } from "@solana/web3.js";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gunzipSync } from "node:zlib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+} from "vitest";
 import {
   fund,
   PROGRAM_ID,
@@ -68,6 +75,8 @@ describe.skipIf(!validatorAvailable())(
     let server: Server;
     let base: string;
     let territory: Record<string, number> = {};
+    // A test may replace the faked replay's result (a tie, say).
+    let replayResult: Awaited<ReturnType<Replayer>> | null = null;
     const guardian = Keypair.generate();
     const operator = Keypair.generate();
     const oracle = Keypair.generate();
@@ -246,14 +255,15 @@ describe.skipIf(!validatorAvailable())(
         store.setWallet(u.id, addr(p));
         userIds.set(addr(p), u.id);
       }
-      const replay: Replayer = async (record) => ({
-        winner: record.info.config.caldera?.teamCup
-          ? ["team", "Red", "Pl000004", "Pl000005"]
-          : ["player", record.info.players[0].clientID],
-        allPlayersStats: {},
-        tick: 100,
-        territory,
-      });
+      const replay: Replayer = async (record) =>
+        replayResult ?? {
+          winner: record.info.config.caldera?.teamCup
+            ? ["team", "Red", "Pl000004", "Pl000005"]
+            : ["player", record.info.players[0].clientID],
+          allPlayersStats: {},
+          tick: 100,
+          territory,
+        };
       chain = new SolanaEscrow({
         connection,
         programId: PROGRAM_ID,
@@ -315,6 +325,7 @@ describe.skipIf(!validatorAvailable())(
         stake: STAKE.toString(),
         burnBps: 200,
         treasuryBps: 300,
+        reviewDelay: REVIEW_SECONDS,
         minPlayers: 8,
         maxPlayers: 16,
       });
@@ -446,6 +457,164 @@ describe.skipIf(!validatorAvailable())(
         await walletSends("claim", id, wallet);
         expect((await balance(wallet.publicKey)) - before).toBe(DAILY_CAP);
       }
+      // Once paid out, the keeper closes the round's accounts; the playtest
+      // metrics and rematch answers must still know who paid.
+      const live = chain.players.bind(chain);
+      chain.players = async () => [];
+      onTestFinished(() => {
+        chain.players = live;
+      });
+      await pot.rematch(id, addr(players[4]), true);
+      expect(await pot.cupStats(id)).toMatchObject({
+        pairs: 4,
+        pairsPaid: 4,
+        rematch: { yes: 1, no: 0 },
+      });
+    }, 180_000);
+
+    /** A Cup lobby, opened on the host's request rather than the schedule. */
+    async function openCup(id: string) {
+      expect((await api("POST", "/pot/cup-next")).status).toBe(200);
+      expect((await api("POST", `/pot/open/${id}`)).body.cup).toBe(true);
+    }
+
+    /** Players 0+1, 2+3, 4+5, 6+7 pair up through invite links. */
+    function pairByInvites(id: string) {
+      for (let i = 0; i < players.length; i += 2) {
+        const a = addr(players[i]);
+        const b = addr(players[i + 1]);
+        const { token } = pot.invite(id, a);
+        // Opening the link confirms nothing.
+        expect(pot.inviteView(token, b).state).toBe("open");
+        expect(store.cupPairs(id).some((p) => p.includes(b))).toBe(false);
+        pot.acceptInvite(token, b);
+      }
+      expect(store.cupPairs(id)).toHaveLength(4);
+    }
+
+    it("pairs by invite link, with clear answers for self, taken and full", async () => {
+      const id = "CupInv01";
+      await openCup(id);
+      const [a, b, c, d] = players.map(addr);
+      const { token } = pot.invite(id, a);
+      // The same wallet asking again gets the same link.
+      expect(pot.invite(id, a).token).toBe(token);
+      expect(pot.inviteView(token, a).state).toBe("self");
+      expect(() => pot.acceptInvite(token, a)).toThrow("self");
+      const view = pot.inviteView(token, b);
+      expect(view).toMatchObject({
+        gameId: id,
+        inviter: a,
+        stake: STAKE.toString(),
+        burnBps: 200,
+        treasuryBps: 300,
+        state: "open",
+      });
+      pot.acceptInvite(token, b);
+      expect(pot.inviteView(token, b).state).toBe("accepted");
+      // Accepting twice is harmless; anyone else is told it's taken.
+      pot.acceptInvite(token, b);
+      expect(pot.inviteView(token, c).state).toBe("taken");
+      expect(() => pot.acceptInvite(token, c)).toThrow("taken");
+      // A paired wallet can't make a new link or join another pair.
+      expect(() => pot.invite(id, b)).toThrow("Already in a pair");
+      const other = pot.invite(id, c).token;
+      expect(pot.inviteView(other, b).state).toBe("you_paired");
+      expect(() => pot.acceptInvite(other, b)).toThrow("you_paired");
+      // A new link from the same inviter replaces the old one.
+      pot.acceptInvite(other, d);
+      expect(store.cupPairs(id)).toHaveLength(2);
+      const lobby = (await pot.openLobbies(a)).find((l) => l.gameId === id)!;
+      expect(lobby).toMatchObject({
+        partner: b,
+        partnerPaid: false,
+        pairs: 2,
+        burnBps: 200,
+        treasuryBps: 300,
+      });
+      await walletSends("deposit", id, players[1]);
+      expect(
+        (await pot.openLobbies(a)).find((l) => l.gameId === id)?.partnerPaid,
+      ).toBe(true);
+      // Once registration closes, the link says so.
+      expect(
+        (await api("POST", `/pot/cancel/${id}`, { deposited: 1 })).status,
+      ).toBe(200);
+      const late = pot.invite.bind(pot);
+      expect(() => late(id, addr(players[4]))).toThrow("Registration closed");
+      expect(pot.inviteView(other, d).state).toBe("accepted");
+      expect(pot.inviteView(token, c).state).toBe("expired");
+      await walletSends("claim", id, players[1]);
+    }, 180_000);
+
+    it("cancels a Cup when one of eight paid but didn't come, and refunds in full", async () => {
+      const id = "CupNoSho";
+      await openCup(id);
+      pairByInvites(id);
+      for (const p of players.slice(0, 7)) await walletSends("deposit", id, p);
+      // Seven of eight: the game server can't start and closes the lobby.
+      expect((await api("POST", `/pot/start/${id}`)).status).toBe(409);
+      const at = Date.now();
+      expect(
+        (await api("POST", `/pot/cancel/${id}`, { deposited: 7 })).status,
+      ).toBe(200);
+      const claims = (
+        await api("GET", `/public/pot/claims/${addr(players[0])}`)
+      ).body.claims as { gameId: string }[];
+      expect(claims.find((c) => c.gameId === id)).toMatchObject({
+        kind: "refund",
+        amount: STAKE.toString(),
+        reason: "cancelled",
+      });
+      const before = await balance(players[0].publicKey);
+      await walletSends("claim", id, players[0]);
+      expect((await balance(players[0].publicKey)) - before).toBe(STAKE);
+      console.log(
+        `[cup no-show] refund claimable ${Date.now() - at} ms after cancel`,
+      );
+      for (const p of players.slice(1, 7)) await walletSends("claim", id, p);
+    }, 180_000);
+
+    it("names a tie for first and when the refund opens", async () => {
+      const id = "CupTie01";
+      await openCup(id);
+      pairByInvites(id);
+      await fundRound(id, true);
+      await archive(id);
+      // Two pairs hold exactly the same weighted land at the time limit.
+      const pairs = store.cupPairs(id);
+      const land: Record<string, number> = {};
+      players.forEach((p, i) => {
+        const team = pairs.findIndex((pair) => pair.includes(addr(p)));
+        land[`Pl00000${i}`] = team === 0 || team === 1 ? 60 : 10;
+      });
+      replayResult = {
+        winner: undefined,
+        allPlayersStats: {},
+        tick: 8400,
+        territory: land,
+      };
+      try {
+        const { body } = await api("POST", `/pot/settle/${id}`);
+        expect(body).toMatchObject({ status: "void", code: "tie" });
+      } finally {
+        replayResult = null;
+      }
+      const round = store.getRound(id)!;
+      const claims = (
+        await api("GET", `/public/pot/claims/${addr(players[0])}`)
+      ).body.claims as { gameId: string; releaseAt: number }[];
+      const claim = claims.find((c) => c.gameId === id);
+      expect(claim).toMatchObject({
+        kind: "refund_pending",
+        amount: STAKE.toString(),
+        reason: "tie",
+        releaseAt: round.resultEnds,
+      });
+      const hours = (round.resultEnds - Date.now() / 1000) / 3600;
+      console.log(`[cup tie] refund opens in ${hours.toFixed(1)} h`);
+      expect(hours).toBeGreaterThan(47);
+      expect(hours).toBeLessThanOrEqual(48);
     }, 180_000);
 
     it("voids a match where nobody held land", async () => {

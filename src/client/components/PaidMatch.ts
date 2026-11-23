@@ -7,18 +7,26 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { whenModalLoaded } from "../LazyModals";
 import {
+  acceptInvite,
   claimRound,
+  clearInviteFromUrl,
+  createInvite,
+  cupPrize,
   explorerTx,
   formatUnits,
+  inviteLink,
+  inviteTokenFromUrl,
+  nextCupStart,
   PHASE_PROPOSED,
   paidLobbies,
   nominatePartner,
-  netEntryPot,
   payEntry,
   potClaims,
   potConfig,
   PotTxError,
+  readInvite,
   type Claim,
+  type CupInvite,
   type PotErrorKind,
   type PaidLobby,
   type PotConfig,
@@ -42,6 +50,27 @@ const STEP_KEYS: Record<PotStep, string> = {
   depositing: "landpot.pot_step_depositing",
   claiming: "landpot.pot_step_claiming",
 };
+// Literal keys for the invite states and Cup refund reasons.
+const INVITE_KEYS: Record<string, string> = {
+  accepted: "cup.invite_state.accepted",
+  self: "cup.invite_state.self",
+  taken: "cup.invite_state.taken",
+  you_paired: "cup.invite_state.you_paired",
+  full: "cup.invite_state.full",
+  expired: "cup.invite_state.expired",
+  revoked: "cup.invite_state.revoked",
+  failed: "cup.failed",
+};
+const REASON_KEYS: Record<NonNullable<Claim["reason"]>, string> = {
+  tie: "cup.reason.tie",
+  unverified: "cup.reason.unverified",
+  cancelled: "cup.reason.cancelled",
+};
+
+function shortWallet(w: string): string {
+  return w.length > 12 ? `${w.slice(0, 4)}…${w.slice(-4)}` : w;
+}
+
 const ERROR_KEYS: Record<PotErrorKind, string> = {
   rejected: "landpot.pot_error_rejected",
   wrong_account: "landpot.pot_error_wrong_account",
@@ -69,6 +98,13 @@ export class PaidMatch extends LitElement {
   @state() private lastTx: string | null = null;
   @state() private nomination = "";
   @state() private notice = "";
+  /** An invite link this page was opened with, and what it is for. */
+  @state() private inviteToken: string | null = null;
+  @state() private invite: CupInvite | null = null;
+  @state() private inviteNotice = "";
+  /** The signed-in wallet's own invite link for the open Cup. */
+  @state() private myInvite: string | null = null;
+  @state() private copied = false;
   @state() private now = Date.now();
   private timer: number | null = null;
   private clock: number | null = null;
@@ -79,6 +115,7 @@ export class PaidMatch extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.inviteToken = inviteTokenFromUrl();
     document.addEventListener("userMeResponse", this.onUserMe);
     const last = lastUserMeResponse();
     if (last) this.readUser(last.response);
@@ -111,6 +148,8 @@ export class PaidMatch extends LitElement {
       this.claims = [];
       this.notice = "";
       this.nomination = "";
+      this.myInvite = null;
+      this.inviteNotice = "";
     }
   }
 
@@ -135,8 +174,16 @@ export class PaidMatch extends LitElement {
       if (previous?.gameId !== this.lobby?.gameId) {
         this.nomination = "";
         this.notice = "";
+        this.myInvite = null;
       }
       this.claims = claims;
+      if (this.inviteToken) {
+        this.invite = await readInvite(
+          this.inviteToken,
+          this.address ?? undefined,
+        ).catch(() => null);
+        if (this.invite === null) this.inviteNotice = "revoked";
+      }
     } catch {
       // Keep what we had; the next refresh tries again.
     }
@@ -169,19 +216,7 @@ export class PaidMatch extends LitElement {
       window.dispatchEvent(new Event(CONNECT_WALLET_EVENT));
       return;
     }
-    if (lobby.cup && !lobby.partner) {
-      this.busy = { kind: "paying", step: "switching" };
-      try {
-        await nominatePartner(lobby.gameId, this.nomination.trim());
-        this.notice = "cup.wait";
-        await this.refresh();
-      } catch {
-        this.notice = "cup.failed";
-      } finally {
-        this.busy = { kind: "idle" };
-      }
-      return;
-    }
+    if (lobby.cup && !lobby.partner) return;
     if (lobby.joined) {
       this.join(lobby.gameId);
       return;
@@ -201,6 +236,343 @@ export class PaidMatch extends LitElement {
       this.error = this.errorKey(e);
     }
   };
+
+  private nominate = async () => {
+    const lobby = this.lobby;
+    if (!lobby || this.busy.kind !== "idle" || !this.nomination.trim()) return;
+    this.busy = { kind: "paying", step: "switching" };
+    try {
+      await nominatePartner(lobby.gameId, this.nomination.trim());
+      this.notice = "cup.wait";
+      await this.refresh();
+    } catch {
+      this.notice = "cup.failed";
+    } finally {
+      this.busy = { kind: "idle" };
+    }
+  };
+
+  /** Make (or reuse) this wallet's invite link, then share or copy it. */
+  private shareInvite = async () => {
+    const lobby = this.lobby;
+    if (!lobby || !this.address) return;
+    try {
+      const link =
+        this.myInvite ?? inviteLink(await createInvite(lobby.gameId));
+      this.myInvite = link;
+      const text = translateText("cup.invite_share_text");
+      if (
+        typeof navigator.share === "function" &&
+        matchMedia("(pointer: coarse)").matches
+      ) {
+        await navigator
+          .share({ title: translateText("cup.name"), text, url: link })
+          .catch(() => {});
+      } else {
+        await navigator.clipboard.writeText(link);
+      }
+      this.copied = true;
+      setTimeout(() => (this.copied = false), 4000);
+    } catch {
+      this.notice = "cup.failed";
+    }
+  };
+
+  private confirmInvite = async () => {
+    const token = this.inviteToken;
+    if (!token || this.busy.kind !== "idle") return;
+    if (this.address === null) {
+      window.dispatchEvent(new Event(CONNECT_WALLET_EVENT));
+      return;
+    }
+    this.busy = { kind: "paying", step: "switching" };
+    try {
+      const result = await acceptInvite(token);
+      this.inviteNotice = result === "ok" ? "accepted" : result;
+      await this.refresh();
+    } catch {
+      this.inviteNotice = "failed";
+    } finally {
+      this.busy = { kind: "idle" };
+    }
+  };
+
+  private dismissInvite = () => {
+    clearInviteFromUrl();
+    this.inviteToken = null;
+    this.invite = null;
+    this.inviteNotice = "";
+  };
+
+  /** "2 h", "15 min", "30 s". */
+  private duration(seconds: number): string {
+    const s = Math.max(0, Math.round(seconds));
+    if (s >= 3600)
+      return translateText("cup.dur_h", { n: Math.round(s / 3600) });
+    if (s >= 60) return translateText("cup.dur_min", { n: Math.round(s / 60) });
+    return translateText("cup.dur_s", { n: s });
+  }
+
+  /** A time in the player's own zone, zone name included. */
+  private localTime(at: Date): string {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(at);
+  }
+
+  /** The friend's view of an invite link: who, what, and one button. */
+  private invitePanel() {
+    const inv = this.invite;
+    const state = this.inviteNotice || (inv?.state ?? "");
+    const fees = inv
+      ? { burnBps: inv.burnBps, treasuryBps: inv.treasuryBps }
+      : null;
+    const prize = inv && fees ? cupPrize(inv.stake, fees) : null;
+    const canConfirm = inv !== null && (state === "open" || state === "");
+    return html`<div
+      class="flex flex-col gap-2 rounded-lg border border-[#c6ff3d]/40 bg-[#c6ff3d]/5 p-3"
+      data-testid="cup-invite"
+    >
+      ${
+        inv
+          ? html`<p class="text-sm text-white">
+                ${translateText("cup.invite_title", {
+                  name: shortWallet(inv.inviter),
+                })}
+              </p>
+              <p class="lp-mono text-[11px] text-gray-300 break-all">
+                ${translateText("cup.invite_from")}
+                <span class="text-white">${inv.inviter}</span>
+              </p>
+              ${
+                prize
+                  ? html`<dl
+                      class="lp-mono grid grid-cols-[auto_1fr] gap-x-3 text-xs text-gray-300"
+                    >
+                      <dt class="text-gray-400">
+                        ${translateText("cup.entry")}
+                      </dt>
+                      <dd>${this.amount(inv.stake)}</dd>
+                      <dt class="text-gray-400">
+                        ${translateText("cup.prize")}
+                      </dt>
+                      <dd>
+                        ${this.amount(prize.perWinner)}
+                        <span class="text-[#c6ff3d]"
+                          >+${this.amount(prize.profit)}</span
+                        >
+                      </dd>
+                      <dt class="text-gray-400">
+                        ${translateText("cup.closes")}
+                      </dt>
+                      <dd>
+                        ${this.localTime(new Date(inv.fundingEnds * 1000))}
+                      </dd>
+                    </dl>`
+                  : nothing
+              }`
+          : nothing
+      }
+      ${
+        state && state !== "open"
+          ? html`<p class="lp-mono text-xs text-[#ffd37a]" role="status">
+              ${translateText(INVITE_KEYS[state] ?? "cup.failed", {
+                name: inv ? shortWallet(inv.inviter) : "",
+              })}
+            </p>`
+          : nothing
+      }
+      ${
+        this.address
+          ? html`<p class="lp-mono text-[11px] text-gray-400">
+              ${translateText("cup.invite_wallet", {
+                wallet: shortWallet(this.address),
+              })}
+            </p>`
+          : nothing
+      }
+      <div class="flex flex-wrap gap-2">
+        ${
+          canConfirm
+            ? html`<button
+                type="button"
+                class="lp-mono text-[13px] rounded-[10px] px-4 py-2 cursor-pointer bg-malibu-blue hover:bg-aquarius text-white disabled:opacity-70"
+                data-testid="cup-invite-confirm"
+                ?disabled=${this.busy.kind !== "idle"}
+                @click=${this.confirmInvite}
+              >
+                ${
+                  this.address
+                    ? translateText("cup.confirm")
+                    : translateText("cup.invite_connect")
+                }
+              </button>`
+            : nothing
+        }
+        <button
+          type="button"
+          class="lp-mono text-[13px] rounded-[10px] px-3 py-2 cursor-pointer border border-white/15 text-gray-300 hover:text-white"
+          @click=${this.dismissInvite}
+        >
+          ${translateText("cup.invite_dismiss")}
+        </button>
+      </div>
+    </div>`;
+  }
+
+  /** The Cup facts a player needs before paying, and their pair. */
+  private cupPanel(lobby: PaidLobby) {
+    const fees = {
+      burnBps: lobby.burnBps ?? this.config!.burnBps,
+      treasuryBps: lobby.treasuryBps ?? this.config!.treasuryBps,
+    };
+    const prize = cupPrize(lobby.stake, fees);
+    const fact = (label: string, value: string, note = "") =>
+      html`<div class="flex flex-col">
+        <span class="lp-mono text-[11px] text-gray-400">${label}</span>
+        <span class="lp-display text-sm text-white">${value}</span>
+        ${note ? html`<span class="lp-mono text-[11px] text-[#c6ff3d]">${note}</span>` : nothing}
+      </div>`;
+    const partner = lobby.partner;
+    return html`<div class="flex flex-col gap-3" data-testid="cup-panel">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        ${fact(translateText("cup.entry"), this.amount(lobby.stake))}
+        ${fact(translateText("cup.pairs"), `${lobby.pairs ?? 0} / 4`)}
+        ${fact(translateText("cup.seats"), `${lobby.deposited} / 8`)}
+        ${fact(
+          translateText("cup.prize"),
+          this.amount(prize.perWinner),
+          `+${this.amount(prize.profit)} ${translateText("cup.profit")}`,
+        )}
+      </div>
+      ${
+        this.address
+          ? partner
+            ? html`<p
+                class="lp-mono text-xs text-gray-300"
+                data-testid="cup-partner"
+              >
+                ${translateText("cup.partner")}:
+                <span class="text-white" title=${partner}
+                  >${shortWallet(partner)}</span
+                >
+                ·
+                ${
+                  lobby.partnerPaid
+                    ? html`<span class="text-[#c6ff3d]"
+                        >${translateText("cup.partner_paid")}</span
+                      >`
+                    : html`<span class="text-[#ffd37a]"
+                        >${translateText("cup.partner_unpaid")}</span
+                      >`
+                }
+                ·
+                ${
+                  lobby.joined
+                    ? html`<span class="text-[#c6ff3d]"
+                        >${translateText("cup.you_paid")}</span
+                      >`
+                    : html`<span class="text-[#ffd37a]"
+                        >${translateText("cup.you_unpaid")}</span
+                      >`
+                }
+              </p>`
+            : html`<div class="flex flex-col gap-2">
+                <p class="lp-mono text-xs text-gray-300">
+                  ${translateText("cup.no_partner")}
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    class="lp-mono text-[13px] rounded-[10px] px-4 py-2 cursor-pointer border border-[#c6ff3d]/50 text-[#c6ff3d] hover:border-[#c6ff3d]"
+                    data-testid="cup-invite-copy"
+                    @click=${this.shareInvite}
+                  >
+                    ${translateText("cup.invite_copy")}
+                  </button>
+                  ${
+                    this.copied
+                      ? html`<span
+                          class="lp-mono text-[11px] text-[#c6ff3d]"
+                          role="status"
+                          >${translateText("cup.invite_copied")}</span
+                        >`
+                      : nothing
+                  }
+                </div>
+                ${
+                  this.myInvite
+                    ? html`<input
+                        readonly
+                        class="lp-mono text-[11px] w-full rounded bg-gray-900 px-2 py-1 text-gray-300"
+                        data-testid="cup-invite-link"
+                        .value=${this.myInvite}
+                        @focus=${(e: Event) => (e.target as HTMLInputElement).select()}
+                      />`
+                    : nothing
+                }
+                <details class="lp-mono text-[11px] text-gray-400">
+                  <summary class="cursor-pointer">
+                    ${translateText("cup.manual")}
+                  </summary>
+                  <div class="mt-2 flex gap-2">
+                    <input
+                      class="min-w-0 flex-1 rounded bg-gray-900 px-2 py-1 text-white"
+                      aria-label=${translateText("cup.partner")}
+                      .value=${this.nomination}
+                      @input=${(event: Event) => {
+                        this.nomination = (
+                          event.target as HTMLInputElement
+                        ).value;
+                      }}
+                    />
+                    <button
+                      type="button"
+                      class="rounded border border-white/15 px-2 text-gray-200"
+                      @click=${this.nominate}
+                    >
+                      ${translateText("cup.confirm")}
+                    </button>
+                  </div>
+                  <span role="status"
+                    >${this.notice ? translateText(this.notice) : ""}</span
+                  >
+                </details>
+              </div>`
+          : nothing
+      }
+      <div class="flex flex-col gap-1 rounded-lg bg-white/5 p-2">
+        <span class="lp-mono text-[11px] text-gray-400"
+          >${translateText("cup.if_title")}</span
+        >
+        <ul
+          class="lp-mono text-[11px] leading-snug text-gray-300 list-disc pl-4"
+        >
+          <li>${translateText("cup.if_incomplete")}</li>
+          <li>${translateText("cup.if_tie", { hours: 48 })}</li>
+          <li>
+            ${translateText("cup.if_review", { time: this.duration(this.config!.reviewDelay) })}
+          </li>
+        </ul>
+      </div>
+    </div>`;
+  }
+
+  /** When the next weekly Cup opens, in the player's own time zone. */
+  private nextCup() {
+    const hour = this.config?.cupHourUTC;
+    if (hour === undefined || this.lobby?.cup) return nothing;
+    return html`<p class="lp-mono text-xs text-gray-300" data-testid="cup-next">
+      ${translateText("cup.next", {
+        time: this.localTime(nextCupStart(hour, this.now)),
+      })}
+    </p>`;
+  }
 
   private async claim(c: Claim) {
     const config = this.config;
@@ -288,7 +660,7 @@ export class PaidMatch extends LitElement {
   }
 
   private claimRow(c: Claim) {
-    const pending = c.phase === PHASE_PROPOSED;
+    const pending = c.phase === PHASE_PROPOSED || c.kind === "refund_pending";
     const claiming =
       this.busy.kind === "claiming" && this.busy.roundId === c.roundId;
     const releaseIn = Math.max(0, c.releaseAt - Math.floor(this.now / 1000));
@@ -298,25 +670,40 @@ export class PaidMatch extends LitElement {
     >
       <span class="lp-mono text-xs text-gray-300 min-w-0">
         ${translateText(
-          c.kind === "refund"
-            ? "landpot.pot_claim_refund"
-            : "landpot.pot_claim_winnings",
+          c.kind === "winnings"
+            ? "landpot.pot_claim_winnings"
+            : "landpot.pot_claim_refund",
           { amount: this.amount(c.amount) },
         )}
         <span class="text-gray-500">· ${c.gameId}</span>
+        ${
+          c.reason
+            ? html`<span
+                class="block text-[11px] text-[#ffd37a]"
+                data-testid="cup-reason"
+                >${translateText(REASON_KEYS[c.reason])}</span
+              >`
+            : nothing
+        }
       </span>
       ${
         pending
           ? html`<span class="lp-mono text-[11px] text-gray-400 shrink-0">
               ${
-                c.frozen
-                  ? translateText("landpot.pot_claim_frozen")
-                  : translateText("landpot.pot_claim_review", { hours })
+                c.kind === "refund_pending"
+                  ? translateText("cup.refund_at", {
+                      time: this.localTime(new Date(c.releaseAt * 1000)),
+                      left: this.duration(releaseIn),
+                    })
+                  : c.frozen
+                    ? translateText("landpot.pot_claim_frozen")
+                    : translateText("landpot.pot_claim_review", { hours })
               }
             </span>`
           : html`<button
               type="button"
               class="lp-mono text-xs rounded-[10px] border border-[#c6ff3d]/40 text-[#c6ff3d] hover:border-[#c6ff3d]/70 px-3 py-1.5 shrink-0 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+              data-testid="pot-claim"
               ?disabled=${this.busy.kind !== "idle"}
               @click=${() => this.claim(c)}
             >
@@ -343,6 +730,7 @@ export class PaidMatch extends LitElement {
         class="lp-glass rounded-xl px-4 py-3 flex flex-col gap-3"
         aria-labelledby="landpot-paid-title"
       >
+        ${this.inviteToken ? this.invitePanel() : nothing} ${this.nextCup()}
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
           <div class="flex items-center gap-3 sm:w-[30%] sm:shrink-0">
             <span
@@ -367,7 +755,6 @@ export class PaidMatch extends LitElement {
                   class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2"
                 >
                   ${this.mapTile()} ${this.seats(lobby)}
-                  ${lobby.cup ? html`<span class="text-sm">${translateText("cup.prize")} ≈ ${this.amount(netEntryPot(lobby.stake, 8, this.config) / 2n)}</span>` : nothing}
                   <div class="flex flex-col">
                     <span class="lp-display text-lg font-semibold text-white">
                       ${this.amount(BigInt(lobby.stake) * BigInt(lobby.deposited))}
@@ -384,37 +771,18 @@ export class PaidMatch extends LitElement {
                       })}
                     </span>
                   </div>
-                  ${
-                    lobby.cup && this.address
-                      ? lobby.partner
-                        ? html`<span class="text-xs break-all"
-                            >${translateText("cup.partner")}
-                            ${lobby.partner}</span
-                          >`
-                        : html`<label class="text-xs"
-                            >${translateText("cup.partner")}
-                            <input
-                              class="block bg-gray-900 text-white"
-                              .value=${this.nomination}
-                              @input=${(event: Event) => {
-                                this.nomination = (
-                                  event.target as HTMLInputElement
-                                ).value;
-                              }}
-                            />
-                            <span role="status"
-                              >${this.notice ? translateText(this.notice) : ""}</span
-                            ></label
-                          >`
-                      : nothing
-                  }
                   <button
                     type="button"
+                    data-testid="pot-primary"
                     class="ml-auto lp-mono text-[13px] rounded-[10px] px-4 py-2 cursor-pointer transition-colors bg-malibu-blue hover:bg-aquarius text-white disabled:opacity-70 disabled:cursor-wait"
-                    ?disabled=${busy}
+                    ?disabled=${busy || (lobby.cup && this.address !== null && !lobby.partner)}
                     @click=${this.onPrimary}
                   >
-                    ${lobby.cup && this.address && !lobby.partner ? translateText("cup.confirm") : this.primaryLabel()}
+                    ${
+                      lobby.cup && this.address && !lobby.partner
+                        ? translateText("cup.pair_first")
+                        : this.primaryLabel()
+                    }
                   </button>
                 </div>`
               : html`<p class="lp-mono text-xs text-gray-400 flex-1">
@@ -422,6 +790,7 @@ export class PaidMatch extends LitElement {
                 </p>`
           }
         </div>
+        ${lobby?.cup ? this.cupPanel(lobby) : nothing}
         ${
           this.error
             ? html`<p class="lp-mono text-[11px] text-red-300/90">

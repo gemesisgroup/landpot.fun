@@ -609,7 +609,7 @@ export class TutorialPanel extends LitElement implements Controller {
     const id =
       !done && step.id === "capture_tribes" && this.attackNations
         ? "attack_nations"
-        : step.id;
+        : this.cupStep(step.id);
     const block =
       Platform.isTouch && TOUCH_TEXT_STEPS.has(id) ? "step_touch" : "step";
     return translateText(`tutorial.${block}.${id}`, {
@@ -617,6 +617,14 @@ export class TutorialPanel extends LitElement implements Controller {
       key: this.hotkeyFor(step),
       ...this.paidParams(),
     });
+  }
+
+  /** The Caldera Cup is won by a pair, not split by land: its own wording. */
+  private cupStep(id: string): string {
+    if (!this.game.config().gameConfig().caldera?.teamCup) return id;
+    if (id === "paid_land") return "cup_land";
+    if (id === "paid_spawn") return "cup_spawn";
+    return id;
   }
 
   /** The paid match's numbers, for the paid_* steps. */

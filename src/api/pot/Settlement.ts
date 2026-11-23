@@ -34,7 +34,7 @@ export type SettleOutcome =
   /** Already past the point settlement acts on; nothing sent. */
   | { status: "skipped"; roundId: Hex; reason: string }
   /** Could not settle; the guardian should cancel so entries are refunded. */
-  | { status: "void"; roundId: Hex; reason: string };
+  | { status: "void"; roundId: Hex; reason: string; code?: "tie" };
 
 export async function settleGame(
   deps: SettlementDeps,
@@ -99,6 +99,27 @@ export async function settleGame(
         (p) => p.teamIndex === pairIndex.get(walletForId(p.clientID) ?? ""),
       );
     const winner = replayed.winner;
+    // No winner although everyone played: a tie for first is when the two
+    // best pairs held exactly the same weighted land at the end.
+    const teamLand = new Map<number, number>();
+    for (const p of record.info.players) {
+      const team = pairIndex.get(walletForId(p.clientID) ?? "");
+      if (team === undefined) continue;
+      teamLand.set(
+        team,
+        (teamLand.get(team) ?? 0) + (replayed.territory[p.clientID] ?? 0),
+      );
+    }
+    const best = [...teamLand.values()].sort((a, b) => b - a);
+    const tied = best.length > 1 && best[0] > 0 && best[0] === best[1];
+    if (seatsMatch && replayed.tick !== null && !winner && tied) {
+      return {
+        status: "void",
+        roundId,
+        reason: "Tie for first place",
+        code: "tie",
+      };
+    }
     if (!seatsMatch || replayed.tick === null || winner?.[0] !== "team") {
       return {
         status: "void",
