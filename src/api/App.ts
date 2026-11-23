@@ -625,9 +625,17 @@ export function createApp(deps: AppDeps): express.Express {
     return v;
   };
 
-  // Game server: run a paid lobby.
-  app.post("/pot/open/:id", requireApiKey, async (req, res) => {
-    sendJson(res, await needPot().open(req.params.id as string));
+  // Game server: run a paid lobby (or a 1v1 duel round when body.mode === "duel").
+  app.post("/pot/open/:id", requireApiKey, json, async (req, res) => {
+    const mode = (req.body as { mode?: unknown } | undefined)?.mode;
+    if (mode !== undefined && mode !== "duel") {
+      throw new HttpError(400, "invalid mode");
+    }
+    const id = req.params.id as string;
+    sendJson(
+      res,
+      mode === "duel" ? await needPot().openDuel(id) : await needPot().open(id),
+    );
   });
   // The host: make the next paid lobby a Cup (docs/CalderaCupHost.md).
   app.post("/pot/cup-next", requireApiKey, (_req, res) => {

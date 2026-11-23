@@ -203,7 +203,11 @@ describe.skipIf(!validatorAvailable())(
         "InvalidInput",
       );
       await initializeEscrow(connection, PROGRAM_ID, v.authority, mint, args());
-      expect(await chain.fees()).toEqual({ burnBps: 200, treasuryBps: 300 });
+      expect(await chain.fees()).toEqual({
+        burnBps: 200,
+        treasuryBps: 300,
+        reviewDelay: 2,
+      });
       expect(await chain.token()).toMatchObject({
         address: mint.toBase58(),
         decimals: 6,
@@ -479,6 +483,105 @@ describe.skipIf(!validatorAvailable())(
         chain.open(roundIdOf("too-few"), STAKE, 4, 16, now + 60n, now + 120n),
         "InvalidInput",
       );
+      await expectError(
+        chain.open(roundIdOf("duel-max"), STAKE, 2, 4, now + 60n, now + 120n),
+        "InvalidInput",
+      );
+      await expectError(
+        chain.open(roundIdOf("seven-min"), STAKE, 7, 16, now + 60n, now + 120n),
+        "InvalidInput",
+      );
     });
+
+    it("runs a 2-player duel: victory payout (19k), tie refund, 1-player cancel, repeat claim rejected", async () => {
+      // Use players with fresh daily claim caps (players[0] hit DAILY_CAP earlier).
+      const p0 = players[3];
+      const p1 = players[4];
+      const p2 = players[5];
+
+      // 1. Victory: 2 x 10,000 -> burn 400 (2%), treasury 600 (3%), winner gets 19,000 (+9,000).
+      const winId = roundIdOf("duel-win");
+      const now = await chain.now();
+      await chain.open(winId, STAKE, 2, 2, now + 60n, now + 360n);
+      await fill(winId, [p0, p1]);
+      // Third player cannot join a 2-player duel.
+      await expectError(
+        signAndSend(await chain.depositTx(winId, p2.publicKey.toBase58()), p2),
+        "LimitExceeded",
+      );
+      await chain.start(winId);
+      const supplyBefore = (
+        await getMint(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID)
+      ).supply;
+      const treasuryBefore = await balance(treasury);
+      const winnerBefore = await balance(p0);
+      const pot = 2n * STAKE; // 20,000 LANDPOT
+      const burn = (pot * 200n) / 10_000n; // 400
+      const fee = (pot * 300n) / 10_000n; // 600
+      const prize = pot - burn - fee; // 19,000
+      expect(prize).toBe(19_000n * UNIT);
+      await chain.propose(winId, [prize, 0n], keccakHex(new Uint8Array([10])));
+      await sleep(3_000);
+      await chain.finalize(winId);
+      const supplyAfter = (
+        await getMint(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID)
+      ).supply;
+      expect(supplyBefore - supplyAfter).toBe(burn);
+      expect((await balance(treasury)) - treasuryBefore).toBe(fee);
+
+      await signAndSend(await chain.claimTx(winId, p0.publicKey.toBase58()), p0);
+      expect((await balance(p0)) - winnerBefore).toBe(prize);
+      // Loser has nothing to claim, and winner cannot claim twice.
+      await expectError(
+        signAndSend(await chain.claimTx(winId, p1.publicKey.toBase58()), p1),
+        "LimitExceeded",
+      );
+      await expectError(
+        signAndSend(await chain.claimTx(winId, p0.publicKey.toBase58()), p0),
+        "LimitExceeded",
+      );
+      await chain.close(winId);
+
+      // 2. Tie (void): guardian cancels started duel -> both get full 10,000 back; repeat claim fails.
+      const tieId = roundIdOf("duel-tie");
+      const now2 = await chain.now();
+      await chain.open(tieId, STAKE, 2, 2, now2 + 60n, now2 + 360n);
+      await fill(tieId, [p0, p1]);
+      await chain.start(tieId);
+      await escrowProgram(connection, PROGRAM_ID, guardian)
+        .methods.cancel()
+        .accountsPartial({
+          authority: guardian.publicKey,
+          config: pda.config(PROGRAM_ID),
+          round: pda.round(PROGRAM_ID, tieId),
+        })
+        .rpc();
+      for (const p of [p0, p1]) {
+        const before = await balance(p);
+        await signAndSend(await chain.claimTx(tieId, p.publicKey.toBase58()), p);
+        expect((await balance(p)) - before).toBe(STAKE);
+      }
+      await expectError(
+        signAndSend(await chain.claimTx(tieId, p0.publicKey.toBase58()), p0),
+        "LimitExceeded",
+      );
+      await chain.close(tieId);
+
+      // 3. Only one player paid: start fails, cancel refunds full 10,000, repeat claim fails.
+      const oneId = roundIdOf("duel-one");
+      const now3 = await chain.now();
+      await chain.open(oneId, STAKE, 2, 2, now3 + 60n, now3 + 360n);
+      await fill(oneId, [p0]);
+      await expectError(chain.start(oneId), "WrongPhase");
+      await chain.cancel(oneId);
+      const beforeOne = await balance(p0);
+      await signAndSend(await chain.claimTx(oneId, p0.publicKey.toBase58()), p0);
+      expect((await balance(p0)) - beforeOne).toBe(STAKE);
+      await expectError(
+        signAndSend(await chain.claimTx(oneId, p0.publicKey.toBase58()), p0),
+        "LimitExceeded",
+      );
+      await chain.close(oneId);
+    }, 180_000);
   },
 );

@@ -217,6 +217,20 @@ export class PotService {
     return p;
   }
 
+  /** Open a 2-player paid Caldera duel round (minPlayers = maxPlayers = 2). */
+  openDuel(gameId: string): Promise<PotRoundRow> {
+    const existing = this.store.getRound(gameId);
+    if (existing) return Promise.resolve(existing);
+    let p = this.opening.get(gameId);
+    if (!p) {
+      p = this.openRound(gameId, "duel", this.now()).finally(() =>
+        this.opening.delete(gameId),
+      );
+      this.opening.set(gameId, p);
+    }
+    return p;
+  }
+
   private async doOpen(gameId: string): Promise<PotRoundRow> {
     const rules = this.deps.rules;
     const date = new Date(this.now());
@@ -230,7 +244,7 @@ export class PotService {
         !this.store.recentRounds(hourStart).some((round) => round.cup));
     if (cup) this.openingCupHours.add(hourStart);
     try {
-      return await this.openRound(gameId, cup, date.getTime());
+      return await this.openRound(gameId, cup ? "cup" : "ffa", date.getTime());
     } finally {
       if (cup) this.openingCupHours.delete(hourStart);
     }
@@ -238,12 +252,14 @@ export class PotService {
 
   private async openRound(
     gameId: string,
-    cup: boolean,
+    mode: "ffa" | "cup" | "duel",
     createdAt: number,
   ): Promise<PotRoundRow> {
     const rules = this.deps.rules;
-    const minPlayers = cup ? 8 : rules.minPlayers;
-    const maxPlayers = cup ? 8 : rules.maxPlayers;
+    const cup = mode === "cup";
+    const duel = mode === "duel";
+    const minPlayers = duel ? 2 : cup ? 8 : rules.minPlayers;
+    const maxPlayers = duel ? 2 : cup ? 8 : rules.maxPlayers;
     const fundingSeconds = rules.fundingSeconds;
     const roundId = roundIdOf(gameId);
     const stake = await this.stakeUnits();
@@ -263,6 +279,7 @@ export class PotService {
     );
     const row: PotRoundRow = {
       ...(cup ? { cup: true } : {}),
+      ...(duel ? { duel: true } : {}),
       gameId,
       roundId,
       stake: stake.toString(),
@@ -276,7 +293,7 @@ export class PotService {
       treasuryBps,
     };
     this.store.putRound(row);
-    this.log("pot round opened", { gameId, roundId });
+    this.log("pot round opened", { gameId, roundId, mode });
     return row;
   }
 
@@ -577,7 +594,7 @@ export class PotService {
     const nowS = Math.floor(this.now() / 1000);
     const rows = this.store
       .roundsIn(["funding"])
-      .filter((r) => r.fundingEnds > nowS);
+      .filter((r) => !r.duel && r.fundingEnds > nowS);
     const views = await Promise.all(
       rows.map(async (r) => {
         const roundId = r.roundId as Hex;
@@ -648,7 +665,7 @@ export class PotService {
             phase: status.phase,
             releaseAt: r.resultEnds,
             frozen: false,
-            ...(r.cup ? { reason: voidReason() } : {}),
+            ...(r.cup || r.duel ? { reason: voidReason() } : {}),
           });
           return;
         }
@@ -671,7 +688,7 @@ export class PotService {
           phase: status.phase,
           releaseAt: Number(status.releaseAt),
           frozen: status.frozen,
-          ...(r.cup && refund
+          ...((r.cup || r.duel) && refund
             ? {
                 reason:
                   settlement?.status === "void" ? voidReason() : "cancelled",
@@ -745,15 +762,15 @@ export class PotService {
     if (parsed.data.info.gameID !== gameId)
       throw new PotError(422, "Archived game ID mismatch");
     const roundId = roundIdOf(gameId);
+    const round = this.round(gameId);
     let outcome: SettleOutcome;
     try {
       outcome = await settleGame(
         {
           chain: this.chain,
           replay: this.deps.replay,
-          cupPairs: this.round(gameId).cup
-            ? this.store.cupPairs(gameId)
-            : undefined,
+          cupPairs: round.cup ? this.store.cupPairs(gameId) : undefined,
+          duel: Boolean(round.duel),
           walletOf: (pid) => this.store.getUser(pid)?.wallet ?? null,
         },
         archived.publicBytes,

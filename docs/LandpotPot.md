@@ -62,7 +62,7 @@ the registered pairs against the depositors before proposing a payout.
 
 | Rule              | Value                                                                        | Where                                                                                |
 | ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Players per match | 8–16                                                                         | program `open` (8 is the hard minimum); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
+| Players per match | 8–16 (or exactly 2 for 1v1 duels)                                            | program `open` (8–16 for regular/Cup, 2–2 for duels); API `LANDPOT_POT_MIN_PLAYERS`/`_MAX_PLAYERS` |
 | Entry             | equal for all                                                                | API `LANDPOT_POT_STAKE` (whole tokens)                                               |
 | No-show           | entry back less their fee share, floor(net ÷ depositors)                     | `Payouts.ts`                                                                         |
 | Match             | FFA on Caldera, 12 minutes; humans only: no bots, no nations, no alliances   | `packages/shared/src/PaidMatch.ts`, `paidGameConfig` in `src/server/PaidLobby.ts`    |

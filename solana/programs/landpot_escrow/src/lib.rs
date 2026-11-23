@@ -28,6 +28,7 @@ declare_id!("4cbs4ZSsC9E9S56QwoAxPKDPDjRbfWzoUso3R8NWq165");
 
 pub const MAX_PLAYERS: usize = 16;
 pub const MIN_PLAYERS: u8 = 8;
+pub const DUEL_PLAYERS: u8 = 2;
 const DAY: i64 = 86_400;
 /// The shortest review hold. The `localnet` feature lets a local validator,
 /// whose clock can't be moved, reach finalize. It is for tests, the local
@@ -108,12 +109,14 @@ pub mod landpot_escrow {
         let config = &ctx.accounts.config;
         let now = Clock::get()?.unix_timestamp;
         require!(!config.paused, EscrowError::WrongPhase);
+        let valid_size = (min_players == DUEL_PLAYERS && max_players == DUEL_PLAYERS)
+            || (min_players >= MIN_PLAYERS
+                && max_players >= min_players
+                && usize::from(max_players) <= MAX_PLAYERS);
         require!(
             round_id != [0; 32]
                 && stake > 0
-                && min_players >= MIN_PLAYERS
-                && max_players >= min_players
-                && usize::from(max_players) <= MAX_PLAYERS
+                && valid_size
                 && u128::from(stake) * u128::from(max_players) <= u128::from(config.max_bank)
                 && funding_ends > now
                 && funding_ends <= now + DAY

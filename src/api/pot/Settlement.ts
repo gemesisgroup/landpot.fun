@@ -19,6 +19,8 @@ export interface SettlementDeps {
   replay: Replayer;
   /** The wallet signed in as this persistentID, or null. */
   cupPairs?: string[][];
+  /** True when settling a 1v1 Caldera duel round (2 depositors, winner takes net pot). */
+  duel?: boolean;
   walletOf: (persistentID: string) => string | null;
 }
 
@@ -73,8 +75,66 @@ export async function settleGame(
   }
 
   const players = await deps.chain.players(roundId);
-  if (Boolean(record.info.config.caldera?.teamCup) !== Boolean(deps.cupPairs)) {
+  if (
+    Boolean(record.info.config.caldera?.teamCup) !== Boolean(deps.cupPairs) ||
+    Boolean(record.info.config.caldera?.duel) !== Boolean(deps.duel)
+  ) {
     return { status: "void", roundId, reason: "Round format mismatch" };
+  }
+  if (deps.duel) {
+    const ids = new Map(record.info.players.map((p) => [p.clientID, p]));
+    const walletForId = (id: string) => {
+      const pid = ids.get(id)?.persistentID;
+      return pid ? deps.walletOf(pid) : null;
+    };
+    const teamIndices = new Set(
+      record.info.players
+        .map((p) => p.teamIndex)
+        .filter((t): t is number => t === 0 || t === 1),
+    );
+    const seatsMatch =
+      players.length === 2 &&
+      played.size === 2 &&
+      ids.size === 2 &&
+      teamIndices.size === 2 &&
+      players.every((w) => played.has(w));
+    const winner = replayed.winner;
+    const sideLand = record.info.players
+      .map((p) => replayed.territory[p.clientID] ?? 0)
+      .sort((a, b) => b - a);
+    const tied =
+      sideLand.length === 2 && sideLand[0] > 0 && sideLand[0] === sideLand[1];
+    if (seatsMatch && replayed.tick !== null && !winner && tied) {
+      return {
+        status: "void",
+        roundId,
+        reason: "Tie",
+        code: "tie",
+      };
+    }
+    if (!seatsMatch || replayed.tick === null || winner?.[0] !== "team") {
+      return {
+        status: "void",
+        roundId,
+        reason: "No verified duel winner or incomplete roster",
+      };
+    }
+    const awarded = new Set(
+      winner
+        .slice(2)
+        .map(walletForId)
+        .filter((w): w is string => w !== null),
+    );
+    const winnerWallet = [...awarded][0];
+    if (
+      awarded.size !== 1 ||
+      !winnerWallet ||
+      !players.includes(winnerWallet)
+    ) {
+      return { status: "void", roundId, reason: "Winning duel player mismatch" };
+    }
+    land.clear();
+    land.set(winnerWallet, 1n);
   }
   if (deps.cupPairs) {
     const roster = deps.cupPairs.flat();

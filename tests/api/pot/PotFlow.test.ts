@@ -160,27 +160,48 @@ describe.skipIf(!validatorAvailable())(
     }
 
     /** Archive a finished paid game the way the game server does. */
-    async function archive(gameID: string, present = players.length) {
-      const cup = store.getRound(gameID)?.cup;
+    async function archive(
+      gameID: string,
+      present = players.length,
+      roster?: Keypair[],
+    ) {
+      const round = store.getRound(gameID);
+      const cup = round?.cup;
+      const duel = round?.duel;
       const pairs = store.cupPairs(gameID);
-      const records: PlayerRecord[] = players.slice(0, present).map(
+      const list = roster ?? players.slice(0, duel ? Math.min(present, 2) : present);
+      const records: PlayerRecord[] = list.map(
         (p, i) =>
           ({
             clientID: `Pl00000${i}`,
             username: `player${i}`,
             ...(cup
               ? { teamIndex: pairs.findIndex((pair) => pair.includes(addr(p))) }
-              : {}),
+              : duel
+                ? { teamIndex: i }
+                : {}),
             clanTag: null,
             persistentID: userIds.get(addr(p))!,
             stats: undefined,
           }) as unknown as PlayerRecord,
       );
+      const config = cup
+        ? paidGameConfig(testGameConfig(), 8, true)
+        : duel
+          ? {
+              ...paidGameConfig(testGameConfig(), 2, false),
+              caldera: {
+                craterPermille: 200,
+                craterWeight: 3,
+                eruptionSeconds: 120,
+                eruptionPermille: 250,
+                duel: true as const,
+              },
+            }
+          : testGameConfig({ gameType: GameType.Public });
       const partial = createPartialGameRecord(
         gameID,
-        cup
-          ? paidGameConfig(testGameConfig(), 8, true)
-          : testGameConfig({ gameType: GameType.Public }),
+        config,
         records,
         [],
         1_700_000_000_000,
@@ -773,6 +794,127 @@ describe.skipIf(!validatorAvailable())(
       expect((await chain.status(roundIdOf(gameID))).phase).toBe(
         RoundPhase.Refunding,
       );
+    }, 180_000);
+
+    it("runs paid 1v1 duels through the API: win, tie, 1-player cancel, repeat claim", async () => {
+      // Use players with fresh daily claim caps (players[0] hit DAILY_CAP earlier).
+      const p0 = players[6];
+      const p1 = players[7];
+
+      // 1. Victory: winner takes full net pot (95% of 2 * STAKE); repeat claim and loser claim return 409.
+      const winId = "DuelWin1";
+      const opened = await api("POST", `/pot/open/${winId}`, { mode: "duel" });
+      expect(opened.status).toBe(200);
+      expect(opened.body).toMatchObject({
+        duel: true,
+        minPlayers: 2,
+        maxPlayers: 2,
+      });
+      // Duel rounds stay out of the public 8-16 player lobby list.
+      const lobbies = (await api("GET", "/public/pot/lobbies")).body.lobbies as {
+        gameId: string;
+      }[];
+      expect(lobbies.some((l) => l.gameId === winId)).toBe(false);
+
+      await walletSends("deposit", winId, p0);
+      await walletSends("deposit", winId, p1);
+      expect((await api("POST", `/pot/start/${winId}`)).status).toBe(200);
+      await archive(winId, 2, [p0, p1]);
+      replayResult = {
+        winner: ["team", "Red", "Pl000000"],
+        allPlayersStats: {},
+        tick: 3600,
+        territory: { Pl000000: 120, Pl000001: 40 },
+      };
+      try {
+        const settled = await api("POST", `/pot/settle/${winId}`);
+        const net = (2n * STAKE * 9_500n) / 10_000n;
+        expect(settled.body).toMatchObject({
+          status: "proposed",
+          amounts: [net.toString(), "0"],
+        });
+      } finally {
+        replayResult = null;
+      }
+      await sleep((REVIEW_SECONDS + 1) * 1000);
+      await pot.tick();
+      const net = (2n * STAKE * 9_500n) / 10_000n;
+      const beforeWin = await balance(p0.publicKey);
+      await walletSends("claim", winId, p0);
+      expect((await balance(p0.publicKey)) - beforeWin).toBe(net);
+      // Repeat claim and loser claim are both rejected with 409.
+      expect(
+        (
+          await api("POST", "/public/pot/claim-tx", {
+            gameId: winId,
+            wallet: addr(p0),
+          })
+        ).status,
+      ).toBe(409);
+      expect(
+        (
+          await api("POST", "/public/pot/claim-tx", {
+            gameId: winId,
+            wallet: addr(p1),
+          })
+        ).status,
+      ).toBe(409);
+
+      // 2. Tie: settled as void with code "tie", both see refund_pending for full entry.
+      const tieId = "DuelTie1";
+      expect(
+        (await api("POST", `/pot/open/${tieId}`, { mode: "duel" })).status,
+      ).toBe(200);
+      await walletSends("deposit", tieId, p0);
+      await walletSends("deposit", tieId, p1);
+      expect((await api("POST", `/pot/start/${tieId}`)).status).toBe(200);
+      await archive(tieId, 2, [p0, p1]);
+      replayResult = {
+        winner: undefined,
+        allPlayersStats: {},
+        tick: 3600,
+        territory: { Pl000000: 80, Pl000001: 80 },
+      };
+      try {
+        expect((await api("POST", `/pot/settle/${tieId}`)).body).toMatchObject({
+          status: "void",
+          code: "tie",
+        });
+      } finally {
+        replayResult = null;
+      }
+      for (const p of [p0, p1]) {
+        const claims = (
+          await api("GET", `/public/pot/claims/${addr(p)}`)
+        ).body.claims as { gameId: string }[];
+        expect(claims.find((c) => c.gameId === tieId)).toMatchObject({
+          kind: "refund_pending",
+          amount: STAKE.toString(),
+          reason: "tie",
+        });
+      }
+
+      // 3. Only one player paid: start returns 409, cancel refunds full STAKE, repeat claim returns 409.
+      const oneId = "DuelOne1";
+      expect(
+        (await api("POST", `/pot/open/${oneId}`, { mode: "duel" })).status,
+      ).toBe(200);
+      await walletSends("deposit", oneId, p0);
+      expect((await api("POST", `/pot/start/${oneId}`)).status).toBe(409);
+      expect(
+        (await api("POST", `/pot/cancel/${oneId}`, { deposited: 1 })).status,
+      ).toBe(200);
+      const beforeOne = await balance(p0.publicKey);
+      await walletSends("claim", oneId, p0);
+      expect((await balance(p0.publicKey)) - beforeOne).toBe(STAKE);
+      expect(
+        (
+          await api("POST", "/public/pot/claim-tx", {
+            gameId: oneId,
+            wallet: addr(p0),
+          })
+        ).status,
+      ).toBe(409);
     }, 180_000);
   },
 );

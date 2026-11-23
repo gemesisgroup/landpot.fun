@@ -79,6 +79,7 @@ export interface SettlementRow {
 /** A paid lobby's escrow round, as the API opened it. */
 export interface PotRoundRow {
   cup?: boolean;
+  duel?: boolean;
   gameId: string;
   roundId: string;
   /** In token base units, as a decimal string. */
@@ -307,6 +308,7 @@ function toRound(row: Row): PotRoundRow {
     gameId: row.game_id as string,
     roundId: row.round_id as string,
     ...(row.cup ? { cup: true } : {}),
+    ...(row.duel ? { duel: true } : {}),
     stake: row.stake as string,
     minPlayers: Number(row.min_players),
     maxPlayers: Number(row.max_players),
@@ -358,6 +360,7 @@ export class SqliteStore implements Store {
     );
     for (const [name, type] of [
       ["cup", "INTEGER NOT NULL DEFAULT 0"],
+      ["duel", "INTEGER NOT NULL DEFAULT 0"],
       ["burn_bps", "INTEGER"],
       ["treasury_bps", "INTEGER"],
       ["filled_at", "INTEGER"],
@@ -402,7 +405,7 @@ export class SqliteStore implements Store {
       ),
       getSettlement: p("SELECT * FROM pot_settlements WHERE game_id = ?"),
       putRound: p(
-        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup, burn_bps, treasury_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup, duel, burn_bps, treasury_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ),
       getRound: p("SELECT * FROM pot_rounds WHERE game_id = ?"),
       setRoundState: p("UPDATE pot_rounds SET state = ? WHERE game_id = ?"),
@@ -752,6 +755,7 @@ export class SqliteStore implements Store {
       r.state,
       r.createdAt,
       r.cup ? 1 : 0,
+      r.duel ? 1 : 0,
       r.burnBps ?? null,
       r.treasuryBps ?? null,
     );

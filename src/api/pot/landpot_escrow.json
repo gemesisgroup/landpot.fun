@@ -9,7 +9,16 @@
   "instructions": [
     {
       "name": "cancel",
-      "discriminator": [232, 219, 223, 41, 219, 236, 220, 190],
+      "discriminator": [
+        232,
+        219,
+        223,
+        41,
+        219,
+        236,
+        220,
+        190
+      ],
       "accounts": [
         {
           "name": "authority",
@@ -21,7 +30,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -33,7 +49,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -48,7 +70,16 @@
     },
     {
       "name": "claim",
-      "discriminator": [62, 198, 214, 193, 213, 159, 108, 210],
+      "discriminator": [
+        62,
+        198,
+        214,
+        193,
+        213,
+        159,
+        108,
+        210
+      ],
       "accounts": [
         {
           "name": "player",
@@ -61,7 +92,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -73,7 +111,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -93,7 +137,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [118, 97, 117, 108, 116]
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
               },
               {
                 "kind": "account",
@@ -113,7 +163,11 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 97, 112]
+                "value": [
+                  99,
+                  97,
+                  112
+                ]
               },
               {
                 "kind": "account",
@@ -138,7 +192,16 @@
         "Closes a settled round once nothing is left to claim; the rent of the",
         "round and its vault goes back to the operator, who paid it."
       ],
-      "discriminator": [149, 14, 81, 88, 230, 226, 234, 37],
+      "discriminator": [
+        149,
+        14,
+        81,
+        88,
+        230,
+        226,
+        234,
+        37
+      ],
       "accounts": [
         {
           "name": "config",
@@ -146,7 +209,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -158,7 +228,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -175,7 +251,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [118, 97, 117, 108, 116]
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
               },
               {
                 "kind": "account",
@@ -196,7 +278,16 @@
     },
     {
       "name": "deposit",
-      "discriminator": [242, 35, 198, 137, 82, 225, 242, 182],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
       "accounts": [
         {
           "name": "player",
@@ -208,7 +299,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -220,7 +318,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -244,7 +348,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [118, 97, 117, 108, 116]
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
               },
               {
                 "kind": "account",
@@ -261,7 +371,16 @@
     },
     {
       "name": "finalize",
-      "discriminator": [171, 61, 218, 56, 127, 115, 12, 217],
+      "discriminator": [
+        171,
+        61,
+        218,
+        56,
+        127,
+        115,
+        12,
+        217
+      ],
       "accounts": [
         {
           "name": "config",
@@ -269,7 +388,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -281,7 +407,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -302,7 +434,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [118, 97, 117, 108, 116]
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
               },
               {
                 "kind": "account",
@@ -323,7 +461,16 @@
     },
     {
       "name": "initialize",
-      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
       "accounts": [
         {
           "name": "authority",
@@ -337,7 +484,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -373,7 +527,16 @@
     },
     {
       "name": "open",
-      "discriminator": [228, 220, 155, 71, 199, 189, 60, 45],
+      "discriminator": [
+        228,
+        220,
+        155,
+        71,
+        199,
+        189,
+        60,
+        45
+      ],
       "accounts": [
         {
           "name": "operator",
@@ -386,7 +549,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -398,7 +568,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "arg",
@@ -417,7 +593,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [118, 97, 117, 108, 116]
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
               },
               {
                 "kind": "account",
@@ -438,7 +620,10 @@
         {
           "name": "round_id",
           "type": {
-            "array": ["u8", 32]
+            "array": [
+              "u8",
+              32
+            ]
           }
         },
         {
@@ -469,7 +654,16 @@
         "The oracle's split of the net pot, one amount per depositor in",
         "deposit order. It signs this transaction itself."
       ],
-      "discriminator": [93, 253, 82, 168, 118, 33, 102, 90],
+      "discriminator": [
+        93,
+        253,
+        82,
+        168,
+        118,
+        33,
+        102,
+        90
+      ],
       "accounts": [
         {
           "name": "oracle",
@@ -481,7 +675,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -493,7 +694,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -514,14 +721,26 @@
         {
           "name": "replay_hash",
           "type": {
-            "array": ["u8", 32]
+            "array": [
+              "u8",
+              32
+            ]
           }
         }
       ]
     },
     {
       "name": "review",
-      "discriminator": [197, 248, 119, 131, 129, 157, 250, 147],
+      "discriminator": [
+        197,
+        248,
+        119,
+        131,
+        129,
+        157,
+        250,
+        147
+      ],
       "accounts": [
         {
           "name": "guardian",
@@ -533,7 +752,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -545,7 +771,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -565,7 +797,16 @@
     },
     {
       "name": "set_paused",
-      "discriminator": [91, 60, 125, 192, 176, 225, 166, 218],
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
       "accounts": [
         {
           "name": "guardian",
@@ -578,7 +819,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -593,7 +841,16 @@
     },
     {
       "name": "start",
-      "discriminator": [62, 15, 117, 236, 47, 1, 89, 139],
+      "discriminator": [
+        62,
+        15,
+        117,
+        236,
+        47,
+        1,
+        89,
+        139
+      ],
       "accounts": [
         {
           "name": "operator",
@@ -605,7 +862,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [99, 111, 110, 102, 105, 103]
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
@@ -617,7 +881,13 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [114, 111, 117, 110, 100]
+                "value": [
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
               },
               {
                 "kind": "account",
@@ -634,53 +904,161 @@
   "accounts": [
     {
       "name": "ClaimCap",
-      "discriminator": [75, 4, 100, 226, 119, 178, 186, 228]
+      "discriminator": [
+        75,
+        4,
+        100,
+        226,
+        119,
+        178,
+        186,
+        228
+      ]
     },
     {
       "name": "Config",
-      "discriminator": [155, 12, 170, 224, 30, 250, 204, 130]
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
     },
     {
       "name": "Round",
-      "discriminator": [87, 127, 165, 51, 73, 78, 116, 174]
+      "discriminator": [
+        87,
+        127,
+        165,
+        51,
+        73,
+        78,
+        116,
+        174
+      ]
     }
   ],
   "events": [
     {
       "name": "Claimed",
-      "discriminator": [217, 192, 123, 72, 108, 150, 248, 33]
+      "discriminator": [
+        217,
+        192,
+        123,
+        72,
+        108,
+        150,
+        248,
+        33
+      ]
     },
     {
       "name": "Deposited",
-      "discriminator": [111, 141, 26, 45, 161, 35, 100, 57]
+      "discriminator": [
+        111,
+        141,
+        26,
+        45,
+        161,
+        35,
+        100,
+        57
+      ]
     },
     {
       "name": "Finalized",
-      "discriminator": [4, 77, 242, 80, 20, 152, 247, 252]
+      "discriminator": [
+        4,
+        77,
+        242,
+        80,
+        20,
+        152,
+        247,
+        252
+      ]
     },
     {
       "name": "Opened",
-      "discriminator": [166, 172, 97, 9, 77, 76, 189, 109]
+      "discriminator": [
+        166,
+        172,
+        97,
+        9,
+        77,
+        76,
+        189,
+        109
+      ]
     },
     {
       "name": "Paused",
-      "discriminator": [172, 248, 5, 253, 49, 255, 255, 232]
+      "discriminator": [
+        172,
+        248,
+        5,
+        253,
+        49,
+        255,
+        255,
+        232
+      ]
     },
     {
       "name": "Proposed",
-      "discriminator": [216, 37, 138, 141, 130, 208, 180, 153]
+      "discriminator": [
+        216,
+        37,
+        138,
+        141,
+        130,
+        208,
+        180,
+        153
+      ]
     },
     {
       "name": "Refunding",
-      "discriminator": [104, 12, 84, 203, 117, 153, 49, 161]
+      "discriminator": [
+        104,
+        12,
+        84,
+        203,
+        117,
+        153,
+        49,
+        161
+      ]
     },
     {
       "name": "Reviewed",
-      "discriminator": [170, 67, 152, 86, 116, 105, 139, 50]
+      "discriminator": [
+        170,
+        67,
+        152,
+        86,
+        116,
+        105,
+        139,
+        50
+      ]
     },
     {
       "name": "Started",
-      "discriminator": [56, 221, 130, 183, 11, 167, 161, 254]
+      "discriminator": [
+        56,
+        221,
+        130,
+        183,
+        11,
+        167,
+        161,
+        254
+      ]
     }
   ],
   "errors": [
@@ -744,7 +1122,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -830,7 +1211,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -848,7 +1232,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           }
         ]
@@ -906,7 +1293,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -944,13 +1334,19 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
             "name": "replay_hash",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -968,7 +1364,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           }
         ]
@@ -982,7 +1381,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -1000,7 +1402,10 @@
           {
             "name": "id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
@@ -1054,25 +1459,37 @@
           {
             "name": "replay_hash",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           },
           {
             "name": "players",
             "type": {
-              "array": ["pubkey", 16]
+              "array": [
+                "pubkey",
+                16
+              ]
             }
           },
           {
             "name": "deposits",
             "type": {
-              "array": ["u64", 16]
+              "array": [
+                "u64",
+                16
+              ]
             }
           },
           {
             "name": "payouts",
             "type": {
-              "array": ["u64", 16]
+              "array": [
+                "u64",
+                16
+              ]
             }
           }
         ]
@@ -1086,7 +1503,10 @@
           {
             "name": "round_id",
             "type": {
-              "array": ["u8", 32]
+              "array": [
+                "u8",
+                32
+              ]
             }
           }
         ]
