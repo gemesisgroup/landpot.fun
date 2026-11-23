@@ -137,6 +137,19 @@ export class SpawnExecution implements Execution {
 
   private getSpawn(center?: TileRef): Spawn | undefined {
     if (center !== undefined) {
+      if (this.mg.config().gameConfig().caldera?.teamCup) {
+        const area = this.getTeamSpawnArea();
+        const x = this.mg.x(center),
+          y = this.mg.y(center);
+        if (
+          !area ||
+          x < area.x ||
+          x >= area.x + area.width ||
+          y < area.y ||
+          y >= area.y + area.height
+        )
+          return;
+      }
       const tiles = getSpawnTiles(this.mg, center, false);
 
       if (!tiles.length) {

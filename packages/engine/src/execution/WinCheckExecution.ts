@@ -5,6 +5,7 @@ import {
   RankedType,
   Team,
 } from "@openfront/engine-api/game/GameTypes";
+import { landValue } from "@openfront/engine-lib/game/Caldera";
 import { z } from "zod";
 import { Execution, Game } from "../game/Game";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
@@ -57,7 +58,10 @@ export class WinCheckExecution implements Execution {
     }
     this.checkedRankedSpawns = true;
     const gameConfig = this.mg.config().gameConfig();
-    if (!isRankedTeamGame(gameConfig.rankedType)) {
+    if (
+      !gameConfig.caldera?.teamCup &&
+      !isRankedTeamGame(gameConfig.rankedType)
+    ) {
       return false;
     }
     // allPlayers: players() hides tile-less players, which is exactly what a
@@ -70,7 +74,7 @@ export class WinCheckExecution implements Execution {
       return false;
     }
     console.log(
-      `ranked ${gameConfig.rankedType} cancelled: only ${spawned}/${expected} players spawned`,
+      `team match cancelled: only ${spawned}/${expected} players spawned`,
     );
     this.mg.setWinner(null, this.mg.stats().stats());
     this.active = false;
@@ -163,6 +167,31 @@ export class WinCheckExecution implements Execution {
   checkWinnerTeam(): void {
     if (this.mg === null) throw new Error("Not initialized");
 
+    const config = this.mg.config().gameConfig();
+    if (config.caldera?.teamCup) {
+      const game = this.mg;
+      const living = game.players().filter((p) => p.numTilesOwned() > 0);
+      const teams = new Set(living.map((p) => p.team()));
+      const atLimit =
+        game.elapsedGameSeconds() >= (config.maxTimerValue ?? 14) * 60;
+      if (teams.size > 1 && !atLimit) return;
+      const totals = new Map<Team, number>();
+      for (const p of living) {
+        const team = p.team();
+        if (team !== null)
+          totals.set(
+            team,
+            (totals.get(team) ?? 0) +
+              landValue(game.map(), config.caldera, p.tiles()),
+          );
+      }
+      const ranks = Array.from(totals).sort((a, b) => b[1] - a[1]);
+      const winner =
+        ranks.length && ranks[0][1] !== ranks[1]?.[1] ? ranks[0][0] : null;
+      game.setWinner(winner, game.stats().stats());
+      this.active = false;
+      return;
+    }
     if (isRankedTeamGame(this.mg.config().gameConfig().rankedType)) {
       // players() only returns alive players, so a team drops out of this set
       // once every member is dead or disconnected.

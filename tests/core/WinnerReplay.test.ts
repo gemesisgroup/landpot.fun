@@ -1,4 +1,8 @@
-import { GameMapSize, RankedType } from "@openfront/engine-api/game/GameTypes";
+import {
+  GameMapSize,
+  GameMode,
+  RankedType,
+} from "@openfront/engine-api/game/GameTypes";
 import {
   GameUpdateType,
   WinUpdate,
@@ -76,6 +80,67 @@ async function playLive(
 }
 
 describe("replayWinner", () => {
+  it("replays a cup with all eight server-pinned seats to the same winning pair", async () => {
+    const start = gameStart();
+    start.config = {
+      ...start.config,
+      gameMode: GameMode.Team,
+      rankedType: undefined,
+      playerTeams: 4,
+      maxPlayers: 8,
+      maxTimerValue: 1,
+      randomSpawn: false,
+      caldera: {
+        teamCup: true,
+        craterPermille: 260,
+        craterWeight: 3,
+        eruptionSeconds: 0,
+        eruptionPermille: 250,
+      },
+    };
+    start.players = Array.from({ length: 8 }, (_, i) => ({
+      ...start.players[0],
+      clientID: "HUMAN00" + i,
+      username: "Pilot" + i,
+      teamIndex: Math.floor(i / 2),
+    }));
+    const files = await mapFiles();
+    let win: WinUpdate | undefined;
+    const live = await createGameRunner(start, undefined, files, (update) => {
+      if ("errMsg" in update) throw new Error(update.errMsg);
+      win ??= update.updates[GameUpdateType.Win][0];
+    });
+    const turns: Turn[] = [];
+    const sites = [
+      [36, 36],
+      [23, 19],
+      [68, 15],
+      [79, 27],
+      [16, 67],
+      [26, 80],
+      [68, 68],
+      [80, 80],
+    ];
+    for (let tick = 0; !win && tick < 2000; tick++) {
+      const turn: Turn = { turnNumber: tick, intents: [] };
+      if (tick === 5)
+        sites.forEach(([x, y], i) =>
+          turn.intents.push({
+            type: "spawn",
+            tile: live.game.ref(x, y),
+            clientID: start.players[i].clientID,
+          }),
+        );
+      turns.push(turn);
+      live.addTurn(turn);
+      live.executeNextTick();
+    }
+    expect(win?.winner?.slice(2)).toEqual(["HUMAN000", "HUMAN001"]);
+    const replay = await replayWinner(start, turns, files);
+    expect(replay.winner).toEqual(win?.winner);
+    expect(replay.tick).toBe(turns.length);
+  });
+
   it("reaches the same result as the live game", async () => {
     const { turns, win } = await playLive(P2);
     expect(win.winner).toEqual(["player", P1]);

@@ -12,6 +12,8 @@ import {
   formatUnits,
   PHASE_PROPOSED,
   paidLobbies,
+  nominatePartner,
+  netEntryPot,
   payEntry,
   potClaims,
   potConfig,
@@ -65,6 +67,8 @@ export class PaidMatch extends LitElement {
   @state() private busy: Busy = { kind: "idle" };
   @state() private error: string | null = null;
   @state() private lastTx: string | null = null;
+  @state() private nomination = "";
+  @state() private notice = "";
   @state() private now = Date.now();
   private timer: number | null = null;
   private clock: number | null = null;
@@ -100,7 +104,14 @@ export class PaidMatch extends LitElement {
   };
 
   private readUser(me: UserMeResponse | false) {
-    this.address = me === false ? null : (me.user.wallet?.address ?? null);
+    const next = me === false ? null : (me.user.wallet?.address ?? null);
+    if (next !== this.address) {
+      this.address = next;
+      this.lobby = null;
+      this.claims = [];
+      this.notice = "";
+      this.nomination = "";
+    }
   }
 
   private async refresh() {
@@ -111,13 +122,20 @@ export class PaidMatch extends LitElement {
       return;
     }
     try {
+      const address = this.address;
       const [lobbies, claims] = await Promise.all([
         paidLobbies(this.address ?? undefined),
         this.address ? potClaims(this.address) : Promise.resolve([]),
       ]);
       // The one closing soonest; the host keeps one open at a time.
+      if (address !== this.address) return;
+      const previous = this.lobby;
       this.lobby =
         lobbies.sort((a, b) => a.fundingEnds - b.fundingEnds)[0] ?? null;
+      if (previous?.gameId !== this.lobby?.gameId) {
+        this.nomination = "";
+        this.notice = "";
+      }
       this.claims = claims;
     } catch {
       // Keep what we had; the next refresh tries again.
@@ -149,6 +167,19 @@ export class PaidMatch extends LitElement {
     if (!lobby || !config || this.busy.kind !== "idle") return;
     if (this.address === null) {
       window.dispatchEvent(new Event(CONNECT_WALLET_EVENT));
+      return;
+    }
+    if (lobby.cup && !lobby.partner) {
+      this.busy = { kind: "paying", step: "switching" };
+      try {
+        await nominatePartner(lobby.gameId, this.nomination.trim());
+        this.notice = "cup.wait";
+        await this.refresh();
+      } catch {
+        this.notice = "cup.failed";
+      } finally {
+        this.busy = { kind: "idle" };
+      }
       return;
     }
     if (lobby.joined) {
@@ -232,7 +263,7 @@ export class PaidMatch extends LitElement {
           ${getMapName(PAID_MATCH_MAP)}
         </span>
         <span class="lp-mono text-[11px] text-gray-400">
-          ${translateText("landpot.pot_match", { minutes: PAID_MATCH_MINUTES })}
+          ${this.lobby?.cup ? translateText("cup.name") : translateText("landpot.pot_match", { minutes: PAID_MATCH_MINUTES })}
         </span>
       </div>
     </div>`;
@@ -320,10 +351,14 @@ export class PaidMatch extends LitElement {
               >${translateText("landpot.pot_badge")}</span
             >
             <p class="lp-mono text-xs leading-snug text-gray-300">
-              ${translateText("landpot.pot_rules", {
-                min: this.config.minPlayers,
-                max: this.config.maxPlayers,
-              })}
+              ${
+                lobby?.cup
+                  ? translateText("cup.rules")
+                  : translateText("landpot.pot_rules", {
+                      min: this.config.minPlayers,
+                      max: this.config.maxPlayers,
+                    })
+              }
             </p>
           </div>
           ${
@@ -332,6 +367,7 @@ export class PaidMatch extends LitElement {
                   class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2"
                 >
                   ${this.mapTile()} ${this.seats(lobby)}
+                  ${lobby.cup ? html`<span class="text-sm">${translateText("cup.prize")} ≈ ${this.amount(netEntryPot(lobby.stake, 8, this.config) / 2n)}</span>` : nothing}
                   <div class="flex flex-col">
                     <span class="lp-display text-lg font-semibold text-white">
                       ${this.amount(BigInt(lobby.stake) * BigInt(lobby.deposited))}
@@ -348,13 +384,37 @@ export class PaidMatch extends LitElement {
                       })}
                     </span>
                   </div>
+                  ${
+                    lobby.cup && this.address
+                      ? lobby.partner
+                        ? html`<span class="text-xs break-all"
+                            >${translateText("cup.partner")}
+                            ${lobby.partner}</span
+                          >`
+                        : html`<label class="text-xs"
+                            >${translateText("cup.partner")}
+                            <input
+                              class="block bg-gray-900 text-white"
+                              .value=${this.nomination}
+                              @input=${(event: Event) => {
+                                this.nomination = (
+                                  event.target as HTMLInputElement
+                                ).value;
+                              }}
+                            />
+                            <span role="status"
+                              >${this.notice ? translateText(this.notice) : ""}</span
+                            ></label
+                          >`
+                      : nothing
+                  }
                   <button
                     type="button"
                     class="ml-auto lp-mono text-[13px] rounded-[10px] px-4 py-2 cursor-pointer transition-colors bg-malibu-blue hover:bg-aquarius text-white disabled:opacity-70 disabled:cursor-wait"
                     ?disabled=${busy}
                     @click=${this.onPrimary}
                   >
-                    ${this.primaryLabel()}
+                    ${lobby.cup && this.address && !lobby.partner ? translateText("cup.confirm") : this.primaryLabel()}
                   </button>
                 </div>`
               : html`<p class="lp-mono text-xs text-gray-400 flex-1">

@@ -1,4 +1,8 @@
-import { PlayerType } from "@openfront/engine-api/game/GameTypes";
+import {
+  PlayerInfo,
+  GameMode,
+  PlayerType,
+} from "@openfront/engine-api/game/GameTypes";
 import { CalderaConfig } from "@openfront/engine-api/Schemas";
 import {
   centreDistance2,
@@ -8,6 +12,7 @@ import {
   radiusOf,
 } from "@openfront/engine-lib/game/Caldera";
 import { EruptionExecution } from "@openfront/engine/execution/EruptionExecution";
+import { WinCheckExecution } from "@openfront/engine/execution/WinCheckExecution";
 import { Game } from "@openfront/engine/game/Game";
 import { playerInfo, setup } from "./util/Setup";
 import { expectSnapshotRoundTrip } from "./util/Snapshot";
@@ -35,6 +40,76 @@ async function caldera(): Promise<Game> {
   });
   return game;
 }
+
+describe("Community Cup", () => {
+  async function match() {
+    const players = Array.from(
+      { length: 8 },
+      (_, i) =>
+        new PlayerInfo(
+          "Pilot" + i,
+          PlayerType.Human,
+          "Client0" + i,
+          "Pilot" + i,
+          false,
+          null,
+          [],
+          Math.floor(i / 2),
+        ),
+    );
+    const game = await setup(
+      "plains",
+      {
+        gameMode: GameMode.Team,
+        playerTeams: 4,
+        maxTimerValue: 14,
+        maxPlayers: 8,
+        caldera: { ...RULES, teamCup: true },
+      },
+      players,
+    );
+    const check = new WinCheckExecution();
+    check.init(game, 0);
+    for (const [i, p] of game.allPlayers().entries())
+      p.setSpawnTile(game.ref(10 + i, 10));
+    return { game, check };
+  }
+  it("keeps both members of the last surviving pair in the result", async () => {
+    const { game, check } = await match();
+    const survivor = game.player("Pilot1");
+    survivor.conquer(game.ref(2, 2));
+    const updates = vi.spyOn(game, "addUpdate");
+    check.checkWinnerTeam();
+    expect(updates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        winner: ["team", survivor.team(), "Client00", "Client01"],
+      }),
+    );
+  });
+  it("continues into overtime and weights crater land at the limit", async () => {
+    const { game, check } = await match();
+    game.player("Pilot0").conquer(game.ref(50, 50));
+    const rival = game.player("Pilot2");
+    rival.conquer(game.ref(0, 0));
+    rival.conquer(game.ref(1, 0));
+    vi.spyOn(game, "elapsedGameSeconds")
+      .mockReturnValueOnce(720)
+      .mockReturnValue(840);
+    check.checkWinnerTeam();
+    expect(check.isActive()).toBe(true);
+    check.checkWinnerTeam();
+    expect(game.getWinner()).toBe(game.player("Pilot0").team());
+  });
+  it("voids a tie for first at the hard limit", async () => {
+    const { game, check } = await match();
+    game.player("Pilot0").conquer(game.ref(1, 1));
+    game.player("Pilot2").conquer(game.ref(2, 1));
+    vi.spyOn(game, "elapsedGameSeconds").mockReturnValue(840);
+    check.checkWinnerTeam();
+    expect(check.isActive()).toBe(false);
+    expect(game.getWinner()).toBeNull();
+  });
+});
 
 describe("Caldera rules", () => {
   it("measures from the centre exactly, on an even-sized map", async () => {

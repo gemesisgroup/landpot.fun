@@ -41,6 +41,7 @@ export interface PotConfig {
    */
   readonly operatorKey: Uint8Array;
   /** Entry per player, whole tokens. */
+  readonly cupHourUTC?: number;
   readonly stakeTokens: bigint;
   readonly minPlayers: number;
   readonly maxPlayers: number;
@@ -109,6 +110,14 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
   if (!/^[1-9]\d*$/.test(stake)) {
     throw new Error("LANDPOT_POT_STAKE must be a whole number of tokens");
   }
+  const cupHour = v("LANDPOT_CUP_WEEK_HOUR_UTC");
+  const cupHourUTC = cupHour === "" ? undefined : Number(cupHour);
+  if (
+    cupHourUTC !== undefined &&
+    (!/^\d+$/.test(cupHour) || cupHourUTC > 167)
+  ) {
+    throw new Error("Invalid cup hour (0..167, Sunday UTC first)");
+  }
   return {
     rpcUrl: v("LANDPOT_POT_RPC_URL"),
     cluster,
@@ -121,6 +130,7 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
       "LANDPOT_POT_OPERATOR_KEY",
       v("LANDPOT_POT_OPERATOR_KEY"),
     ),
+    cupHourUTC,
     stakeTokens: BigInt(stake),
     minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
     maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),

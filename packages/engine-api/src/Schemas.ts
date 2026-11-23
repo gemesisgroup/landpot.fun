@@ -223,6 +223,7 @@ export const DoomsdayClockConfigSchema = z.object({
 // match. For the last eruptionSeconds of a timed match, land beyond a radius
 // that shrinks evenly down to eruptionPermille turns to impassable rock.
 export const CalderaConfigSchema = z.object({
+  teamCup: z.literal(true).optional(),
   craterPermille: zb.uint({ max: 500 }),
   craterWeight: zb.uint({ min: 1, max: 10 }),
   eruptionSeconds: zb.uint({ max: 3600 }),
@@ -545,6 +546,7 @@ export const QuickChatIntentSchema = z.object({
   recipient: MappedID,
   quickChatKey: QuickChatKeySchema,
   target: MappedID.optional(),
+  markerTile: zb.uint().optional(),
 });
 
 // Server-internal (rejected from clients). The player being marked is the

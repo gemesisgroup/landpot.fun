@@ -36,6 +36,7 @@ import {
 } from "../../../src/api/pot/SolanaEscrow";
 import { SqliteStore } from "../../../src/api/Store";
 import { loadSigningKeys } from "../../../src/api/Tokens";
+import { paidGameConfig } from "../../../src/server/PaidLobby";
 import { testGameConfig } from "../../util/Wire";
 
 /**
@@ -151,11 +152,16 @@ describe.skipIf(!validatorAvailable())(
 
     /** Archive a finished paid game the way the game server does. */
     async function archive(gameID: string, present = players.length) {
+      const cup = store.getRound(gameID)?.cup;
+      const pairs = store.cupPairs(gameID);
       const records: PlayerRecord[] = players.slice(0, present).map(
         (p, i) =>
           ({
             clientID: `Pl00000${i}`,
             username: `player${i}`,
+            ...(cup
+              ? { teamIndex: pairs.findIndex((pair) => pair.includes(addr(p))) }
+              : {}),
             clanTag: null,
             persistentID: userIds.get(addr(p))!,
             stats: undefined,
@@ -163,7 +169,9 @@ describe.skipIf(!validatorAvailable())(
       );
       const partial = createPartialGameRecord(
         gameID,
-        testGameConfig({ gameType: GameType.Public }),
+        cup
+          ? paidGameConfig(testGameConfig(), 8, true)
+          : testGameConfig({ gameType: GameType.Public }),
         records,
         [],
         1_700_000_000_000,
@@ -239,7 +247,9 @@ describe.skipIf(!validatorAvailable())(
         userIds.set(addr(p), u.id);
       }
       const replay: Replayer = async (record) => ({
-        winner: ["player", record.info.players[0].clientID],
+        winner: record.info.config.caldera?.teamCup
+          ? ["team", "Red", "Pl000004", "Pl000005"]
+          : ["player", record.info.players[0].clientID],
         allPlayersStats: {},
         tick: 100,
         territory,
@@ -391,6 +401,51 @@ describe.skipIf(!validatorAvailable())(
       const left = (await chain.status(roundId)).balance;
       expect(left).toBe(76n * UNIT - DAILY_CAP);
       expect(net).toBe(152n * UNIT);
+    }, 180_000);
+
+    it("locks reciprocal pairs before entry and pays both winning wallets after replay", async () => {
+      const id = "CupGame1";
+      const now = new Date();
+      pot.rules.cupHourUTC = now.getUTCDay() * 24 + now.getUTCHours();
+      try {
+        expect((await api("POST", `/pot/open/${id}`)).body.cup).toBe(true);
+      } finally {
+        delete pot.rules.cupHourUTC;
+      }
+      for (let i = 0; i < players.length; i += 2) {
+        const a = addr(players[i]),
+          b = addr(players[i + 1]);
+        pot.nominate(id, a, b);
+        await expect(pot.depositTx(id, a)).rejects.toThrow("Confirm");
+        pot.nominate(id, b, a);
+        expect(() => pot.nominate(id, a, addr(players[(i + 2) % 8]))).toThrow();
+        expect(
+          (await pot.openLobbies(a)).find((l) => l.gameId === id)?.partner,
+        ).toBe(b);
+      }
+      await fundRound(id, true);
+      await archive(id);
+      territory = { Pl000004: 0, Pl000005: 10, Pl000002: 1000 };
+      const { body } = await api("POST", `/pot/settle/${id}`);
+      expect(body.amounts).toEqual([
+        "0",
+        "0",
+        "0",
+        "0",
+        "76000000",
+        "76000000",
+        "0",
+        "0",
+      ]);
+      await sleep((REVIEW_SECONDS + 1) * 1000);
+      expect((await api("POST", `/pot/finalize/${id}`)).body.finalized).toBe(
+        true,
+      );
+      for (const wallet of players.slice(4, 6)) {
+        const before = await balance(wallet.publicKey);
+        await walletSends("claim", id, wallet);
+        expect((await balance(wallet.publicKey)) - before).toBe(DAILY_CAP);
+      }
     }, 180_000);
 
     it("voids a match where nobody held land", async () => {

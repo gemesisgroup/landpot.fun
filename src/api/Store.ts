@@ -58,6 +58,7 @@ export interface SettlementRow {
 
 /** A paid lobby's escrow round, as the API opened it. */
 export interface PotRoundRow {
+  cup?: boolean;
   gameId: string;
   roundId: string;
   /** In token base units, as a decimal string. */
@@ -104,6 +105,8 @@ export interface Store {
   /** The latest settlement attempt for a paid game (docs/LandpotPot.md). */
   putSettlement(row: SettlementRow): void;
   getSettlement(gameId: string): SettlementRow | null;
+  cupPairs(gameId: string): string[][];
+  pickPartner(gameId: string, wallet: string, partner: string): void;
   putRound(row: PotRoundRow): void;
   getRound(gameId: string): PotRoundRow | null;
   setRoundState(gameId: string, state: PotRoundState): void;
@@ -177,6 +180,7 @@ CREATE TABLE IF NOT EXISTS pot_settlements (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS cup_picks (game_id TEXT NOT NULL, wallet TEXT NOT NULL, partner TEXT NOT NULL, PRIMARY KEY(game_id, wallet));
 CREATE TABLE IF NOT EXISTS pot_rounds (
   game_id      TEXT PRIMARY KEY,
   round_id     TEXT NOT NULL,
@@ -223,6 +227,7 @@ function toRound(row: Row): PotRoundRow {
   return {
     gameId: row.game_id as string,
     roundId: row.round_id as string,
+    ...(row.cup ? { cup: true } : {}),
     stake: row.stake as string,
     minPlayers: Number(row.min_players),
     maxPlayers: Number(row.max_players),
@@ -242,6 +247,16 @@ export class SqliteStore implements Store {
     if (file !== ":memory:") mkdirSync(path.dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
     this.db.exec(SCHEMA);
+    if (
+      !this.db
+        .prepare("PRAGMA table_info(pot_rounds)")
+        .all()
+        .some((c) => c.name === "cup")
+    ) {
+      this.db.exec(
+        "ALTER TABLE pot_rounds ADD COLUMN cup INTEGER NOT NULL DEFAULT 0",
+      );
+    }
     const p = (sql: string) => this.db.prepare(sql);
     this.q = {
       insertUser: p(
@@ -278,7 +293,7 @@ export class SqliteStore implements Store {
       ),
       getSettlement: p("SELECT * FROM pot_settlements WHERE game_id = ?"),
       putRound: p(
-        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ),
       getRound: p("SELECT * FROM pot_rounds WHERE game_id = ?"),
       setRoundState: p("UPDATE pot_rounds SET state = ? WHERE game_id = ?"),
@@ -449,6 +464,22 @@ export class SqliteStore implements Store {
     };
   }
 
+  cupPairs(gameId: string): string[][] {
+    return this.db
+      .prepare(`SELECT a.wallet, a.partner FROM cup_picks a JOIN cup_picks b
+      ON a.game_id=b.game_id AND a.wallet=b.partner AND a.partner=b.wallet
+      WHERE a.game_id=? AND a.wallet<a.partner ORDER BY a.wallet`)
+      .all(gameId)
+      .map((r) => [String(r.wallet), String(r.partner)]);
+  }
+
+  pickPartner(gameId: string, wallet: string, partner: string): void {
+    this.db
+      .prepare(`INSERT INTO cup_picks VALUES (?, ?, ?) ON CONFLICT(game_id,wallet)
+      DO UPDATE SET partner=excluded.partner`)
+      .run(gameId, wallet, partner);
+  }
+
   putRound(r: PotRoundRow): void {
     this.q.putRound.run(
       r.gameId,
@@ -460,6 +491,7 @@ export class SqliteStore implements Store {
       r.resultEnds,
       r.state,
       r.createdAt,
+      r.cup ? 1 : 0,
     );
   }
 

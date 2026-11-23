@@ -18,6 +18,7 @@ export interface SettlementDeps {
   chain: EscrowChain;
   replay: Replayer;
   /** The wallet signed in as this persistentID, or null. */
+  cupPairs?: string[][];
   walletOf: (persistentID: string) => string | null;
 }
 
@@ -72,6 +73,48 @@ export async function settleGame(
   }
 
   const players = await deps.chain.players(roundId);
+  if (Boolean(record.info.config.caldera?.teamCup) !== Boolean(deps.cupPairs)) {
+    return { status: "void", roundId, reason: "Round format mismatch" };
+  }
+  if (deps.cupPairs) {
+    const roster = deps.cupPairs.flat();
+    const pairIndex = new Map<string, number>();
+    deps.cupPairs.forEach((pair, i) =>
+      pair.forEach((wallet) => pairIndex.set(wallet, i)),
+    );
+    const ids = new Map(record.info.players.map((p) => [p.clientID, p]));
+    const walletForId = (id: string) => {
+      const pid = ids.get(id)?.persistentID;
+      return pid ? deps.walletOf(pid) : null;
+    };
+    const seatsMatch =
+      deps.cupPairs.length === 4 &&
+      deps.cupPairs.every((p) => p.length === 2) &&
+      new Set(roster).size === 8 &&
+      played.size === 8 &&
+      ids.size === 8 &&
+      players.length === 8 &&
+      players.every((w) => roster.includes(w) && played.has(w)) &&
+      record.info.players.every(
+        (p) => p.teamIndex === pairIndex.get(walletForId(p.clientID) ?? ""),
+      );
+    const winner = replayed.winner;
+    if (!seatsMatch || replayed.tick === null || winner?.[0] !== "team") {
+      return {
+        status: "void",
+        roundId,
+        reason: "No verified cup winner or incomplete roster",
+      };
+    }
+    const awarded = new Set(winner.slice(2).map(walletForId));
+    const pair = deps.cupPairs.find((pair) =>
+      pair.every((w) => awarded.has(w)),
+    );
+    if (awarded.size !== 2 || !pair)
+      return { status: "void", roundId, reason: "Winning pair mismatch" };
+    land.clear();
+    for (const wallet of pair) land.set(wallet, 1n);
+  }
   const fees = await deps.chain.fees();
   let amounts: bigint[];
   try {

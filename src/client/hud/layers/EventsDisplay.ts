@@ -425,6 +425,7 @@ export class EventsDisplay extends LitElement implements Controller {
       return;
     }
 
+    if (event.markerTile !== undefined) return; // The cup HUD draws the signal at its tile.
     const baseMessage = translateText(`chat.${event.category}.${event.key}`);
     let translatedMessage = baseMessage;
     if (event.target) {

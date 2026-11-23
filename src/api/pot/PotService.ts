@@ -32,6 +32,7 @@ import {
 
 export interface PotRules {
   /** Entry per player, in whole tokens. */
+  cupHourUTC?: number;
   stakeTokens: bigint;
   minPlayers: number;
   maxPlayers: number;
@@ -66,6 +67,7 @@ export class PotError extends Error {
 }
 
 export interface LobbyView {
+  pairs?: string[][];
   gameId: string;
   roundId: Hex;
   state: PotRoundRow["state"];
@@ -106,6 +108,7 @@ export class PotService {
   private rerun = false;
   // gameId → in-flight open, so a retried request can't open twice.
   private readonly opening = new Map<string, Promise<PotRoundRow>>();
+  private readonly openingCupHours = new Set<number>();
   private readonly starting = new Map<string, Promise<string[]>>();
 
   constructor(private readonly deps: PotServiceDeps) {
@@ -158,7 +161,30 @@ export class PotService {
   }
 
   private async doOpen(gameId: string): Promise<PotRoundRow> {
-    const { minPlayers, maxPlayers, fundingSeconds } = this.deps.rules;
+    const rules = this.deps.rules;
+    const date = new Date(this.now());
+    const hourStart = Math.floor(date.getTime() / 3_600_000) * 3_600_000;
+    const cup =
+      rules.cupHourUTC === date.getUTCDay() * 24 + date.getUTCHours() &&
+      !this.openingCupHours.has(hourStart) &&
+      !this.store.recentRounds(hourStart).some((round) => round.cup);
+    if (cup) this.openingCupHours.add(hourStart);
+    try {
+      return await this.openRound(gameId, cup, date.getTime());
+    } finally {
+      if (cup) this.openingCupHours.delete(hourStart);
+    }
+  }
+
+  private async openRound(
+    gameId: string,
+    cup: boolean,
+    createdAt: number,
+  ): Promise<PotRoundRow> {
+    const rules = this.deps.rules;
+    const minPlayers = cup ? 8 : rules.minPlayers;
+    const maxPlayers = cup ? 8 : rules.maxPlayers;
+    const fundingSeconds = rules.fundingSeconds;
     const roundId = roundIdOf(gameId);
     const stake = await this.stakeUnits();
     const chainNow = await this.chain.now();
@@ -173,6 +199,7 @@ export class PotService {
       resultEnds,
     );
     const row: PotRoundRow = {
+      ...(cup ? { cup: true } : {}),
       gameId,
       roundId,
       stake: stake.toString(),
@@ -181,7 +208,7 @@ export class PotService {
       fundingEnds: Number(fundingEnds),
       resultEnds: Number(resultEnds),
       state: "funding",
-      createdAt: this.now(),
+      createdAt,
     };
     this.store.putRound(row);
     this.log("pot round opened", { gameId, roundId });
@@ -204,6 +231,31 @@ export class PotService {
     return out;
   }
 
+  nominate(gameId: string, wallet: string, partner: string): void {
+    const row = this.round(gameId);
+    if (
+      !row.cup ||
+      row.state !== "funding" ||
+      row.fundingEnds <= this.now() / 1000
+    )
+      throw new PotError(409, "Registration closed");
+    if (wallet === partner) throw new PotError(400, "Choose another wallet");
+    const pairs = this.store.cupPairs(gameId);
+    if (pairs.some((pair) => pair.includes(wallet) && pair.includes(partner)))
+      return;
+    if (
+      pairs.length >= 4 ||
+      pairs.some((pair) => pair.includes(wallet) || pair.includes(partner))
+    )
+      throw new PotError(409, "Team slot unavailable");
+    this.store.pickPartner(gameId, wallet, partner);
+  }
+
+  cupAccounts(gameId: string): string[][] | undefined {
+    if (!this.round(gameId).cup) return undefined;
+    return this.store.cupPairs(gameId).map((pair) => this.accountsOf(pair));
+  }
+
   async lobby(gameId: string): Promise<LobbyView> {
     const row = this.round(gameId);
     const roundId = row.roundId as Hex;
@@ -214,6 +266,7 @@ export class PotService {
     return {
       gameId,
       roundId,
+      ...(row.cup ? { pairs: this.cupAccounts(gameId) } : {}),
       state: row.state,
       phase: status.phase,
       stake: row.stake,
@@ -229,7 +282,11 @@ export class PotService {
   async seat(gameId: string, persistentID: string): Promise<boolean> {
     const row = this.round(gameId);
     const wallet = this.store.getUser(persistentID)?.wallet;
-    if (!wallet) return false;
+    if (
+      !wallet ||
+      (row.cup && !this.store.cupPairs(gameId).flat().includes(wallet))
+    )
+      return false;
     const players = await this.chain.players(row.roundId as Hex);
     return players.includes(wallet);
   }
@@ -262,6 +319,17 @@ export class PotService {
       }
       if (BigInt(row.fundingEnds) <= (await this.chain.now())) {
         throw new PotError(409, "funding window is over");
+      }
+      if (row.cup) {
+        const roster = new Set(this.store.cupPairs(gameId).flat());
+        const paid = await this.chain.players(roundId);
+        if (
+          roster.size !== 8 ||
+          paid.length !== 8 ||
+          !paid.every((w) => roster.has(w))
+        ) {
+          throw new PotError(409, "Incomplete cup roster");
+        }
       }
       await this.chain.start(roundId);
     } else if (status.phase !== RoundPhase.Started) {
@@ -309,6 +377,8 @@ export class PotService {
       maxPlayers: number;
       fundingEnds: number;
       deposited: number;
+      cup?: boolean;
+      partner?: string;
       joined: boolean;
     }[]
   > {
@@ -325,6 +395,15 @@ export class PotService {
         ]);
         if (status.phase !== RoundPhase.Funding) return null;
         return {
+          ...(r.cup
+            ? {
+                cup: true,
+                partner: this.store
+                  .cupPairs(r.gameId)
+                  .find((pair) => wallet && pair.includes(wallet))
+                  ?.find((w) => w !== wallet),
+              }
+            : {}),
           gameId: r.gameId,
           roundId: r.roundId,
           stake: r.stake,
@@ -377,6 +456,8 @@ export class PotService {
   /** A deposit into a lobby that is still taking them. */
   async depositTx(gameId: string, wallet: string): Promise<string> {
     const row = this.round(gameId);
+    if (row.cup && !this.store.cupPairs(gameId).flat().includes(wallet))
+      throw new PotError(409, "Confirm your partner before depositing");
     if (row.state !== "funding") throw new PotError(409, "lobby is closed");
     const roundId = row.roundId as Hex;
     const [status, players] = await Promise.all([
@@ -429,6 +510,8 @@ export class PotService {
     if (!archived) throw new PotError(404, "no archived record");
     const parsed = GameRecordSchema.safeParse(archived.full);
     if (!parsed.success) throw new PotError(422, "stored record is invalid");
+    if (parsed.data.info.gameID !== gameId)
+      throw new PotError(422, "Archived game ID mismatch");
     const roundId = roundIdOf(gameId);
     let outcome: SettleOutcome;
     try {
@@ -436,6 +519,9 @@ export class PotService {
         {
           chain: this.chain,
           replay: this.deps.replay,
+          cupPairs: this.round(gameId).cup
+            ? this.store.cupPairs(gameId)
+            : undefined,
           walletOf: (pid) => this.store.getUser(pid)?.wallet ?? null,
         },
         archived.publicBytes,

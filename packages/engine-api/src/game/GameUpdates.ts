@@ -356,6 +356,7 @@ export type DisplayChatMessageUpdate = {
   type: GameUpdateType.DisplayChatEvent;
   key: string;
   category: string;
+  markerTile?: TileRef;
   target: string | undefined;
   playerID: number | null;
   isFrom: boolean;

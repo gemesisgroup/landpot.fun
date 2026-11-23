@@ -13,6 +13,29 @@ through the API.
 **Not done yet:** the program is **unaudited**. Run it on devnet only, never
 with real money before an audit.
 
+## Weekly Caldera Community Cup
+
+Set `LANDPOT_CUP_WEEK_HOUR_UTC` on the API to the UTC hour of the week
+(0 = Sunday 00:00, 167 = Saturday 23:00). For example, 161 opens the
+Saturday 17:00 UTC event. The first new paid lobby opened in that hour is
+the cup. Other lobbies use the regular rules. Without the setting every
+lobby uses the regular rules. A running lobby finishes its funding cycle first.
+
+Four pairs play on Caldera. Sign in with your wallet and enter your
+partner's wallet on the paid match card. When both choices match, the pair
+locks for this round and both players can pay. All eight depositors must
+be present to start. Each pair chooses positions in its highlighted starting
+area and can place temporary hold, attack and help markers for its partner.
+
+The last pair holding land wins. At 12 minutes the eruption continues for
+two more minutes. At 14 minutes the pair with the greatest total weighted
+territory wins (crater ×3). An exact tie for first or an unverifiable result
+voids the round. The existing refund path opens at the result deadline or on
+guardian cancellation. Each winning wallet gets half the net pot including
+an eliminated teammate. If the net amount is odd, the existing deterministic
+rounding rule assigns the last base unit. Settlement checks the replay and
+the registered pairs against the depositors before proposing a payout.
+
 ## Launch values
 
 |                 | Value                                         | Why                                                                                                                 |

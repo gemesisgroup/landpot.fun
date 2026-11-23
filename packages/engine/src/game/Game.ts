@@ -641,6 +641,7 @@ export interface Game extends GameLike {
     playerID: PlayerID | null,
     isFrom: boolean,
     recipient: string,
+    markerTile?: TileRef,
   ): void;
 
   // Nations

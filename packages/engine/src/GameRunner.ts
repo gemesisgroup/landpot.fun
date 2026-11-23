@@ -196,12 +196,19 @@ export class GameRunner {
         ...this.execManager.spawnTribes(this.game.config().bots()),
       );
     }
+    const caldera = this.game.config().gameConfig().caldera;
+    // Score the cup after the eruption removes land on the deciding tick.
+    if (caldera?.teamCup && caldera.eruptionSeconds > 0)
+      this.game.addExecution(new EruptionExecution());
     this.game.addExecution(new WinCheckExecution());
     if (this.game.config().doomsdayClockConfig().enabled) {
       this.game.addExecution(new DoomsdayClockExecution());
     }
-    const caldera = this.game.config().gameConfig().caldera;
-    if (caldera !== undefined && caldera.eruptionSeconds > 0) {
+    if (
+      caldera !== undefined &&
+      !caldera.teamCup &&
+      caldera.eruptionSeconds > 0
+    ) {
       this.game.addExecution(new EruptionExecution());
     }
     if (!this.game.config().isUnitDisabled(UnitType.Factory)) {

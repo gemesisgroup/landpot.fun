@@ -20,6 +20,7 @@ export class QuickChatExecution implements Execution {
     private recipientID: PlayerID,
     private quickChatKey: string,
     private target: PlayerID | undefined,
+    private markerTile?: number,
   ) {}
 
   init(mg: Game, ticks: number): void {
@@ -36,6 +37,16 @@ export class QuickChatExecution implements Execution {
   }
 
   tick(ticks: number): void {
+    if (
+      this.markerTile !== undefined &&
+      (!this.mg.config().gameConfig().caldera?.teamCup ||
+        !this.mg.isValidRef(this.markerTile) ||
+        this.sender.team() === null ||
+        this.sender.team() !== this.recipient.team())
+    ) {
+      this.active = false;
+      return;
+    }
     if (!this.sender.canSendQuickChat(this.recipient)) {
       this.active = false;
       return;
@@ -52,6 +63,7 @@ export class QuickChatExecution implements Execution {
       this.recipient.id(),
       true,
       this.sender.id(),
+      this.markerTile,
     );
 
     this.mg.displayChat(
@@ -61,6 +73,7 @@ export class QuickChatExecution implements Execution {
       this.sender.id(),
       false,
       this.recipient.id(),
+      this.markerTile,
     );
 
     console.log(
@@ -96,6 +109,7 @@ export class QuickChatExecution implements Execution {
       recipientID: this.recipientID,
       quickChatKey: this.quickChatKey,
       target: this.target,
+      markerTile: this.markerTile,
     });
   }
 
@@ -107,6 +121,7 @@ export class QuickChatExecution implements Execution {
     this.recipientID = s.recipientID;
     this.quickChatKey = s.quickChatKey;
     this.target = s.target;
+    this.markerTile = s.markerTile;
   }
 }
 
@@ -118,6 +133,7 @@ const QuickChatStateSchema = z.object({
   recipientID: z.string(),
   quickChatKey: z.string(),
   target: z.string().optional(),
+  markerTile: z.number().int().optional(),
 });
 type QuickChatState = z.infer<typeof QuickChatStateSchema>;
 

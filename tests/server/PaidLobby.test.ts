@@ -30,6 +30,22 @@ describe("decidePaidLobby", () => {
     lastDepositAt: T0,
   };
 
+  it("requires all four locked pairs even at the funding deadline", () => {
+    const depositors = ids(8);
+    const pairs = [0, 2, 4, 6].map((i) => depositors.slice(i, i + 2));
+    const input = {
+      ...base,
+      now: base.fundingEnds - DEADLINE_MARGIN_MS,
+      pairs,
+      deposited: 8,
+      depositors,
+      connected: new Set(depositors),
+    };
+    expect(decidePaidLobby(input).type).toBe("start");
+    input.connected.delete(depositors[0]);
+    expect(decidePaidLobby(input).type).toBe("cancel");
+  });
+
   it("waits below the minimum, and cancels near the deadline", () => {
     const depositors = ids(7);
     const connected = new Set(depositors);

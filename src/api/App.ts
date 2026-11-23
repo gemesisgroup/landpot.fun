@@ -647,6 +647,20 @@ export function createApp(deps: AppDeps): express.Express {
   });
   // Each costs a few RPC reads, like the pot reads above.
   const txLimit = rateLimit("pot-tx", 120, 60_000);
+  app.post(
+    "/public/pot/partner/:id",
+    txLimit,
+    requireUser,
+    json,
+    (req, res) => {
+      const wallet = (req as Authed).user.wallet;
+      if (!wallet) throw new HttpError(403, "Sign in with your wallet");
+      const partner = walletParam(req.body?.partner);
+      if (!partner) throw new HttpError(400, "Missing partner wallet");
+      needPot().nominate(req.params.id as string, wallet, partner);
+      res.sendStatus(204);
+    },
+  );
   app.post("/public/pot/deposit-tx", txLimit, json, async (req, res) => {
     const body = TxBody.safeParse(req.body);
     if (!body.success) throw new HttpError(400, z.prettifyError(body.error));

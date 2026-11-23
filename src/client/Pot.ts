@@ -1,5 +1,6 @@
 import type { Wallet, WalletAccount } from "@wallet-standard/base";
 import { getApiBase } from "./Api";
+import { getAuthHeader } from "./Auth";
 import {
   availableWallets,
   connectWallet,
@@ -33,6 +34,8 @@ export interface PotConfig {
 }
 
 export interface PaidLobby {
+  cup?: boolean;
+  partner?: string;
   gameId: string;
   roundId: `0x${string}`;
   stake: string;
@@ -83,6 +86,37 @@ export async function paidLobbies(wallet?: string): Promise<PaidLobby[]> {
   const q = wallet ? `?wallet=${encodeURIComponent(wallet)}` : "";
   return (await get<{ lobbies: PaidLobby[] }>(`/public/pot/lobbies${q}`))
     .lobbies;
+}
+
+export function netEntryPot(
+  stake: string,
+  seats: number,
+  config: Pick<PotConfig, "burnBps" | "treasuryBps">,
+): bigint {
+  const gross = BigInt(stake) * BigInt(seats);
+  return (
+    gross -
+    (gross * BigInt(config.burnBps)) / 10_000n -
+    (gross * BigInt(config.treasuryBps)) / 10_000n
+  );
+}
+
+export async function nominatePartner(
+  gameId: string,
+  partner: string,
+): Promise<void> {
+  const res = await fetch(
+    `${getApiBase()}/public/pot/partner/${encodeURIComponent(gameId)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: await getAuthHeader(),
+      },
+      body: JSON.stringify({ partner }),
+    },
+  );
+  if (!res.ok) throw new Error("Registration failed");
 }
 
 export async function potClaims(wallet: string): Promise<Claim[]> {

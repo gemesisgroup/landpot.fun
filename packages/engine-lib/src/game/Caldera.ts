@@ -12,6 +12,22 @@ import { CalderaConfig } from "@openfront/engine-api/Schemas";
  * Integer-only, deterministic.
  */
 
+/** Shared picker / simulation bounds for the four locked cup teams. */
+export function cupSpawnArea(
+  map: Pick<GameMap, "width" | "height">,
+  index: number,
+) {
+  if (index < 0 || index > 3) return undefined;
+  const width = Math.floor(map.width() / 4);
+  const height = Math.floor(map.height() / 4);
+  return {
+    x: Math.floor(map.width() / 8) + (index % 2) * width * 2,
+    y: Math.floor(map.height() / 8) + Math.floor(index / 2) * height * 2,
+    width,
+    height,
+  };
+}
+
 /** Squared distance from the map centre, in doubled tile units. */
 export function centreDistance2(map: GameMap, tile: TileRef): number {
   const dx = 2 * map.x(tile) + 1 - map.width();

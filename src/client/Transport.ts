@@ -175,6 +175,7 @@ export class SendQuickChatEvent implements GameEvent {
     public readonly recipient: PlayerView,
     public readonly quickChatKey: string,
     public readonly target?: PlayerID,
+    public readonly markerTile?: number,
   ) {}
 }
 
@@ -879,6 +880,7 @@ export class Transport {
       type: "quick_chat",
       recipient: event.recipient.id(),
       quickChatKey: event.quickChatKey,
+      markerTile: event.markerTile,
       target: event.target,
     });
   }

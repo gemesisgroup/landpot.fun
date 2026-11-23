@@ -313,6 +313,7 @@ export class GameServer {
   private publicGameType?: PublicGameType;
   // Matchmade team split from the matchmaking assignment: publicIds per
   // team. At start each client is stamped with its team's index.
+  private paidPairs?: string[][];
   private matchmakingTeams?: string[][];
   private matchmakingClanTags?: string[];
   private readonly deps: GameServerDeps;
@@ -929,13 +930,17 @@ export class GameServer {
    * Anyone else still connected is removed first, so the roster frozen at
    * start() is the paid one.
    */
-  public releasePaidStart(depositors: ReadonlySet<string>): void {
+  public releasePaidStart(
+    depositors: ReadonlySet<string>,
+    pairs?: string[][],
+  ): void {
     if (!this.paidHold || this.ended) return;
     for (const c of [...this.clients.active()]) {
       if (!depositors.has(c.persistentID)) {
         this.kickClient(c.clientID, KICK_REASON_POT_NOT_SEATED);
       }
     }
+    this.paidPairs = pairs;
     this.paidHold = false;
     this.setStartsAt(Date.now());
     this.log.info("paid round started, starting match", {
@@ -1247,6 +1252,7 @@ export class GameServer {
       this.gameConfig.gameMode !== GameMode.Team ||
       this.gameConfig.playerTeams === undefined ||
       this.gameConfig.playerTeams === HumansVsNations ||
+      this.paidPairs !== undefined ||
       this.matchmakingTeams !== undefined ||
       this.gameConfig.rankedType !== undefined ||
       this.gameConfig.disableClanTags === true ||
@@ -1453,6 +1459,12 @@ export class GameServer {
   // matchmakingTeams), or undefined when the game isn't matchmade / the
   // client isn't in the assignment.
   private matchmakingTeamIndex(c: Client): number | undefined {
+    if (this.paidPairs) {
+      const index = this.paidPairs.findIndex((pair) =>
+        pair.includes(c.persistentID),
+      );
+      return index >= 0 ? index : undefined;
+    }
     const publicId = c.publicId;
     if (this.matchmakingTeams === undefined || publicId === undefined) {
       return undefined;

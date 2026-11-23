@@ -313,6 +313,8 @@ export function createRenderer(
     console.error("pot share not found");
   }
   potShare.game = game;
+  potShare.eventBus = eventBus;
+  potShare.transform = transformHandler;
 
   const inGamePromo = document.querySelector("in-game-promo") as InGamePromo;
   if (!(inGamePromo instanceof InGamePromo)) {

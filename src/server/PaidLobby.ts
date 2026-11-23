@@ -24,6 +24,7 @@ import { ServerEnv } from "./ServerEnv";
 // ── the API calls ──
 
 const LobbySchema = z.object({
+  pairs: z.array(z.array(z.string())).optional(),
   gameId: z.string(),
   phase: z.number(),
   minPlayers: z.number(),
@@ -35,6 +36,7 @@ const LobbySchema = z.object({
 export type PaidLobbyStatus = z.infer<typeof LobbySchema>;
 
 const OpenedSchema = z.object({
+  cup: z.boolean().optional(),
   fundingEnds: z.number(),
   minPlayers: z.number(),
   maxPlayers: z.number(),
@@ -119,22 +121,32 @@ export const httpPotApi: PotApi = {
 export function paidGameConfig(
   base: GameConfig,
   maxPlayers: number,
+  cup = false,
 ): GameConfig {
   return {
     ...base,
     gameType: GameType.Private,
-    gameMode: GameMode.FFA,
-    playerTeams: undefined,
+    ...(cup
+      ? { newEra: undefined, rankedType: undefined, tutorial: undefined }
+      : {}),
+    gameMode: cup ? GameMode.Team : GameMode.FFA,
+    playerTeams: cup ? 4 : undefined,
     gameMap: PAID_MATCH_MAP,
     gameMapSize: GameMapSize.Compact,
     // Land held at the end is the payout, so the end is a known time.
-    maxTimerValue: PAID_MATCH_MINUTES,
+    maxTimerValue: cup ? PAID_MATCH_MINUTES + 2 : PAID_MATCH_MINUTES,
     // ...or earlier at the default 80%, never lowered by overtime.
     winThresholdTenths: undefined,
     overtime: undefined,
     doomsdayClock: undefined,
     // The crater is worth more, and the island erupts toward it at the end.
-    caldera: PAID_MATCH_CALDERA,
+    caldera: cup
+      ? {
+          ...PAID_MATCH_CALDERA,
+          teamCup: true,
+          eruptionSeconds: PAID_MATCH_CALDERA.eruptionSeconds + 120,
+        }
+      : PAID_MATCH_CALDERA,
     disabledUnits: PAID_MATCH_DISABLED_UNITS,
     publicGameModifiers: undefined,
     difficulty: Difficulty.Medium,
@@ -189,6 +201,7 @@ export function decidePaidLobby(input: {
   deposited: number;
   /** The depositors that have a Landpot account, as persistentIDs. */
   depositors: readonly string[];
+  pairs?: string[][];
   connected: ReadonlySet<string>;
   /** When the depositor count last changed, ms. */
   lastDepositAt: number;
@@ -201,6 +214,20 @@ export function decidePaidLobby(input: {
           type: "cancel",
           reason: `${deposited} of ${input.minPlayers} deposited`,
         }
+      : { type: "wait" };
+  }
+  if (input.pairs) {
+    const roster = new Set(input.pairs.flat());
+    const ready =
+      input.pairs.length === 4 &&
+      input.pairs.every((p) => p.length === 2) &&
+      roster.size === 8 &&
+      deposited === 8 &&
+      input.depositors.length === 8 &&
+      input.depositors.every((p) => roster.has(p) && input.connected.has(p));
+    if (ready) return { type: "start" };
+    return nearDeadline
+      ? { type: "cancel", reason: "Cup needs four complete pairs" }
       : { type: "wait" };
   }
   if (nearDeadline) {
@@ -236,7 +263,7 @@ export interface PaidGame {
   hasStarted(): boolean;
   hasEnded(): boolean;
   connectedPersistentIDs(): Set<string>;
-  releasePaidStart(depositors: ReadonlySet<string>): void;
+  releasePaidStart(depositors: ReadonlySet<string>, pairs?: string[][]): void;
   cancelPaidLobby(): void;
 }
 
@@ -353,6 +380,7 @@ export class PaidLobbyHost {
       const config = paidGameConfig(
         await this.deps.baseConfig(),
         round.maxPlayers,
+        round.cup,
       );
       const game = this.deps.games.createGame(id, config);
       if (!game) {
@@ -396,6 +424,7 @@ export class PaidLobbyHost {
         maxPlayers: t.maxPlayers,
         deposited: status.deposited,
         depositors: status.depositors,
+        pairs: status.pairs,
         connected: game.connectedPersistentIDs(),
         lastDepositAt: t.lastDepositAt,
       });
@@ -404,7 +433,8 @@ export class PaidLobbyHost {
         // landed in between is in the round, so it gets a seat too.
         const depositors = new Set(await this.deps.api.start(id));
         for (const p of depositors) this.seated.get(id)?.add(p);
-        game.releasePaidStart(depositors);
+        if (status.pairs) game.releasePaidStart(depositors, status.pairs);
+        else game.releasePaidStart(depositors);
         this.tracked.delete(id);
         this.deps.log("paid match starting", {
           gameID: id,
