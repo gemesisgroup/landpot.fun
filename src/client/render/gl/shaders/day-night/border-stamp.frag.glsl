@@ -20,6 +20,8 @@ uniform vec3 uFriendlyTint;
 in vec2 vWorldPos;
 out vec4 fragColor;
 
+//#include capture
+
 void main() {
   ivec2 tc = ivec2(floor(vWorldPos));
   if (tc.x < 0 || tc.y < 0 || tc.x >= int(uMapSize.x) || tc.y >= int(uMapSize.y)) discard;
@@ -59,6 +61,26 @@ void main() {
         bool checker = ((tc.x + tc.y) & 1) == 1;
         if (checker) bc *= uDefenseCheckerDarken;
       }
+    }
+    // Landpot: a border tile that just changed hands is laid as a hot plate
+    // like the fill under it (territory.frag.glsl), so an advancing front
+    // reads as molten plates landing instead of a flicker of border pixels.
+    uint prev;
+    float p = uAltView == 0 ? lpCaptureProgress(tc, prev) : -1.0;
+    if (p >= 0.0 && p < 1.0) {
+      vec2 fw = fwidth(vWorldPos);
+      float px = max(fw.x, fw.y);
+      float plateVis = 1.0 - smoothstep(0.12, 0.28, px);
+      float e = 1.0 - (1.0 - p) * (1.0 - p) * (1.0 - p);
+      float heat = (1.0 - p) * (1.0 - p) * (1.0 - p);
+      vec2 f = abs(fract(vWorldPos) - 0.5);
+      float d = max(f.x, f.y);
+      float h = mix(0.06, 0.5, e);
+      float aa = max(0.02, 0.6 * px);
+      float inside = mix(1.0, 1.0 - smoothstep(h - aa, h, d), plateVis);
+      if (inside <= 0.0) discard;
+      fragColor = vec4(lpHeat(bc, 0.85 * heat), inside);
+      return;
     }
     fragColor = vec4(bc, 1.0);
     return;

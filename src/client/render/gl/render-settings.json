@@ -74,6 +74,7 @@
   },
   "mapOverlay": {
     "navalHighlight": false,
+    "boatTrails": false,
     "trailAlpha": 0.588,
     "spiralResolutionScale": 0.25,
     "defenseCheckerDarken": 0.7,
@@ -127,6 +128,12 @@
     "dotScale": 0.3,
     "iconScaleFactorZoomedOut": 3,
     "iconGrowZoom": 7,
+    "spriteZoom": 2.4,
+    "spriteFade": 0.6,
+    "spriteScale": 1.7,
+    "tierScales": [1.3, 1.12, 1, 1],
+    "spriteTint": 0.55,
+    "spriteOutline": 0.012,
     "shapes": {
       "City": {
         "scale": 1,
@@ -138,6 +145,18 @@
       },
       "Factory": {
         "scale": 1.08,
+        "iconFill": 0.85
+      },
+      "Mine": {
+        "scale": 1.04,
+        "iconFill": 0.85
+      },
+      "Oil Well": {
+        "scale": 1.04,
+        "iconFill": 0.85
+      },
+      "Shipyard": {
+        "scale": 1.1,
         "iconFill": 0.85
       },
       "Defense Post": {
@@ -213,7 +232,13 @@
     "hBombGlowB": 0.15,
     "hBombGlowStrength": 0.5,
     "hBombGlowInner": 0.45,
-    "untargetableAlpha": 0.6
+    "untargetableAlpha": 0.6,
+    "shipZoom": 2.2,
+    "shipFade": 0.7,
+    "shipSizes": [11, 13, 16],
+    "shipTint": 0.6,
+    "shipOutline": 0.012,
+    "shipBob": 0.25
   },
   "name": {
     "lerpSpeed": 10,
@@ -253,7 +278,79 @@
     "nukeRadiusAtom": 70,
     "nukeRadiusHydro": 160,
     "nukeRadiusMirv": 70,
-    "debrisDensity": 1
+    "debrisDensity": 1,
+    "mushroomScale": 0.36,
+    "mushroomSeconds": 6
+  },
+  "weather": {
+    "clouds": true,
+    "scale": 46,
+    "speed": 1.6,
+    "cover": 0.38,
+    "shadow": 0.13,
+    "top": 0.07,
+    "block": 2
+  },
+  "soldiers": {
+    "enabled": true,
+    "capacity": 256,
+    "every": 10,
+    "maxPerFrame": 4,
+    "run": 3.2,
+    "life": 1.1,
+    "minPix": 0.18,
+    "maxPix": 0.7,
+    "minZoom": 1.2
+  },
+  "frontFx": {
+    "enabled": true,
+    "minZoom": 0.9,
+    "chance": 0.22,
+    "blastShare": 0.3,
+    "maxPerSec": 60
+  },
+  "navalFx": {
+    "enabled": true,
+    "minZoom": 0.8,
+    "flashRadius": 2.4,
+    "flashMs": 360,
+    "hitRadius": 2.4,
+    "splashRadius": 3.6,
+    "splashMs": 850,
+    "rippleRadius": 10,
+    "rippleMs": 1500,
+    "damageSmokeMs": 9000,
+    "maxFlashesPerSec": 40,
+    "flashColor": [1.0, 0.86, 0.55],
+    "waterColor": [0.62, 0.8, 1.0]
+  },
+  "conquestRing": {
+    "radius": 22,
+    "durationMs": 1100,
+    "color": [1.0, 0.82, 0.25]
+  },
+  "structureFx": {
+    "enabled": true,
+    "intervalMs": 650,
+    "smokeChance": 0.45,
+    "dustChance": 0.7,
+    "maxPerRound": 28
+  },
+  "dayCycle": {
+    "enabled": true,
+    "dayLengthSec": 300,
+    "nightAmbient": 0.42
+  },
+  "wake": {
+    "spacing": 1.1,
+    "sternOffset": 0.32,
+    "life": 2.8,
+    "spread": 0.13,
+    "alpha": 0.45,
+    "minZoom": 0.9,
+    "foamR": 0.82,
+    "foamG": 0.93,
+    "foamB": 1.0
   },
   "nukeTrajectory": {
     "lineWidth": 2.5,

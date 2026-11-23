@@ -30,7 +30,7 @@ import { UIState } from "../../UIState";
 import { translateText } from "../../Utils";
 import { GameView, PlayerView, UnitView } from "../../view";
 import { getColoredSprite } from "../SpriteLoader";
-const soldierIcon = assetUrl("images/SoldierIcon.svg");
+const soldierIcon = assetUrl("images/landpot/icons/troops.png");
 const swordIcon = assetUrl("images/SwordIcon.svg");
 
 @customElement("attacks-display")

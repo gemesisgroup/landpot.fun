@@ -6,6 +6,7 @@ import {
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import { renderNumber } from "@openfront/engine-lib/Format";
+import { IRON, SHIPYARD_IRON } from "@openfront/engine-lib/game/NewEra";
 import { EventBus } from "@openfront/shared/EventBus";
 import { html, LitElement, nothing } from "lit";
 import { customElement } from "lit/decorators.js";
@@ -32,6 +33,9 @@ import {
   factoryIcon,
   goldCoinIcon,
   hydrogenBombIcon,
+  mineIcon,
+  oilWellIcon,
+  shipyardIcon,
   mirvIcon,
   missileSiloIcon,
   portIcon,
@@ -39,6 +43,24 @@ import {
   warshipIcon,
 } from "../HotbarIcons";
 import { TutorialHighlight, TutorialHighlightEvent } from "../Tutorial";
+import { newEraStore } from "./lib/NewEraStore";
+
+/** Each build button's picture, by its structure key. */
+const ICONS: Record<string, string> = {
+  city: cityIcon,
+  factory: factoryIcon,
+  mine: mineIcon,
+  oil_well: oilWellIcon,
+  shipyard: shipyardIcon,
+  port: portIcon,
+  defense_post: defensePostIcon,
+  missile_silo: missileSiloIcon,
+  sam_launcher: samLauncherIcon,
+  warship: warshipIcon,
+  atom_bomb: atomBombIcon,
+  hydrogen_bomb: hydrogenBombIcon,
+  mirv: mirvIcon,
+};
 
 /** How long a build button has to be held before it shows its details (cost etc.) */
 const PEEK_HOLD_MS = 450;
@@ -61,6 +83,9 @@ export class UnitDisplay extends LitElement implements Controller {
   private _cities = 0;
   private _warships = 0;
   private _factories = 0;
+  private _mines = 0;
+  private _oilWells = 0;
+  private _shipyards = 0;
   private _missileSilo = 0;
   private _port = 0;
   private _defensePost = 0;
@@ -566,11 +591,97 @@ export class UnitDisplay extends LitElement implements Controller {
           (player?.units(UnitType.Port).length ?? 0) > 0
         );
       default:
-        return this.cost(item) <= (player?.gold() ?? 0n);
+        return (
+          this.cost(item) <= (player?.gold() ?? 0n) &&
+          this.ironShort(item) === 0
+        );
+    }
+  }
+
+  private isNewEra(): boolean {
+    return this.game?.config().gameConfig().newEra !== undefined;
+  }
+
+  /** Whole iron a New Era build orders (a shipyard), 0 otherwise. */
+  private ironCost(item: UnitType): number {
+    return this.isNewEra() && item === UnitType.Shipyard ? SHIPYARD_IRON : 0;
+  }
+
+  /** Whole iron the player still lacks for `item`, 0 when they have it. */
+  private ironShort(item: UnitType): number {
+    const need = this.ironCost(item);
+    if (need === 0) return 0;
+    const me = this.game.myPlayer();
+    const row = me ? newEraStore(this.game).players.get(me.smallID()) : null;
+    const have = Math.floor((row?.stock ?? 0) / IRON);
+    return Math.max(0, need - have);
+  }
+
+  /** Why `item` can't be built right now, or null when it can. */
+  private blocker(item: UnitType): string | null {
+    const player = this.game?.myPlayer();
+    if (!player) return null;
+    if (
+      (item === UnitType.AtomBomb ||
+        item === UnitType.HydrogenBomb ||
+        item === UnitType.MIRV) &&
+      player.units(UnitType.MissileSilo).length === 0
+    ) {
+      return translateText("build_menu.needs_silo");
+    }
+    if (item === UnitType.Warship && player.units(UnitType.Port).length === 0) {
+      return translateText("build_menu.needs_port");
+    }
+    const gold = player.gold();
+    const cost = this.cost(item);
+    if (cost > gold) {
+      return translateText("build_menu.needs_gold", {
+        gold: renderNumber(cost - gold),
+      });
+    }
+    const iron = this.ironShort(item);
+    if (iron > 0) {
+      return translateText("build_menu.needs_iron", { n: iron.toString() });
+    }
+    return null;
+  }
+
+  /** Levels of `item` the player has built, or null for one-shot weapons. */
+  private builtLevels(item: UnitType): number | null {
+    switch (item) {
+      case UnitType.City:
+        return this._cities;
+      case UnitType.Factory:
+        return this._factories;
+      case UnitType.Mine:
+        return this._mines;
+      case UnitType.OilWell:
+        return this._oilWells;
+      case UnitType.Shipyard:
+        return this._shipyards;
+      case UnitType.Port:
+        return this._port;
+      case UnitType.DefensePost:
+        return this._defensePost;
+      case UnitType.MissileSilo:
+        return this._missileSilo;
+      case UnitType.SAMLauncher:
+        return this._samLauncher;
+      case UnitType.Warship:
+        return this._warships;
+      default:
+        return null;
     }
   }
 
   private isUnitDisplayed(unitType: PlayerBuildableUnitType): boolean {
+    // New Era: warships are ordered at shipyards (Industry panel, Sea tab).
+    if (
+      unitType === UnitType.Warship &&
+      this.game.config().gameConfig().newEra !== undefined
+    ) {
+      return false;
+    }
     return (
       !this.game.config().isUnitDisabled(unitType) &&
       (!this.tutorialMode || unitType === UnitType.AtomBomb)
@@ -592,6 +703,9 @@ export class UnitDisplay extends LitElement implements Controller {
     this._defensePost = player.totalUnitLevels(UnitType.DefensePost);
     this._samLauncher = player.totalUnitLevels(UnitType.SAMLauncher);
     this._factories = player.totalUnitLevels(UnitType.Factory);
+    this._mines = player.totalUnitLevels(UnitType.Mine);
+    this._oilWells = player.totalUnitLevels(UnitType.OilWell);
+    this._shipyards = player.totalUnitLevels(UnitType.Shipyard);
     this._warships = player.totalUnitLevels(UnitType.Warship);
     this.requestUpdate();
   }
@@ -649,6 +763,27 @@ export class UnitDisplay extends LitElement implements Controller {
               UnitType.Factory,
               "factory",
               this.getHotkey("buildFactory", "Digit2"),
+            )}
+            ${this.renderUnitItem(
+              mineIcon,
+              this._mines,
+              UnitType.Mine,
+              "mine",
+              "",
+            )}
+            ${this.renderUnitItem(
+              oilWellIcon,
+              this._oilWells,
+              UnitType.OilWell,
+              "oil_well",
+              "",
+            )}
+            ${this.renderUnitItem(
+              shipyardIcon,
+              this._shipyards,
+              UnitType.Shipyard,
+              "shipyard",
+              "",
             )}
             ${this.renderUnitItem(
               portIcon,
@@ -834,21 +969,31 @@ export class UnitDisplay extends LitElement implements Controller {
                 </div>`
               : nothing
           }
-          <div
-            class="flex flex-col items-center gap-0 pt-0.5 lg:flex-row lg:gap-0.5"
-          >
-            <img
-              src=${icon}
-              alt=${translateText("unit_type." + structureKey)}
-              class="align-middle size-6 lg:size-5 max-lg:landscape:size-5"
-            />
-            ${
-              number !== null
-                ? html`<span class="hidden lg:inline text-xs leading-none"
-                    >${renderNumber(number)}</span
-                  >`
-                : null
-            }
+          <div class="flex flex-col items-center gap-0 pt-0.5">
+            <div
+              class="flex flex-col items-center gap-0 lg:flex-row lg:gap-0.5"
+            >
+              <img
+                src=${icon}
+                alt=${translateText("unit_type." + structureKey)}
+                class="align-middle size-6 lg:size-5 max-lg:landscape:size-5"
+              />
+              ${
+                number !== null
+                  ? html`<span class="hidden lg:inline text-xs leading-none"
+                      >${renderNumber(number)}</span
+                    >`
+                  : null
+              }
+            </div>
+            <span
+              class="unit-display-cost hidden lg:block ${
+                this.cost(unitType) > (this.game.myPlayer()?.gold() ?? 0n)
+                  ? "is-short"
+                  : ""
+              }"
+              >${renderNumber(this.cost(unitType))}</span
+            >
           </div>
         </div>
       </div>
@@ -891,34 +1036,77 @@ export class UnitDisplay extends LitElement implements Controller {
       this._tooltipCenter = left;
     }
 
+    const type = tooltip.unitType;
+    const gold = this.game.myPlayer()?.gold() ?? 0n;
+    const cost = this.cost(type);
+    const iron = this.ironCost(type);
+    const built = this.builtLevels(type);
+    const blocker = this.blocker(type);
+    const capped =
+      this.isNewEra() && (type === UnitType.Mine || type === UnitType.OilWell);
     return html`
       <div
-        class="unit-display-tooltip ${peek ? "block" : "hidden pointer-fine:block"} absolute ${placement} text-gray-200 text-center w-max break-words text-xs bg-gray-800/90 backdrop-blur-xs rounded-sm p-1 z-[100] shadow-lg pointer-events-none"
+        class="unit-display-tooltip ${peek ? "block" : "hidden pointer-fine:block"} absolute ${placement} w-60 text-gray-200 text-left break-words text-xs bg-gray-800/90 rounded-sm p-2 z-[100] shadow-lg pointer-events-none"
         style=${`left: ${left}px; top: ${top}px;`}
       >
-        <div class="font-bold text-sm mb-1">
-          ${translateText("unit_type." + tooltip.structureKey)}${
-            tooltip.hotkey ? ` [${displayHotkey}]` : ""
+        <div class="ud-tip-head">
+          <img src=${ICONS[tooltip.structureKey] ?? ""} alt="" />
+          <span class="ud-tip-name"
+            >${translateText("unit_type." + tooltip.structureKey)}</span
+          >
+          ${
+            tooltip.hotkey
+              ? html`<span class="ud-tip-key">${displayHotkey}</span>`
+              : nothing
           }
         </div>
-        <div class="p-2">
+        <div class="ud-tip-desc">
           ${translateText("build_menu.desc." + tooltip.structureKey)}
         </div>
+        <div class="ud-tip-facts">
+          <span class="ud-tip-price ${cost > gold ? "is-short" : ""}">
+            <img src=${goldCoinIcon} width="13" height="13" alt="" />
+            ${renderNumber(cost)}
+          </span>
+          ${
+            iron > 0
+              ? html`<span
+                  class="ud-tip-price ${this.ironShort(type) > 0 ? "is-short" : ""}"
+                >
+                  <span class="lp-ne-ore sm" aria-hidden="true"></span>
+                  ${iron}
+                </span>`
+              : nothing
+          }
+          ${
+            built !== null
+              ? html`<span class="ud-tip-built">
+                  ${translateText("build_menu.built", {
+                    n: renderNumber(built),
+                  })}
+                </span>`
+              : nothing
+          }
+        </div>
         ${
-          tooltip.unitType === UnitType.Warship && Platform.hasKeyboard
-            ? html`<div
-                class="mt-1 px-2 py-1 text-[10px] text-cyan-300 border-t border-white/10"
-              >
+          capped
+            ? html`<div class="ud-tip-note">
+                ${translateText("build_menu.deposit_cap")}
+              </div>`
+            : nothing
+        }
+        ${
+          blocker !== null
+            ? html`<div class="ud-tip-warn">${blocker}</div>`
+            : nothing
+        }
+        ${
+          type === UnitType.Warship && Platform.hasKeyboard
+            ? html`<div class="ud-tip-note ud-tip-hint">
                 ⇧ ${translateText("build_menu.warship_shift_hint")}
               </div>`
             : null
         }
-        <div class="flex items-center justify-center gap-1">
-          <img src=${goldCoinIcon} width="13" height="13" />
-          <span class="text-yellow-300"
-            >${renderNumber(this.cost(tooltip.unitType))}</span
-          >
-        </div>
       </div>
     `;
   }

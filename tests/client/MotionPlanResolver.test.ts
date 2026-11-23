@@ -87,10 +87,18 @@ describe("MotionPlanResolver", () => {
     expect(Math.max(car1, car2)).toBeLessThan(engine);
     expect(Math.abs(car1 - car2)).toBe(2);
 
-    // Removing any car drops the whole train's plan.
-    r.unitRemoved(3);
-    expect(r.plannedUnitIds()).toEqual([]);
+    u.pos.delete(2);
+    r.unitRemoved(2);
+    expect(r.plannedUnitIds()).toEqual([1, 3]);
     r.advance(9, u.store);
-    expect(u.pos.get(1)).toBe(engine);
+    expect(u.pos.get(3)).toBe(car2 + 2);
+    expect(u.pos.get(1)).toBe(engine + 2);
+
+    u.pos.delete(1);
+    r.unitRemoved(1);
+    r.advance(10, u.store);
+    expect(u.pos.get(3)).toBe(car2 + 4);
+    expect(u.pos.has(1)).toBe(false);
+    expect(r.plannedUnitIds()).toEqual([]);
   });
 });

@@ -11,13 +11,15 @@ import type { ConquestFx, DeadUnitFx, RendererConfig } from "../../../types";
 import {
   STRUCTURE_TYPES,
   UT_SHELL,
+  UT_TRADE_SHIP,
   UT_TRAIN,
+  UT_TRANSPORT,
   UT_WARSHIP,
 } from "../../../types";
 import { DynamicInstanceBuffer } from "../../DynamicBuffer";
 import type { RenderSettings } from "../../RenderSettings";
 import { createProgram, shaderSrc } from "../../utils/GlUtils";
-import { nukeExplosionRadius } from "./FxSettings";
+import { nukeExplosionRadius, packLand, shipEnd } from "./FxSettings";
 
 import { assetUrl } from "@openfront/shared/AssetUrls";
 import fxAtlasMeta from "resources/atlases/fx-atlas-meta.json";
@@ -44,6 +46,15 @@ const FX_MINI_SMOKE_FIRE = 9;
 const FX_DUST = 10;
 const FX_CONQUEST = 11;
 const FX_TYPE_COUNT = 12;
+/** Dust puffs around a transport's landing tile (tile offsets). */
+const LANDING_DUST: readonly (readonly [number, number])[] = [
+  [-2, 0],
+  [2, 0],
+  [0, -2],
+  [0, 2],
+  [-1, -1],
+  [1, 1],
+];
 
 // ---------------------------------------------------------------------------
 // FX sprite config (matches AnimatedSpriteLoader)
@@ -178,6 +189,9 @@ const SPRITE_BYTES = 16;
 export class FxSpritePass {
   private gl: WebGL2RenderingContext;
   private mapW: number;
+  private mapH: number;
+  /** Land bits (packLand), to tell a ship that landed from one that sank. */
+  private land: Uint8Array | null = null;
   private settings: RenderSettings;
 
   private program: WebGLProgram;
@@ -201,6 +215,7 @@ export class FxSpritePass {
   ) {
     this.gl = gl;
     this.mapW = header.mapWidth;
+    this.mapH = header.mapHeight;
     this.settings = settings;
 
     this.program = createProgram(
@@ -325,6 +340,44 @@ export class FxSpritePass {
     }
   }
 
+  /** Landpot: a puff from a chimney (city, factory). */
+  pushChimneySmoke(x: number, y: number): void {
+    this.pushFx(x, y, FX_MINI_SMOKE, this.timeFn());
+  }
+
+  /** Landpot: whether `pos` is open water (no land in reach of it). */
+  isOpenWater(pos: number): boolean {
+    return shipEnd(this.land, this.mapW, this.mapH, pos) === "sunk";
+  }
+
+  /** Landpot: a sunk ship's wreck burns on the water for a while. */
+  pushWreck(x: number, y: number): void {
+    const now = this.timeFn();
+    this.pushDebris(x, y, FX_MINI_SMOKE_FIRE, now);
+    this.pushDebris(x + 1, y - 1, FX_MINI_FIRE, now);
+    this.pushDebris(x - 1, y, FX_MINI_SMOKE, now);
+  }
+
+  /** Landpot: a puff of smoke off a damaged ship. */
+  pushShipSmoke(x: number, y: number): void {
+    this.pushFx(x, y, FX_MINI_SMOKE, this.timeFn());
+  }
+
+  /** Landpot: a shell strikes a ship. */
+  pushShipHit(x: number, y: number): void {
+    this.pushFx(x, y, FX_MINI_EXPLOSION, this.timeFn());
+  }
+
+  /** Landpot: the front line of a fight — a small blast or a dust puff. */
+  pushClash(x: number, y: number, blast: boolean): void {
+    this.pushFx(x, y, blast ? FX_MINI_EXPLOSION : FX_DUST, this.timeFn());
+  }
+
+  /** Landpot: dust kicked up on a building site. */
+  pushBuildDust(x: number, y: number): void {
+    this.pushFx(x, y, FX_DUST, this.timeFn());
+  }
+
   applyConquestEvents(events: ConquestFx[]): void {
     const now = this.timeFn();
     const fx = this.settings.fx;
@@ -365,6 +418,21 @@ export class FxSpritePass {
     if (typeName === UT_WARSHIP) {
       this.pushFx(x, y, FX_UNIT_EXPLOSION, now);
       this.pushFx(x, y, FX_SINKING_SHIP, now);
+      return;
+    }
+
+    // Landpot: transports and trade ships end with a landing or a sinking.
+    if (typeName === UT_TRANSPORT || typeName === UT_TRADE_SHIP) {
+      if (shipEnd(this.land, this.mapW, this.mapH, unit.pos) === "sunk") {
+        this.pushFx(x, y, FX_UNIT_EXPLOSION, now);
+        this.pushFx(x, y, FX_SINKING_SHIP, now);
+      } else if (typeName === UT_TRANSPORT) {
+        // Troops hit the beach: a ring of dust around the landing tile.
+        this.pushFx(x, y, FX_MINI_SMOKE, now);
+        for (const [dx, dy] of LANDING_DUST) {
+          this.pushFx(x + dx, y + dy, FX_DUST, now);
+        }
+      }
       return;
     }
 
@@ -520,6 +588,10 @@ export class FxSpritePass {
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
+
+  setTerrain(terrain: Uint8Array): void {
+    this.land = packLand(terrain);
+  }
 
   setTimeFn(fn: () => number): void {
     this.timeFn = fn;

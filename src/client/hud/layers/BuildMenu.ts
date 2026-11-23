@@ -26,17 +26,20 @@ import {
 } from "../../Transport";
 import { UIState } from "../../UIState";
 import { GameView } from "../../view";
-const warshipIcon = assetUrl("images/BattleshipIconWhite.svg");
-const cityIcon = assetUrl("images/CityIconWhite.svg");
-const factoryIcon = assetUrl("images/FactoryIconWhite.svg");
-const goldCoinIcon = assetUrl("images/GoldCoinIcon.svg");
+const warshipIcon = assetUrl("images/landpot/icons/warship.png");
+const cityIcon = assetUrl("images/landpot/icons/city.png");
+const factoryIcon = assetUrl("images/landpot/icons/factory.png");
+const mineIcon = assetUrl("images/landpot/icons/mine.png");
+const oilWellIcon = assetUrl("images/landpot/icons/oil_well.png");
+const shipyardIcon = assetUrl("images/landpot/icons/shipyard.png");
+const goldCoinIcon = assetUrl("images/landpot/icons/coins.png");
 const mirvIcon = assetUrl("images/MIRVIcon.svg");
-const missileSiloIcon = assetUrl("images/MissileSiloIconWhite.svg");
+const missileSiloIcon = assetUrl("images/landpot/icons/silo.png");
 const hydrogenBombIcon = assetUrl("images/MushroomCloudIconWhite.svg");
-const atomBombIcon = assetUrl("images/NukeIconWhite.svg");
-const portIcon = assetUrl("images/PortIcon.svg");
-const samlauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
-const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
+const atomBombIcon = assetUrl("images/landpot/icons/nuke.png");
+const portIcon = assetUrl("images/landpot/icons/port.png");
+const samlauncherIcon = assetUrl("images/landpot/icons/sam.png");
+const shieldIcon = assetUrl("images/landpot/icons/defense.png");
 
 export interface BuildItemDisplay {
   unitType: PlayerBuildableUnitType;
@@ -116,6 +119,27 @@ const buildTable: BuildItemDisplay[][] = [
       icon: factoryIcon,
       description: "build_menu.desc.factory",
       key: "unit_type.factory",
+      countable: true,
+    },
+    {
+      unitType: UnitType.Mine,
+      icon: mineIcon,
+      description: "build_menu.desc.mine",
+      key: "unit_type.mine",
+      countable: true,
+    },
+    {
+      unitType: UnitType.OilWell,
+      icon: oilWellIcon,
+      description: "build_menu.desc.oil_well",
+      key: "unit_type.oil_well",
+      countable: true,
+    },
+    {
+      unitType: UnitType.Shipyard,
+      icon: shipyardIcon,
+      description: "build_menu.desc.shipyard",
+      key: "unit_type.shipyard",
       countable: true,
     },
   ],
@@ -350,6 +374,91 @@ export class BuildMenu extends LitElement implements Controller {
         width: 10px;
         height: 10px;
       }
+    }
+
+    /* Landpot pixel kit (landpot-pixel.css): notched frames, pixel face. */
+    .build-menu,
+    .build-button,
+    .build-count-chip {
+      clip-path: polygon(
+        2px 0,
+        calc(100% - 2px) 0,
+        calc(100% - 2px) 2px,
+        100% 2px,
+        100% calc(100% - 2px),
+        calc(100% - 2px) calc(100% - 2px),
+        calc(100% - 2px) 100%,
+        2px 100%,
+        2px calc(100% - 2px),
+        0 calc(100% - 2px),
+        0 2px,
+        2px 2px
+      );
+    }
+    .build-menu {
+      background-color: var(--px-bg-glass, #0d1220);
+      border: 2px solid var(--px-edge, #46506a);
+      border-radius: 0;
+      box-shadow: inset 0 0 0 2px #070a12;
+      font-family: var(--font-pixel, monospace);
+    }
+    .build-button {
+      border-radius: 0;
+      background-color: var(--px-bg-2, #141a2c);
+      border-color: var(--px-edge-dim, #2a3146);
+      box-shadow: inset 0 -4px 0 0 #070a12;
+      transition:
+        transform 0.08s steps(2),
+        border-color 0.12s ease;
+      font-family: inherit;
+    }
+    .build-button img {
+      image-rendering: pixelated;
+    }
+    .build-button:not(:disabled):hover {
+      background-color: var(--px-bg-2, #141a2c);
+      border-color: var(--px-lime, #c6ff3d);
+      transform: translateY(-2px);
+    }
+    .build-button:not(:disabled):active {
+      background-color: var(--px-bg-2, #141a2c);
+      transform: translateY(1px);
+      box-shadow: inset 0 -2px 0 0 #070a12;
+    }
+    .build-button:disabled {
+      background-color: #0a0e18;
+      border-color: #1c2234;
+    }
+    .build-name {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .build-description {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      color: var(--px-muted, #8d95a8);
+    }
+    .build-cost {
+      color: var(--px-gold, #ffd23f);
+      font-weight: 700;
+    }
+    .build-button:disabled .build-cost {
+      color: var(--px-red, #ff5a4e);
+    }
+    .build-count-chip {
+      top: -2px;
+      right: -2px;
+      border-radius: 0;
+      background-color: var(--px-lime, #c6ff3d);
+      color: #0b0d10;
+      border: 0;
+    }
+    .build-button:not(:disabled):hover > .build-count-chip,
+    .build-button:not(:disabled):active > .build-count-chip {
+      background-color: var(--px-lime, #c6ff3d);
+    }
+    .build-button:disabled > .build-count-chip {
+      background-color: #2a3146;
+      color: #8d95a8;
     }
   `;
 

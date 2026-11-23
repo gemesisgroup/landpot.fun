@@ -19,6 +19,11 @@ import { FALLOUT_BIT, OWNER_MASK, TILE_DEFINES } from "../utils/TileCodec";
 
 import overlayVertSrc from "../shaders/map-overlay/overlay.vert.glsl?raw";
 import territoryFragSrc from "../shaders/map-overlay/territory.frag.glsl?raw";
+import {
+  CaptureBinding,
+  CaptureScatterPass,
+  withCapture,
+} from "./CaptureScatterPass";
 import { TileScatterPass } from "./TileScatterPass";
 
 export class TerritoryPass {
@@ -43,6 +48,7 @@ export class TerritoryPass {
   private uSaturation: WebGLUniformLocation;
   private uTerritoryAlpha: WebGLUniformLocation;
   private uAltFillAlpha: WebGLUniformLocation;
+  private captureBinding: CaptureBinding;
   private highlightOwner = 0;
   private isTeamMode = false;
 
@@ -83,6 +89,9 @@ export class TerritoryPass {
    * upload — constant cost regardless of how spatially scattered patches are.
    */
   private scatter!: TileScatterPass;
+
+  /** When each tile last changed hands — drives the capture animation. */
+  private capture!: CaptureScatterPass;
 
   /**
    * Hook for forwarding tile changes to the border-compute pipeline so it can
@@ -138,7 +147,7 @@ export class TerritoryPass {
     this.program = createProgram(
       gl,
       overlayVertSrc,
-      shaderSrc(territoryFragSrc, {
+      shaderSrc(withCapture(territoryFragSrc), {
         PALETTE_SIZE: getPaletteSize(),
         ...TILE_DEFINES,
       }),
@@ -195,10 +204,12 @@ export class TerritoryPass {
     gl.uniform1i(gl.getUniformLocation(this.program, "uDefenseCoverageTex"), 7);
     gl.uniform1i(gl.getUniformLocation(this.program, "uBorderTex"), 8);
     gl.uniform1i(gl.getUniformLocation(this.program, "uAffiliation"), 9);
+    this.captureBinding = new CaptureBinding(gl, this.program, 10);
 
     this.vao = createMapQuad(gl, mapW, mapH);
 
     this.scatter = new TileScatterPass(gl, mapW, mapH, tileTex);
+    this.capture = new CaptureScatterPass(gl, mapW, mapH);
   }
 
   // ---------------------------------------------------------------------------
@@ -210,6 +221,7 @@ export class TerritoryPass {
     this.cpuTileState.set(tileState);
     this.clearDripBuckets();
     this.scatter.clear();
+    this.capture.clear();
     this.fullUploadPending = true;
     this.tilesDirty = true;
     this.falloutTouched = true; // conservative: replaced state may have fallout
@@ -245,6 +257,28 @@ export class TerritoryPass {
     }
   }
 
+  /**
+   * Landpot: told about each tile that changes hands between two players
+   * during the per-frame drip (not on full flushes), for the front soldiers.
+   */
+  private takenListener:
+    | ((x: number, y: number, prevOwner: number, newOwner: number) => void)
+    | null = null;
+
+  setTakenListener(
+    fn:
+      | ((x: number, y: number, prevOwner: number, newOwner: number) => void)
+      | null,
+  ): void {
+    this.takenListener = fn;
+  }
+
+  /** Owner small-ID of a tile as currently drawn (0 = nobody, off-map = 0). */
+  ownerAt(x: number, y: number): number {
+    if (x < 0 || y < 0 || x >= this.mapW || y >= this.mapH) return 0;
+    return this.cpuTileState[y * this.mapW + x] & OWNER_MASK;
+  }
+
   /** Drain one drip bucket into cpuTileState. Called once per render frame. */
   drainDripBucket(): void {
     const bucket = this.dripBuckets[this.currentBucket];
@@ -253,6 +287,8 @@ export class TerritoryPass {
       const w = this.mapW;
       const pending = this.fullUploadPending;
       const borderFn = this.borderPatchConsumer;
+      const now = this.capture.now();
+      const taken = this.takenListener;
       for (let i = 0; i < bucket.length; i += 2) {
         const ref = bucket[i];
         const state = bucket[i + 1];
@@ -265,8 +301,15 @@ export class TerritoryPass {
           const x = ref % w;
           const y = (ref - x) / w;
           this.scatter.push(x, y, state);
+          const prevOwner = prev & OWNER_MASK;
+          if ((state & OWNER_MASK) !== prevOwner) {
+            this.capture.push(x, y, prevOwner, now);
+            if (taken && (state & OWNER_MASK) !== 0) {
+              taken(x, y, prevOwner, state & OWNER_MASK);
+            }
+          }
           if (borderFn) {
-            borderFn(x, y, prev & OWNER_MASK, state & OWNER_MASK);
+            borderFn(x, y, prevOwner, state & OWNER_MASK);
           }
         }
       }
@@ -286,6 +329,7 @@ export class TerritoryPass {
     const w = this.mapW;
     const pending = this.fullUploadPending;
     const borderFn = this.borderPatchConsumer;
+    const now = this.capture.now();
     for (let b = 0; b < this.nBuckets; b++) {
       const bucket = this.dripBuckets[b];
       if (bucket.length === 0) continue;
@@ -302,8 +346,12 @@ export class TerritoryPass {
           const x = ref % w;
           const y = (ref - x) / w;
           this.scatter.push(x, y, state);
+          const prevOwner = prev & OWNER_MASK;
+          if ((state & OWNER_MASK) !== prevOwner) {
+            this.capture.push(x, y, prevOwner, now);
+          }
           if (borderFn) {
-            borderFn(x, y, prev & OWNER_MASK, state & OWNER_MASK);
+            borderFn(x, y, prevOwner, state & OWNER_MASK);
           }
         }
       }
@@ -364,6 +412,7 @@ export class TerritoryPass {
         this.cpuTileState,
       );
       this.scatter.clear();
+      this.capture.clear();
       this.fullUploadPending = false;
       this.tilesDirty = false;
       return "full";
@@ -372,12 +421,18 @@ export class TerritoryPass {
       // Per-frame patches — scatter via FBO + POINTS draw. Constant cost in
       // patch count regardless of spatial distribution.
       this.scatter.flush();
+      this.capture.flush();
       this.tilesDirty = false;
       return "scatter";
     }
 
     this.tilesDirty = false;
     return "none";
+  }
+
+  /** Capture times, for other passes that animate captured tiles. */
+  get captureSource(): CaptureScatterPass {
+    return this.capture;
   }
 
   setAltView(active: boolean): void {
@@ -476,6 +531,8 @@ export class TerritoryPass {
       gl.bindTexture(gl.TEXTURE_2D, this.affiliationTex);
     }
 
+    this.captureBinding.bind(this.capture);
+
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
@@ -485,6 +542,7 @@ export class TerritoryPass {
     gl.deleteProgram(this.program);
     gl.deleteVertexArray(this.vao);
     this.scatter.dispose();
+    this.capture.dispose();
     // tileTex, paletteTex, patternMetaTex, patternDataTex owned by GPUResources / renderer
   }
 }

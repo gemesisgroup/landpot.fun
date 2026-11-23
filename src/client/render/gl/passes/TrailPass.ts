@@ -28,6 +28,7 @@ export class TrailPass {
   private uTrailAlpha: WebGLUniformLocation;
   private uTime: WebGLUniformLocation;
   private uAltView: WebGLUniformLocation;
+  private uBoatTrails: WebGLUniformLocation;
 
   private vao: WebGLVertexArrayObject;
   private trailTex: WebGLTexture;
@@ -92,6 +93,7 @@ export class TrailPass {
     this.uTrailAlpha = gl.getUniformLocation(this.program, "uTrailAlpha")!;
     this.uTime = gl.getUniformLocation(this.program, "uTime")!;
     this.uAltView = gl.getUniformLocation(this.program, "uAltView")!;
+    this.uBoatTrails = gl.getUniformLocation(this.program, "uBoatTrails")!;
 
     gl.useProgram(this.program);
     gl.uniform1i(gl.getUniformLocation(this.program, "uTrailTex"), 0);
@@ -245,6 +247,7 @@ export class TrailPass {
     gl.uniform1f(this.uTrailAlpha, this.settings.mapOverlay.trailAlpha);
     gl.uniform1f(this.uTime, (performance.now() - this.startTime) / 1000);
     gl.uniform1i(this.uAltView, this.altView ? 1 : 0);
+    gl.uniform1i(this.uBoatTrails, this.settings.mapOverlay.boatTrails ? 1 : 0);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.trailTex);

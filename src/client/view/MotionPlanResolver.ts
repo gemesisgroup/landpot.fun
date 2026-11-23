@@ -95,7 +95,7 @@ export class MotionPlanResolver {
         const existing = this.trains.get(record.engineUnitId);
         if (existing && record.planId <= existing.planId) continue;
         if (existing) this.clearTrainPlan(record.engineUnitId);
-        const carUnitIds = asUint32(record.carUnitIds);
+        const carUnitIds = new Uint32Array(record.carUnitIds);
         this.trains.set(record.engineUnitId, {
           planId: record.planId,
           speed: record.speed,
@@ -123,7 +123,15 @@ export class MotionPlanResolver {
   /** A unit went inactive: drop any plan it drives or rides on. */
   unitRemoved(unitId: number): void {
     if (this.grid.delete(unitId)) this.idsDirty = true;
-    this.clearTrainPlan(unitId);
+    const engineId = this.trainUnitToEngine.get(unitId);
+    // If the engine disappeared after moving this tick, its surviving cars
+    // still have one final step. advanceTrains retires the plan after that.
+    if (engineId === undefined || engineId === unitId) return;
+    const cars = this.trains.get(engineId)?.carUnitIds;
+    const index = cars?.indexOf(unitId) ?? -1;
+    if (cars && index >= 0) cars[index] = 0;
+    this.trainUnitToEngine.delete(unitId);
+    this.idsDirty = true;
   }
 
   /** Drop the train plan a unit drives or rides on, if any. */
@@ -179,9 +187,15 @@ export class MotionPlanResolver {
   private advanceTrains(tick: number, units: PlannedUnits): void {
     const stale: number[] = [];
     for (const [engineId, plan] of this.trains) {
-      if (units.tileOf(engineId) === undefined) {
+      const engineGone = units.tileOf(engineId) === undefined;
+      if (engineGone) {
         stale.push(engineId);
-        continue;
+        if (
+          !plan.carUnitIds.some(
+            (id) => id !== 0 && units.tileOf(id) !== undefined,
+          )
+        )
+          continue;
       }
       const steps = tick - plan.lastAdvancedTick;
       if (steps <= 0) continue;
@@ -226,7 +240,7 @@ export class MotionPlanResolver {
         }
 
         const newEngineTile = path[plan.cursor];
-        if (newEngineTile !== units.tileOf(engineId)) {
+        if (!engineGone && newEngineTile !== units.tileOf(engineId)) {
           units.move(engineId, newEngineTile);
           didMove = true;
         }

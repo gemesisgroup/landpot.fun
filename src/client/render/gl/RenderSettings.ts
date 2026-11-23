@@ -130,6 +130,8 @@ export interface RenderSettings {
   };
   mapOverlay: {
     trailAlpha: number;
+    /** Draw the coloured line behind transport ships (Landpot: off, ships leave a foam wake instead). */
+    boatTrails: boolean;
     /**
      * Resolution of the offscreen spiral-trail buffer relative to the canvas
      * (0..1). Lower = cheaper + softer/glowier (bilinear upsample).
@@ -198,6 +200,18 @@ export interface RenderSettings {
      * so they cover a fixed area of the map.
      */
     iconGrowZoom: number;
+    /** Zoom where the emblem has fully become the sprite. */
+    spriteZoom: number;
+    /** Zoom span of the emblem → sprite cross-fade, ending at spriteZoom. */
+    spriteFade: number;
+    /** Sprite size relative to iconSize. */
+    spriteScale: number;
+    /** Extra sprite size per upgrade tier (levels 1, 2–3, 4–5, 6+). */
+    tierScales: number[];
+    /** How much of the sprite's grey concrete takes the owner colour (0–1). */
+    spriteTint: number;
+    /** Sprite outline width, in sprite-cell units. */
+    spriteOutline: number;
     shapes: Record<string, { scale: number; iconFill: number }>;
     highlightOutlineWidth: number;
     highlightDimAlpha: number;
@@ -272,6 +286,18 @@ export interface RenderSettings {
     hBombGlowStrength: number; // peak opacity of the glow
     hBombGlowInner: number; // radial falloff start (0..1, quad-space)
     untargetableAlpha: number; // alpha for nukes SAMs can't target (0..1)
+    /** Zoom where ships finish turning from icons into pixel sprites. */
+    shipZoom: number;
+    /** Zoom span of that cross-fade, ending at shipZoom. */
+    shipFade: number;
+    /** Sprite cell size in tiles: transport, trade ship, warship. */
+    shipSizes: number[];
+    /** How much a ship's grey hull takes the owner colour (0..1). */
+    shipTint: number;
+    /** Owner-colour outline width, in sprite-cell units. */
+    shipOutline: number;
+    /** Bob on the waves, in tiles. */
+    shipBob: number;
   };
   name: {
     lerpSpeed: number;
@@ -319,6 +345,125 @@ export interface RenderSettings {
     nukeRadiusMirv: number;
     /** Multiplier on the nuke debris sprite count (1 = default scatter). */
     debrisDensity: number;
+    /** Mushroom cloud size as a fraction of the visual blast radius (0 = off). */
+    mushroomScale: number;
+    /** Mushroom cloud lifetime for an atom bomb, seconds (bigger bombs last longer). */
+    mushroomSeconds: number;
+  };
+  /** Landpot: drifting pixel clouds (CloudPass). */
+  weather: {
+    clouds: boolean;
+    /** Tiles per noise cell: bigger = bigger clouds. */
+    scale: number;
+    /** Drift, tiles per second. */
+    speed: number;
+    /** 0..1, share of the sky under cloud. */
+    cover: number;
+    /** Shadow and cloud-top strength. */
+    shadow: number;
+    top: number;
+    /** Smallest pixel block, tiles. */
+    block: number;
+  };
+  /** Landpot: pixel soldiers running across a front (SoldierPass). */
+  soldiers: {
+    enabled: boolean;
+    capacity: number;
+    /** Keep one taken tile in this many. */
+    every: number;
+    maxPerFrame: number;
+    /** Run length, tiles, and how long it takes, seconds. */
+    run: number;
+    life: number;
+    /** Tiles per art pixel, clamped. */
+    minPix: number;
+    maxPix: number;
+    /** Hidden below this zoom. */
+    minZoom: number;
+  };
+  /**
+   * Landpot: a fight reads as one. Where a player takes land from another
+   * player (not from the wilderness), the front kicks up dust and the odd
+   * blast, within a budget so a huge front doesn't flood the FX buffer.
+   */
+  frontFx: {
+    enabled: boolean;
+    /** Hidden below this zoom (the front is a hairline there). */
+    minZoom: number;
+    /** Chance each tile taken from a player throws something. */
+    chance: number;
+    /** Share of those that are a small blast rather than dust. */
+    blastShare: number;
+    /** Most puffs a second, over the whole view. */
+    maxPerSec: number;
+  };
+  /**
+   * Landpot: sea fights. A flash where a warship fires, a splash where a
+   * shell lands in the water, a white ring where it hits, rings rolling out
+   * and a burning wreck where a ship goes down, smoke off a damaged ship.
+   */
+  navalFx: {
+    enabled: boolean;
+    /** Hidden below this zoom. */
+    minZoom: number;
+    flashRadius: number;
+    flashMs: number;
+    hitRadius: number;
+    splashRadius: number;
+    splashMs: number;
+    rippleRadius: number;
+    rippleMs: number;
+    /** A damaged ship smokes this long after its last hit, ms. */
+    damageSmokeMs: number;
+    /** Most muzzle flashes a second. */
+    maxFlashesPerSec: number;
+    /** 0..1 rgb. */
+    flashColor: [number, number, number];
+    waterColor: [number, number, number];
+  };
+  /** Landpot: the ring that rolls out where a player is wiped out. */
+  conquestRing: {
+    radius: number;
+    durationMs: number;
+    /** 0..1 rgb. */
+    color: [number, number, number];
+  };
+  /** Landpot: chimney smoke on cities and factories, dust on building sites. */
+  structureFx: {
+    enabled: boolean;
+    /** How often a puff round is spawned, ms. */
+    intervalMs: number;
+    /** Chance each visible chimney puffs in a round. */
+    smokeChance: number;
+    /** Chance each visible building site throws dust in a round. */
+    dustChance: number;
+    /** Most puffs per round. */
+    maxPerRound: number;
+  };
+  /** Landpot: day and night over a match (ambient fed to the night composite). */
+  dayCycle: {
+    enabled: boolean;
+    /** Wall-clock seconds per full day. */
+    dayLengthSec: number;
+    /** Ambient light at the darkest point of night. */
+    nightAmbient: number;
+  };
+  /** Landpot: pixel foam wake behind moving ships (WakePass). */
+  wake: {
+    /** Tiles sailed between foam rings. */
+    spacing: number;
+    /** How far behind the ship centre rings start, as a fraction of its length. */
+    sternOffset: number;
+    /** Ring lifetime, seconds. */
+    life: number;
+    /** Ring growth per second, in ship lengths. */
+    spread: number;
+    alpha: number;
+    /** Below this zoom the wake fades out (a tile is under a pixel). */
+    minZoom: number;
+    foamR: number;
+    foamG: number;
+    foamB: number;
   };
   nukeTrajectory: {
     lineWidth: number; // px — main line stroke width

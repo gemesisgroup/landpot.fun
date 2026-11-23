@@ -12,6 +12,7 @@
 import type { MapLayer } from "@openfront/engine-api/game/MapFiles";
 import type { Config } from "@openfront/engine-lib/configuration/Config";
 import { translateText } from "../../Utils";
+import { dayAmbient } from "../frame/DayCycle";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
   AttackRingInput,
@@ -34,6 +35,7 @@ import { GLUnavailableError, initGL } from "./initGL";
 import { BarPass } from "./passes/BarPass";
 import { BorderComputePass } from "./passes/BorderComputePass";
 import { BorderStampPass } from "./passes/BorderStampPass";
+import { CloudPass } from "./passes/CloudPass";
 import { CoordinateGridPass } from "./passes/CoordinateGridPass";
 import { CrosshairPass } from "./passes/CrosshairPass";
 import { DefenseCoveragePass } from "./passes/DefenseCoveragePass";
@@ -54,6 +56,7 @@ import { SAMRadiusPass } from "./passes/SamRadiusPass";
 import { SelectionBoxPass } from "./passes/SelectionBoxPass";
 import { SkinAtlasArray } from "./passes/SkinAtlasArray";
 import { SmallPlayerGlowPass } from "./passes/SmallPlayerGlowPass";
+import { SoldierPass } from "./passes/SoldierPass";
 import type { SpawnCenter } from "./passes/SpawnOverlayPass";
 import { SpawnOverlayPass } from "./passes/SpawnOverlayPass";
 import { SpiralRibbonPass } from "./passes/SpiralRibbonPass";
@@ -63,6 +66,7 @@ import { TerrainPass } from "./passes/TerrainPass";
 import { TerritoryPass } from "./passes/TerritoryPass";
 import { TrailPass } from "./passes/TrailPass";
 import { UnitPass } from "./passes/UnitPass";
+import { WakePass } from "./passes/WakePass";
 import { WorldTextPass } from "./passes/WorldTextPass";
 import type { RenderSettings } from "./RenderSettings";
 import { AffiliationPalette } from "./utils/Affiliation";
@@ -77,6 +81,7 @@ import {
 import { renderDpr } from "./utils/Dpr";
 import {
   createTexture2D,
+  GLContextLostError,
   toScreen,
   toTarget,
   type RenderTarget,
@@ -136,6 +141,23 @@ export class GPURenderer {
   private unitPass: UnitPass;
   private namePass: NamePass;
   private fxPass: FxPass;
+  private wakePass: WakePass | null = null;
+  private cloudPass: CloudPass | null = null;
+  private soldierPass: SoldierPass | null = null;
+  /** Landpot: when the next chimney-smoke / building-dust round is due. */
+  private nextStructureFxAt = 0;
+  /** Naval FX: shells already seen, warship health, last hit time. */
+  private seenShells = new Set<number>();
+  private shipHealth = new Map<number, number>();
+  private shipHitAt = new Map<number, number>();
+  private flashSecond = 0;
+  private flashSpent = 0;
+  private nextShipSmokeAt = 0;
+  /** Front FX budget: the second it counts, and what it spent. */
+  private frontFxSecond = 0;
+  private frontFxSpent = 0;
+  private readonly fxBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly cycleStart = performance.now();
   private rangeCirclePass: RangeCirclePass;
   private samRadiusPass: SAMRadiusPass;
   private crosshairPass: CrosshairPass;
@@ -269,7 +291,8 @@ export class GPURenderer {
 
     // --- Terrain (static) ---
     // Bake once and let the array go — nothing below retains map-sized
-    // terrain bytes; re-bakes call terrainSource again.
+    // terrain bytes (FX keeps a 1-bit land mask); re-bakes call
+    // terrainSource again.
     const terrainBytes = terrainSource();
     this.terrainPass = new TerrainPass(
       gl,
@@ -491,6 +514,7 @@ export class GPURenderer {
     this.borderStampPass.setDefenseCoverageTex(
       this.defenseCoveragePass.getCoverageTex(),
     );
+    this.borderStampPass.setCaptureSource(this.territoryPass.captureSource);
 
     // --- Fallout bloom (needs tileTex, heatManager) ---
     this.bloomPass = new FalloutBloomPass(
@@ -582,6 +606,46 @@ export class GPURenderer {
       config,
     );
     this.fxPass = new FxPass(gl, header, this.settings, config);
+    // FX keeps only a land bitset of it (an eighth of the bytes).
+    this.fxPass.setTerrain(terrainBytes);
+    try {
+      this.wakePass = new WakePass(
+        gl,
+        this.settings,
+        this.terrainBytesTex!,
+        mapW,
+        mapH,
+      );
+    } catch (e) {
+      // Cosmetic: a driver that rejects the program just loses the wake.
+      if (e instanceof GLContextLostError) throw e;
+      console.error(e);
+    }
+    try {
+      const soldiers = new SoldierPass(gl, this.settings, this.paletteTex);
+      this.soldierPass = soldiers;
+      const terr = this.territoryPass;
+      terr.setTakenListener((x, y, prev, owner) => {
+        if (prev !== 0 && prev !== owner) this.frontFx(x, y);
+        // Run from the attacker's neighbouring land into the taken tile.
+        let dx = 0;
+        let dy = 0;
+        if (terr.ownerAt(x - 1, y) === owner) dx += 1;
+        if (terr.ownerAt(x + 1, y) === owner) dx -= 1;
+        if (terr.ownerAt(x, y - 1) === owner) dy += 1;
+        if (terr.ownerAt(x, y + 1) === owner) dy -= 1;
+        soldiers.offer(x, y, dx, dy, owner);
+      });
+    } catch (e) {
+      if (e instanceof GLContextLostError) throw e;
+      console.error(e);
+    }
+    try {
+      this.cloudPass = new CloudPass(gl, this.settings, mapW, mapH);
+    } catch (e) {
+      if (e instanceof GLContextLostError) throw e;
+      console.error(e);
+    }
     this.barPass = new BarPass(gl, header, this.settings, config);
     this.worldTextPass = new WorldTextPass(gl, this.settings, config);
     this.worldTextPass.setMapWidth(this.mapW);
@@ -915,6 +979,79 @@ export class GPURenderer {
     this.barPass.updateBars(units, this.lastStructures, gameTick);
     this.pointLightPass.updateLights(units);
     this.heatManager.decayHeat();
+    this.navalFx(units);
+  }
+
+  /**
+   * Landpot: a new shell flashes at the gun that fired it; a warship whose
+   * health drops takes a hit and smokes for a while after.
+   */
+  private navalFx(units: Map<number, UnitState>): void {
+    const n = this.settings.navalFx;
+    if (!n.enabled) return;
+    const now = performance.now();
+    const show = this.camera.zoom >= n.minZoom && !this.inSpawnPhase;
+    const b = this.camera.getWorldBounds(4, this.fxBounds);
+    const w = this.mapW;
+    const inView = (pos: number) => {
+      const x = pos % w;
+      const y = (pos - x) / w;
+      return x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+    };
+    const second = Math.floor(now / 1000);
+    if (second !== this.flashSecond) {
+      this.flashSecond = second;
+      this.flashSpent = 0;
+    }
+    const liveShells = new Set<number>();
+    const liveShips = new Set<number>();
+    for (const u of units.values()) {
+      if (u.unitType === "Shell") {
+        liveShells.add(u.id);
+        if (this.seenShells.has(u.id)) continue;
+        this.seenShells.add(u.id);
+        if (!show || this.flashSpent >= n.maxFlashesPerSec) continue;
+        // lastPos is where the shell left the gun on its first tick.
+        if (!inView(u.lastPos)) continue;
+        this.flashSpent++;
+        const x = u.lastPos % w;
+        this.fxPass.pushMuzzleFlash(x + 0.5, (u.lastPos - x) / w + 0.5);
+      } else if (u.unitType === "Warship" && u.health !== null) {
+        liveShips.add(u.id);
+        const before = this.shipHealth.get(u.id);
+        this.shipHealth.set(u.id, u.health);
+        if (before === undefined || u.health >= before) continue;
+        this.shipHitAt.set(u.id, now);
+        if (show && inView(u.pos)) {
+          const x = u.pos % w;
+          this.fxPass.pushShipHit(x + 0.5, (u.pos - x) / w + 0.5);
+        }
+      }
+    }
+    for (const id of this.seenShells) {
+      if (!liveShells.has(id)) this.seenShells.delete(id);
+    }
+    for (const id of this.shipHealth.keys()) {
+      if (!liveShips.has(id)) {
+        this.shipHealth.delete(id);
+        this.shipHitAt.delete(id);
+      }
+    }
+    // Recently hit ships trail smoke.
+    if (!show || now < this.nextShipSmokeAt || this.shipHitAt.size === 0) {
+      return;
+    }
+    this.nextShipSmokeAt = now + 300;
+    for (const [id, at] of this.shipHitAt) {
+      if (now - at > n.damageSmokeMs) {
+        this.shipHitAt.delete(id);
+        continue;
+      }
+      const u = units.get(id);
+      if (u === undefined || !inView(u.pos)) continue;
+      const x = u.pos % w;
+      this.fxPass.pushShipSmoke(x + 0.3, (u.pos - x) / w - 0.4);
+    }
   }
 
   updateNames(
@@ -1254,6 +1391,7 @@ export class GPURenderer {
     if (this.inSpawnPhase) {
       this.territoryPass.flushAllDripBuckets();
     } else {
+      this.soldierPass?.beginFrame();
       this.territoryPass.drainDripBucket();
     }
     // Full uploads need a full border recompute; scatter uploads already
@@ -1283,6 +1421,7 @@ export class GPURenderer {
     const zoom = this.camera.zoom;
     const cw = this.canvas.width;
     const ch = this.canvas.height;
+    this.updateDayCycle();
     const compositingActive = this.isLightCompositingActive();
 
     if (compositingActive) {
@@ -1302,7 +1441,81 @@ export class GPURenderer {
   }
 
   private isLightCompositingActive(): boolean {
-    return this.settings.lighting.enabled;
+    if (this.settings.lighting.enabled) return true;
+    // The day cycle turns the composite on only while it is getting dark.
+    return this.nightCompositePass.getAmbient() < 0.995;
+  }
+
+  /**
+   * Landpot: a tile taken from another player throws dust or a small blast
+   * on the front, within a per-second budget and only where it can be seen.
+   */
+  private frontFx(x: number, y: number): void {
+    const s = this.settings.frontFx;
+    if (!s.enabled || this.inSpawnPhase) return;
+    if (this.camera.zoom < s.minZoom) return;
+    if (Math.random() >= s.chance) return;
+    const now = performance.now();
+    const second = Math.floor(now / 1000);
+    if (second !== this.frontFxSecond) {
+      this.frontFxSecond = second;
+      this.frontFxSpent = 0;
+    }
+    if (this.frontFxSpent >= s.maxPerSec) return;
+    const b = this.camera.getWorldBounds(2, this.fxBounds);
+    if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) return;
+    this.frontFxSpent++;
+    this.fxPass.pushClash(x + 0.5, y + 0.5, Math.random() < s.blastShare);
+  }
+
+  /**
+   * Landpot: every few hundred ms, puff smoke from the chimneys of cities
+   * and factories in view, and kick dust off building sites.
+   */
+  private spawnStructureFx(): void {
+    const s = this.settings.structureFx;
+    if (!s.enabled || this.inSpawnPhase) return;
+    const now = performance.now();
+    if (now < this.nextStructureFxAt) return;
+    this.nextStructureFxAt = now + s.intervalMs;
+    if (this.camera.zoom < 0.9) return;
+    const b = this.camera.getWorldBounds(4, this.fxBounds);
+    const w = this.mapW;
+    let n = 0;
+    for (const u of this.lastStructures.values()) {
+      if (n >= s.maxPerRound) break;
+      if (!u.isActive) continue;
+      const x = u.pos % w;
+      const y = (u.pos - x) / w;
+      if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) continue;
+      if (u.underConstruction) {
+        if (Math.random() < s.dustChance) {
+          this.fxPass.pushBuildDust(
+            x + (Math.random() - 0.5) * 2.2,
+            y + 0.6 + Math.random() * 0.5,
+          );
+          n++;
+        }
+      } else if (u.unitType === "City" || u.unitType === "Factory") {
+        if (Math.random() < s.smokeChance) {
+          // The chimney sits up and right of the building's centre.
+          this.fxPass.pushChimneySmoke(x + 0.9, y - 2.1);
+          n++;
+        }
+      }
+    }
+  }
+
+  private updateDayCycle(): void {
+    const dc = this.settings.dayCycle;
+    const a = dc.enabled
+      ? dayAmbient(
+          (performance.now() - this.cycleStart) / 1000,
+          dc.dayLengthSec,
+          dc.nightAmbient,
+        )
+      : 1;
+    this.nightCompositePass.setCycleAmbient(a);
   }
 
   private resizeSceneTargetIfNeeded(cw: number, ch: number): void {
@@ -1345,6 +1558,7 @@ export class GPURenderer {
       layerPass.draw(cam);
     }
     if (pe.territory) this.territoryPass.draw(cam);
+    if (!this.altView) this.cloudPass?.draw(cam, this.camera.zoom);
   }
 
   private renderOverlays(cam: Float32Array, zoom: number): void {
@@ -1357,7 +1571,12 @@ export class GPURenderer {
     this.spawnOverlayPass.draw(cam);
     if (pe.borderStamp) this.borderStampPass.draw(cam);
     if (pe.railroad) this.railroadPass.draw(cam, zoom);
-    if (pe.unit) this.unitPass.drawGround(cam);
+    if (pe.unit && this.wakePass) {
+      this.wakePass.update(this.unitPass.shipsForWake());
+      this.wakePass.draw(cam, zoom);
+    }
+    if (pe.unit) this.unitPass.drawGround(cam, zoom);
+    if (!this.altView) this.soldierPass?.draw(cam, zoom);
     if (pe.falloutBloom) this.bloomPass.draw(cam, this.frameTick);
     this.samRadiusPass.draw(cam);
     this.rangeCirclePass.draw(cam);
@@ -1379,6 +1598,7 @@ export class GPURenderer {
     if (pe.unit) this.unitPass.drawMissiles(cam);
 
     if (pe.fx) {
+      if (!this.altView) this.spawnStructureFx();
       this.fxPass.tick();
       this.fxPass.draw(cam, zoom);
     }
@@ -1506,6 +1726,10 @@ export class GPURenderer {
     this.unitPass.dispose();
     this.namePass.dispose();
     this.fxPass.dispose();
+    this.wakePass?.dispose();
+    this.cloudPass?.dispose();
+    this.territoryPass.setTakenListener(null);
+    this.soldierPass?.dispose();
     this.worldTextPass.dispose();
     this.selectionBoxPass.dispose();
     this.moveIndicatorPass.dispose();

@@ -8,6 +8,7 @@ import {
   radiusOf,
 } from "@openfront/engine-lib/game/Caldera";
 import { resolveTeamsList } from "@openfront/engine-lib/game/TeamAssignment";
+import { assetUrl } from "@openfront/shared/AssetUrls";
 import { EventBus } from "@openfront/shared/EventBus";
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
@@ -26,6 +27,8 @@ import { GameView } from "../../view";
  * players here, less the escrow's burn and treasury cuts, and anyone who paid
  * but never came is refunded from it at settlement.
  */
+const icon = (name: string) => assetUrl(`images/landpot/icons/${name}.png`);
+
 @customElement("pot-share")
 export class PotShare extends LitElement implements Controller {
   public game: GameView;
@@ -278,19 +281,24 @@ export class PotShare extends LitElement implements Controller {
     const pct = (this.sharePermyriad / 100).toFixed(2);
     return html`
       <div
-        class="pointer-events-auto w-64 rounded-lg border border-amber-400/40 bg-stone-950/80 px-3 py-2 text-white shadow-lg backdrop-blur-sm"
+        class="px-panel pointer-events-auto flex w-64 flex-col gap-1.5 px-3 py-2 text-white"
         data-testid="pot-share"
       >
-        <div
-          class="flex items-baseline justify-between text-[11px] uppercase tracking-wider text-amber-300"
-        >
-          <span>${translateText("pot_hud.your_share")}</span>
-          <span class="tabular-nums">${pct}%</span>
+        <div class="flex items-center gap-2">
+          <img class="px-img size-6 shrink-0" src=${icon("coins")} alt="" />
+          <span class="px-title text-[11px] text-[var(--px-gold)]"
+            >${translateText("pot_hud.your_share")}</span
+          >
+          <span class="px-num ml-auto text-[var(--px-lime)]">${pct}%</span>
         </div>
-        <div class="mt-0.5 text-lg font-bold tabular-nums leading-tight">
+        <div class="px-num text-xl leading-tight">
           ${this.amount ? html`≈ ${this.amount}` : html`${pct}%`}
         </div>
-        <div class="mt-1 text-xs text-stone-300 tabular-nums">
+        <div
+          class="px-bar"
+          style="--px-fill: ${Math.min(1, this.sharePermyriad / 10_000)}"
+        ></div>
+        <div class="text-xs text-[var(--px-muted)] tabular-nums">
           ${translateText("pot_hud.land_value", {
             value: this.value.toLocaleString("en-US"),
             crater: this.crater.toLocaleString("en-US"),
@@ -300,15 +308,23 @@ export class PotShare extends LitElement implements Controller {
         ${
           this.erupting
             ? html`<div
-                class="mt-1 text-xs font-semibold text-orange-400 animate-pulse"
+                class="px-cell flex items-center gap-2 px-2 py-1 text-xs font-semibold text-[var(--px-red)] animate-pulse"
               >
-                ${translateText("pot_hud.erupting")}
+                <img class="px-img size-5" src=${icon("volcano")} alt="" />
+                <span class="px-title"
+                  >${translateText("pot_hud.erupting")}</span
+                >
               </div>`
             : this.eruptionIn !== null
-              ? html`<div class="mt-1 text-xs text-orange-300 tabular-nums">
-                  ${translateText("pot_hud.eruption_in", {
-                    time: this.clock(this.eruptionIn),
-                  })}
+              ? html`<div
+                  class="px-cell flex items-center gap-2 px-2 py-1 text-xs text-orange-300"
+                >
+                  <img class="px-img size-5" src=${icon("hourglass")} alt="" />
+                  <span class="px-num"
+                    >${translateText("pot_hud.eruption_in", {
+                      time: this.clock(this.eruptionIn),
+                    })}</span
+                  >
                 </div>`
               : ""
         }

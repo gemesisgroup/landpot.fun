@@ -534,6 +534,37 @@
       </div>
     </div>
 
+    <!-- Landpot battle cards: a card over the front of each fight the player
+         is in. Under the HUD bars, never takes clicks. -->
+    <battle-cards
+      class="fixed inset-0 z-[150] pointer-events-none overflow-hidden"
+    ></battle-cards>
+
+    <!-- Landpot showtime: battle-start banner and the victory fireworks. -->
+    <landpot-showtime
+      class="fixed inset-0 z-[10020] pointer-events-none overflow-hidden"
+    ></landpot-showtime>
+
+    <!-- Landpot: where trade ships get raided at sea, on every map. -->
+    <landpot-raids
+      class="fixed inset-0 z-[141] pointer-events-none overflow-hidden"
+    ></landpot-raids>
+
+    <!-- Landpot New Era: iron deposits on the map, under the HUD. -->
+    <landpot-deposits
+      class="fixed inset-0 z-[140] pointer-events-none overflow-hidden"
+    ></landpot-deposits>
+
+    <!-- Landpot New Era: iron, mines and factories. -->
+    <landpot-newera
+      class="fixed left-3 top-[34%] z-[156] hidden in-[.in-game]:block pointer-events-auto"
+    ></landpot-newera>
+
+    <!-- Landpot minimap: the whole map in a pixel frame, fronts marked. -->
+    <landpot-minimap
+      class="fixed top-16 right-3 z-[155] hidden lg:in-[.in-game]:block pointer-events-auto"
+    ></landpot-minimap>
+
     <!-- Game modals and overlays -->
     <emoji-table></emoji-table>
     <build-menu></build-menu>

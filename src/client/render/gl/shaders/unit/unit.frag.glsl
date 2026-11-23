@@ -23,6 +23,9 @@ uniform vec3  uHBombGlowColor;
 uniform float uHBombGlowStrength;
 uniform float uHBombGlowInner;
 uniform float uUntargetableAlpha;
+uniform sampler2D uShips;         // SHIP_COLS ships by SHIP_VIEWS headings
+uniform float uShipTint;          // how much grey hull takes the owner colour
+uniform float uShipOutline;       // outline width, in sprite-cell units
 
 in vec2  vQuadPos;
 in vec2  vCellUV;
@@ -32,6 +35,9 @@ flat in float vOwnerID;
 flat in float vFlags;
 flat in float vHash;
 flat in float vGlow;
+in vec2  vShipUV;
+flat in float vShipRow;
+flat in float vShipMix;
 
 out vec4 fragColor;
 
@@ -94,7 +100,7 @@ bool spriteEffectColor(int rowBase, int owner, float coord, bool iconSpace, out 
   return true;
 }
 
-void main() {
+vec4 iconColor() {
   // Untargetable nukes render translucent so players know SAMs can't hit them
   float alphaMul = abs(vFlags - FLAG_FLICKER_UNTARGETABLE) < 0.1
     ? uUntargetableAlpha
@@ -117,11 +123,10 @@ void main() {
       float d = length(vQuadPos - 0.5) * 2.0; // 0 at center → ~1 at quad edge
       float g = (1.0 - smoothstep(uHBombGlowInner, 1.0, d)) * uHBombGlowStrength;
       if (g > 0.001) {
-        fragColor = vec4(uHBombGlowColor, g * alphaMul);
-        return;
+        return vec4(uHBombGlowColor, g * alphaMul);
       }
     }
-    discard;
+    return vec4(0.0);
   }
 
   float gray = texel.r;
@@ -134,8 +139,7 @@ void main() {
       : abs(vFlags - FLAG_TRADE_FRIENDLY) < 0.1
         ? uAllyColor
         : texelFetch(uAffiliation, ivec2(int(vOwnerID), 1), 0).rgb;
-    fragColor = vec4(ac, texel.a * alphaMul);
-    return;
+    return vec4(ac, texel.a * alphaMul);
   }
 
   // Player color lookup from palette
@@ -218,5 +222,73 @@ void main() {
     color = borderColor;
   }
 
-  fragColor = vec4(color, texel.a * alphaMul);
+  return vec4(color, texel.a * alphaMul);
+}
+
+// ---- Pixel ships -----------------------------------------------------------
+
+vec4 shipAt(vec2 q) {
+  vec2 uv = vec2((clamp(vAtlasCol, 0.0, float(SHIP_COLS - 1)) + clamp(q.x, 0.0, 1.0)) / float(SHIP_COLS),
+                 (clamp(vShipRow, 0.0, float(SHIP_VIEWS - 1)) + clamp(q.y, 0.0, 1.0)) / float(SHIP_VIEWS));
+  vec4 s = texture(uShips, uv);
+  float inside = step(0.0, q.x) * step(0.0, q.y) * step(q.x, 1.0) * step(q.y, 1.0);
+  return s * inside;
+}
+
+/** The ship sprite: grey hull in the owner colour, an outline in the owner's
+ *  border colour (red while a warship attacks, blinking dark when it runs). */
+vec4 shipColor() {
+  vec2 q = vShipUV;
+  vec4 s = shipAt(q);
+  float o = uShipOutline;
+  float dil = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398;
+    dil = max(dil, shipAt(q + o * vec2(cos(a), sin(a))).a);
+  }
+  float band = max(dil - s.a, 0.0);
+
+  float u = (vOwnerID + 0.5) / float(PALETTE_SIZE);
+  vec3 fill = texture(uPalette, vec2(u, 0.25)).rgb;
+  vec3 edge = texture(uPalette, vec2(u, 0.75)).rgb;
+  if (uAltView != 0) {
+    vec3 ac = abs(vFlags - FLAG_TRADE_SELF) < 0.1
+      ? uSelfColor
+      : abs(vFlags - FLAG_TRADE_FRIENDLY) < 0.1
+        ? uAllyColor
+        : texelFetch(uAffiliation, ivec2(int(vOwnerID), 1), 0).rgb;
+    fill = ac;
+    edge = ac * 0.7;
+  }
+  vec3 outline = edge * 0.55;
+  if (abs(vFlags - FLAG_ANGRY) < 0.1) outline = uAngryColor;
+  if (abs(vFlags - FLAG_RETREATING) < 0.1) {
+    outline = mix(outline, vec3(0.0), step(0.5, fract(uTick * 0.07)));
+  }
+
+  vec3 rgb = s.rgb;
+  float mx = max(rgb.r, max(rgb.g, rgb.b));
+  float mn = min(rgb.r, min(rgb.g, rgb.b));
+  float sat = (mx - mn) / max(mx, 1e-4);
+  float lum = dot(rgb, vec3(0.299, 0.587, 0.114));
+  // Grey hull and decks take the owner colour; soldiers, crates and lit
+  // windows keep theirs.
+  float greyMask = 1.0 - smoothstep(0.12, 0.3, sat);
+  vec3 tinted = fill * (0.25 + lum * 1.25);
+  rgb = mix(rgb, mix(rgb, tinted, uShipTint), greyMask);
+
+  float a = max(s.a, band);
+  vec3 col = mix(outline, rgb, s.a / max(a, 1e-4));
+  return vec4(col, a);
+}
+
+void main() {
+  // The ship sprite is sampled for every fragment (uniform control flow, so
+  // its mipmaps resolve); it only counts once zoomed in.
+  vec4 ship = shipColor();
+  vec4 icon = vShipMix < 0.999 ? iconColor() : vec4(0.0);
+  float a = mix(icon.a, ship.a, vShipMix);
+  if (a < 0.01) discard;
+  vec3 rgb = (icon.rgb * icon.a * (1.0 - vShipMix) + ship.rgb * ship.a * vShipMix) / a;
+  fragColor = vec4(rgb, a);
 }

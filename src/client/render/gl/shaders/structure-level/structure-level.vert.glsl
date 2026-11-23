@@ -24,6 +24,11 @@ uniform float uAtlasScaleH;
 uniform float uBase;
 uniform float uLevelScale;
 uniform float uLevelOffsetY;  // extra height above icon, in halfIconSize units
+// Sprite LOD (mirrors structure.vert.glsl): once the emblem has become a
+// sprite the level sits under it, like a nameplate.
+uniform float uSpriteZoom;
+uniform float uSpriteFade;
+uniform float uSpriteScale;
 
 out vec2 vUV;
 flat out float vAlive;
@@ -84,8 +89,11 @@ void main() {
   vec2 center = vec2(worldX + 0.5, worldY + 0.5);
   float baselineY = -uBase * 0.5;
   // above icon top edge; uLevelOffsetY raises (or lowers) it proportionally
-  float yOff =
+  float yAbove =
     -halfIconSize * (1.0 + uLevelOffsetY) - levelScale * uBase * 0.6;
+  float yBelow = halfIconSize * uSpriteScale * 0.9 - levelScale * uBase * 0.3;
+  float spriteMix = smoothstep(uSpriteZoom - uSpriteFade, uSpriteZoom, uZoom);
+  float yOff = mix(yAbove, yBelow, spriteMix);
 
   vec2 glyphOrigin = vec2(
     cursorX + m0.y,  // + xoffset

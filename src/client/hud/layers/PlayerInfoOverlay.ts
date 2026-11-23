@@ -48,20 +48,20 @@ import { SpawnBarVisibleEvent } from "./SpawnTimer";
 const soldierIconAquarius = assetUrl("images/SoldierIconAquarius.svg");
 const allianceIcon = assetUrl("images/AllianceIcon.svg");
 const traitorIcon = assetUrl("images/TraitorIcon.svg");
-const warshipIcon = assetUrl("images/BattleshipIconWhite.svg");
+const warshipIcon = assetUrl("images/landpot/icons/warship.png");
 const emojiIcon = assetUrl("images/EmojiIconWhite.svg");
 const chatIcon = assetUrl("images/ChatIconWhite.svg");
 const requestAllianceIcon = assetUrl("images/AllianceIconWhite.svg");
 const breakAllianceIcon = assetUrl("images/TraitorIconWhite.svg");
 const targetIcon = assetUrl("images/TargetIconWhite.svg");
 const boatIcon = assetUrl("images/BoatIconWhite.svg");
-const cityIcon = assetUrl("images/CityIconWhite.svg");
-const factoryIcon = assetUrl("images/FactoryIconWhite.svg");
-const goldCoinIcon = assetUrl("images/GoldCoinIcon.svg");
-const missileSiloIcon = assetUrl("images/MissileSiloIconWhite.svg");
-const portIcon = assetUrl("images/PortIcon.svg");
-const samLauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
-const soldierIcon = assetUrl("images/SoldierIcon.svg");
+const cityIcon = assetUrl("images/landpot/icons/city.png");
+const factoryIcon = assetUrl("images/landpot/icons/factory.png");
+const goldCoinIcon = assetUrl("images/landpot/icons/coins.png");
+const missileSiloIcon = assetUrl("images/landpot/icons/silo.png");
+const portIcon = assetUrl("images/landpot/icons/port.png");
+const samLauncherIcon = assetUrl("images/landpot/icons/sam.png");
+const soldierIcon = assetUrl("images/landpot/icons/troops.png");
 
 function euclideanDistWorld(
   coord: { x: number; y: number },

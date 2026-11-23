@@ -32,7 +32,7 @@ interface ActiveShockwave {
   startMs: number;
   durationMs: number;
   maxRadius: number;
-  style: number; // 0 = classic ring (SAM + no-cosmetic nuke), 1 = EMP, 2 = sparkles, 3 = embers
+  style: number; // 0 = classic ring (SAM + no-cosmetic nuke), 1 = EMP, 2 = sparkles, 3 = embers, 4 = tinted ring
   colors: readonly RGB[]; // 1..MAX_NUKE_EXPLOSION_COLORS palette, never empty
   speed: number; // crackle-animation multiplier (effect pace vs the default)
   transitionSpeed: number; // palette step rate (colors/s); 0 = static, <0 = reverse
@@ -250,6 +250,30 @@ export class FxShockwavePass {
     });
   }
 
+  /** Landpot: a plain ring of one colour (a player wiped out). */
+  pushRing(
+    x: number,
+    y: number,
+    maxRadius: number,
+    durationMs: number,
+    color: readonly [number, number, number],
+    delayMs = 0,
+  ): void {
+    this.active.push({
+      x,
+      y,
+      startMs: this.timeFn() + delayMs,
+      durationMs,
+      maxRadius,
+      style: 4, // tinted ring (shockwave.frag.glsl)
+      colors: [color],
+      speed: 1,
+      transitionSpeed: 0,
+      thickness: 0,
+      cell: 0,
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Tick
   // -------------------------------------------------------------------------
@@ -275,7 +299,8 @@ export class FxShockwavePass {
     const data = this.instanceBuf.float32;
     for (let i = 0; i < count; i++) {
       const sw = this.active[i];
-      const t = (now - sw.startMs) / sw.durationMs;
+      // A delayed ring waits at radius 0, where it draws nothing.
+      const t = Math.max(0, (now - sw.startMs) / sw.durationMs);
       const off = i * SHOCKWAVE_FLOATS;
       data[off + 0] = sw.x;
       data[off + 1] = sw.y;

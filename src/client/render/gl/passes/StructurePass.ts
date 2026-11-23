@@ -1,12 +1,13 @@
 /**
- * StructurePass — GPU-rendered structures with icon sprites.
+ * StructurePass — GPU-rendered structures.
  *
- * Renders a filled circle in player color with a white icon overlay,
- * sampled from a pre-built 6-column sprite atlas (generate-sprite-atlases.mjs).
- *
- * Two LODs based on zoom:
- *   - zoom > 0.5: full icon with circle background
- *   - zoom <= 0.5: smaller dots (no icon detail)
+ * Two looks, cross-faded by zoom:
+ *   - zoomed out: an emblem — a hex badge in the owner's colour with the
+ *     type's glyph (icon-atlas.png) and gold pips for the upgrade tier;
+ *   - zoomed in: a top-down sprite of the structure (structure-sprites.png,
+ *     one row per type, one column per tier) whose grey concrete takes the
+ *     owner's colour, outlined in the owner's border colour.
+ * Below dotsZoomThreshold the emblem shrinks to a dot-sized badge.
  *
  * One instanced draw call per frame.
  *
@@ -19,9 +20,12 @@ import {
   UT_CITY,
   UT_DEFENSE_POST,
   UT_FACTORY,
+  UT_MINE,
   UT_MISSILE_SILO,
+  UT_OIL_WELL,
   UT_PORT,
   UT_SAM_LAUNCHER,
+  UT_SHIPYARD,
 } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
@@ -37,6 +41,7 @@ import structureFragSrc from "../shaders/structure/structure.frag.glsl?raw";
 import structureVertSrc from "../shaders/structure/structure.vert.glsl?raw";
 
 const iconAtlasUrl = assetUrl("atlases/icon-atlas.png");
+const spriteAtlasUrl = assetUrl("atlases/structure-sprites.png");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -53,16 +58,32 @@ const STRUCTURE_ORDER = [
   UT_DEFENSE_POST,
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
+  UT_MINE,
+  UT_OIL_WELL,
+  UT_SHIPYARD,
 ] as const;
 
 const ATLAS_COLS = STRUCTURE_ORDER.length;
+
+/** Sprite tiers per structure type (columns of the sprite atlas). */
+export const SPRITE_TIERS = 4;
+
+/** Upgrade level → sprite tier: 1, 2–3, 4–5, 6+. */
+export function structureTier(level: number): number {
+  if (level >= 6) return 3;
+  if (level >= 4) return 2;
+  if (level >= 2) return 1;
+  return 0;
+}
 
 // ---------------------------------------------------------------------------
 // Instance data layout
 // ---------------------------------------------------------------------------
 
-// Per-instance: x, y, ownerID, underConstruction, atlasIdx, markedForDeletion
-const FLOATS_PER_INSTANCE = 6;
+// Per-instance: x, y, ownerID, underConstruction, atlasIdx, markedForDeletion, tier
+const FLOATS_PER_INSTANCE = 8;
+/** A birth time far enough in the past that the pop never plays. */
+const NEVER_POPPED = -1000;
 const BYTES_PER_INSTANCE = FLOATS_PER_INSTANCE * 4;
 
 // ---------------------------------------------------------------------------
@@ -98,6 +119,12 @@ export class StructurePass {
   private uIconDarken: WebGLUniformLocation;
   private uTime: WebGLUniformLocation;
   private uHoverOwner: WebGLUniformLocation;
+  private uSpriteZoom: WebGLUniformLocation;
+  private uSpriteFade: WebGLUniformLocation;
+  private uSpriteScale: WebGLUniformLocation;
+  private uTierScales: WebGLUniformLocation;
+  private uSpriteTint: WebGLUniformLocation;
+  private uSpriteOutline: WebGLUniformLocation;
   // Anchored at construction so the uniform stays small (float32 precision).
   private readonly startTime = performance.now();
   /** smallID of the hovered territory's owner (0 = none) — gates the effect. */
@@ -110,10 +137,25 @@ export class StructurePass {
   private paletteTex: WebGLTexture;
   private effectTex: WebGLTexture;
   private atlasTex: WebGLTexture;
+  private spriteTex: WebGLTexture;
   private affiliationTex: WebGLTexture | null = null;
   private altView = false;
 
   private instanceCount = 0;
+
+  /** Tier of each structure by tile, for the upgrade ghost. */
+  private tierByTile = new Map<number, number>();
+  /**
+   * Per structure: its tier, whether it was finished, and when it last
+   * "appeared" (built, finished or moved up a tier), in pass seconds. The
+   * vertex shader pops the sprite in for half a second after that.
+   */
+  private popState = new Map<
+    number,
+    { tier: number; built: boolean; born: number }
+  >();
+  private seenFirstUpdate = false;
+  private popSeen = new Set<number>();
 
   /** unitType string → atlas column index (0–5) */
   private typeToAtlasCol = new Map<string, number>();
@@ -153,10 +195,11 @@ export class StructurePass {
     // Compile shaders
     this.program = createProgram(
       gl,
-      shaderSrc(structureVertSrc, { ATLAS_COLS }),
+      shaderSrc(structureVertSrc, { ATLAS_COLS, SPRITE_TIERS }),
       shaderSrc(structureFragSrc, {
         PALETTE_SIZE: getPaletteSize(),
         ATLAS_COLS,
+        SPRITE_TIERS,
         // First row of the structures block in the shared effect palette.
         STRUCT_EFFECT_ROW_BASE: STRUCTURES_EFFECT_BLOCK * MAX_TRAIL_COLORS,
       }),
@@ -200,6 +243,15 @@ export class StructurePass {
     this.uIconDarken = gl.getUniformLocation(this.program, "uIconDarken")!;
     this.uTime = gl.getUniformLocation(this.program, "uTime")!;
     this.uHoverOwner = gl.getUniformLocation(this.program, "uHoverOwner")!;
+    this.uSpriteZoom = gl.getUniformLocation(this.program, "uSpriteZoom")!;
+    this.uSpriteFade = gl.getUniformLocation(this.program, "uSpriteFade")!;
+    this.uSpriteScale = gl.getUniformLocation(this.program, "uSpriteScale")!;
+    this.uTierScales = gl.getUniformLocation(this.program, "uTierScales")!;
+    this.uSpriteTint = gl.getUniformLocation(this.program, "uSpriteTint")!;
+    this.uSpriteOutline = gl.getUniformLocation(
+      this.program,
+      "uSpriteOutline",
+    )!;
 
     // Texture unit bindings + ghost defaults
     gl.useProgram(this.program);
@@ -207,6 +259,7 @@ export class StructurePass {
     gl.uniform1i(gl.getUniformLocation(this.program, "uAtlas"), 1);
     gl.uniform1i(gl.getUniformLocation(this.program, "uAffiliation"), 2);
     gl.uniform1i(gl.getUniformLocation(this.program, "uEffect"), 3);
+    gl.uniform1i(gl.getUniformLocation(this.program, "uSprites"), 4);
     gl.uniform1f(this.uGhostAlpha, 1.0);
     gl.uniform3f(this.uOutlineColor, 0, 0, 0);
     gl.uniform1i(this.uHighlightMask, 0);
@@ -232,8 +285,29 @@ export class StructurePass {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    // Start async atlas build
+    // Sprite atlas placeholder: transparent until it loads (emblems only).
+    this.spriteTex = gl.createTexture()!;
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.spriteTex);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      1,
+      1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      new Uint8Array([0, 0, 0, 0]),
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    // Start async atlas loads
     void this.loadAtlas();
+    void this.loadSprites();
 
     // --- Instance buffers ---
     const instanceGlBuf = gl.createBuffer()!;
@@ -270,9 +344,9 @@ export class StructurePass {
     gl.vertexAttribPointer(1, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 0);
     gl.vertexAttribDivisor(1, 1);
 
-    // Attribute 2: per-instance vec2 (atlasIdx, markedForDeletion)
+    // Attribute 2: per-instance vec3 (atlasIdx, markedForDeletion, tier)
     gl.enableVertexAttribArray(2);
-    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
+    gl.vertexAttribPointer(2, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
     gl.vertexAttribDivisor(2, 1);
 
     gl.bindVertexArray(null);
@@ -295,6 +369,25 @@ export class StructurePass {
     );
   }
 
+  private async loadSprites(): Promise<void> {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = spriteAtlasUrl;
+    await img.decode();
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.spriteTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR_MIPMAP_LINEAR,
+    );
+    // Pixel art: keep the pixels square when magnified.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  }
+
   setLocalPlayer(smallID: number): void {
     this.localPlayerID = smallID;
   }
@@ -304,8 +397,34 @@ export class StructurePass {
     this.hoverOwner = ownerID;
   }
 
+  /**
+   * When this structure last appeared, built or upgraded. Structures already
+   * standing on the first update (joining or loading a game) never pop.
+   */
+  private bornAt(
+    id: number,
+    tier: number,
+    built: boolean,
+    now: number,
+  ): number {
+    this.popSeen.add(id);
+    const prev = this.popState.get(id);
+    if (!prev) {
+      const born = this.seenFirstUpdate ? now : NEVER_POPPED;
+      this.popState.set(id, { tier, built, born });
+      return born;
+    }
+    if (tier > prev.tier || (built && !prev.built)) prev.born = now;
+    prev.tier = tier;
+    prev.built = built;
+    return prev.born;
+  }
+
   updateStructures(units: Map<number, UnitState>): void {
     let count = 0;
+    this.tierByTile.clear();
+    this.popSeen.clear();
+    const now = (performance.now() - this.startTime) / 1000;
 
     for (const unit of units.values()) {
       if (!unit.isActive) continue;
@@ -325,11 +444,24 @@ export class StructurePass {
       this.instanceBuf.float32[off + 4] = atlasIdx;
       this.instanceBuf.float32[off + 5] =
         unit.markedForDeletion !== false ? 1 : 0;
+      const tier = structureTier(unit.level);
+      this.instanceBuf.float32[off + 6] = tier;
+      this.instanceBuf.float32[off + 7] = this.bornAt(
+        unit.id,
+        tier,
+        !unit.underConstruction,
+        now,
+      );
+      this.tierByTile.set(unit.pos, tier);
 
       count++;
     }
 
     this.instanceCount = count;
+    for (const id of this.popState.keys()) {
+      if (!this.popSeen.has(id)) this.popState.delete(id);
+    }
+    this.seenFirstUpdate = true;
 
     if (count > 0) {
       const gl = this.gl;
@@ -411,6 +543,12 @@ export class StructurePass {
     // Seconds; drives the structures-effect gradient scroll / transition cycle.
     gl.uniform1f(this.uTime, (performance.now() - this.startTime) / 1000);
     gl.uniform1f(this.uHoverOwner, this.hoverOwner);
+    gl.uniform1f(this.uSpriteZoom, ss.spriteZoom);
+    gl.uniform1f(this.uSpriteFade, ss.spriteFade);
+    gl.uniform1f(this.uSpriteScale, ss.spriteScale);
+    gl.uniform1fv(this.uTierScales, ss.tierScales);
+    gl.uniform1f(this.uSpriteTint, ss.spriteTint);
+    gl.uniform1f(this.uSpriteOutline, ss.spriteOutline);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.paletteTex);
@@ -425,6 +563,9 @@ export class StructurePass {
 
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D, this.effectTex);
+
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.spriteTex);
 
     gl.bindVertexArray(this.vao);
 
@@ -443,7 +584,7 @@ export class StructurePass {
       // Temporarily rebind instance attrs to ghost buffer
       gl.bindBuffer(gl.ARRAY_BUFFER, this.ghostInstanceBuf);
       gl.vertexAttribPointer(1, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 0);
-      gl.vertexAttribPointer(2, 2, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
+      gl.vertexAttribPointer(2, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
 
       // -- Green highlight on existing structure being upgraded --
       if (g.canUpgrade && g.upgradeTargetTile !== null) {
@@ -455,6 +596,8 @@ export class StructurePass {
         this.ghostBuf[3] = 0;
         this.ghostBuf[4] = atlasIdx;
         this.ghostBuf[5] = 0;
+        this.ghostBuf[6] = this.tierByTile.get(g.upgradeTargetTile) ?? 0;
+        this.ghostBuf[7] = NEVER_POPPED;
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.ghostBuf);
 
         gl.uniform1f(this.uGhostAlpha, 0.6);
@@ -469,6 +612,8 @@ export class StructurePass {
       this.ghostBuf[3] = 0;
       this.ghostBuf[4] = atlasIdx;
       this.ghostBuf[5] = 0;
+      this.ghostBuf[6] = 0;
+      this.ghostBuf[7] = NEVER_POPPED;
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.ghostBuf);
 
       gl.uniform1f(this.uGhostAlpha, 0.5);
@@ -484,7 +629,7 @@ export class StructurePass {
       // Restore instance attrs to main buffer
       gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuf.buffer);
       gl.vertexAttribPointer(1, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 0);
-      gl.vertexAttribPointer(2, 2, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
+      gl.vertexAttribPointer(2, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 16);
     }
   }
 
@@ -495,5 +640,6 @@ export class StructurePass {
     if (this.ghostInstanceBuf) gl.deleteBuffer(this.ghostInstanceBuf);
     gl.deleteVertexArray(this.vao);
     gl.deleteTexture(this.atlasTex);
+    gl.deleteTexture(this.spriteTex);
   }
 }

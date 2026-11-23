@@ -7,7 +7,7 @@ uniform float uTime;      // seconds — animates procedural styles
 in vec2  vLocalPos;
 flat in float vAlpha;   // 1 - lifetime progress (fades out over the effect)
 flat in float vLife;    // lifetime fade with hoisted flicker
-flat in float vStyle;   // 0 = classic ring, 1 = EMP pulse, 2 = sparkles, 3 = embers
+flat in float vStyle;   // 0 = classic ring, 1 = EMP pulse, 2 = sparkles, 3 = embers, 4 = tinted ring (Landpot)
 flat in vec3  vColor0;  // cosmetic: palette color 0
 flat in vec3  vColor1;  // cosmetic: palette color 1
 flat in vec3  vColor2;  // cosmetic: palette color 2 (pads repeat the last color)
@@ -225,9 +225,22 @@ void emberScatter() {
   fragColor = vec4(col, a);
 }
 
+// Landpot: a tinted ring with a soft glow inside (a player wiped out).
+void tintedRing(float dist) {
+  if (dist > 1.08) discard;
+  float ringDist = abs(dist - 1.0);
+  float ring = 1.0 - smoothstep(0.0, uRingWidth * 4.0, ringDist);
+  float glow = 0.3 * smoothstep(0.2, 1.0, dist) * step(dist, 1.0);
+  float a = max(ring, glow) * vAlpha;
+  if (a < 0.01) discard;
+  fragColor = vec4(mix(vColor0, vec3(1.0), ring * 0.35), a);
+}
+
 void main() {
   float dist = length(vLocalPos);
-  if (vStyle > 2.5) {
+  if (vStyle > 3.5) {
+    tintedRing(dist);
+  } else if (vStyle > 2.5) {
     emberScatter();
   } else if (vStyle > 1.5) {
     sparkles();

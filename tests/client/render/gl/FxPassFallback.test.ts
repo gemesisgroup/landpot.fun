@@ -21,6 +21,7 @@ const failures = vi.hoisted(() => ({
   sprite: null as Error | null,
   shockwave: null as Error | null,
   attackRing: null as Error | null,
+  mushroom: null as Error | null,
 }));
 const calls = vi.hoisted(() => [] as string[]);
 
@@ -55,6 +56,13 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "../../../../src/client/render/gl/passes/fx-pass/FxMushroomPass",
+  () => ({
+    FxMushroomPass: recorder("mushroom", () => failures.mushroom),
+  }),
+);
+
 const { FxPass } =
   await import("../../../../src/client/render/gl/passes/fx-pass");
 
@@ -66,6 +74,17 @@ const linkError = (name: string) =>
 function makeFxPass() {
   const settings = {
     fx: { nukeRadiusAtom: 10, nukeRadiusHydro: 20, nukeRadiusMirv: 5 },
+    navalFx: {
+      enabled: true,
+      hitRadius: 2,
+      flashMs: 200,
+      flashColor: [1, 1, 1],
+      splashRadius: 3,
+      splashMs: 600,
+      rippleRadius: 9,
+      rippleMs: 1400,
+      waterColor: [0.6, 0.8, 1],
+    },
   } as unknown as RenderSettings;
   const config = { msPerTick: () => 100 } as unknown as Config;
   const header = { mapWidth: 100 } as unknown as RendererConfig;
@@ -91,7 +110,11 @@ describe("FxPass sub-pass fallback", () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    failures.sprite = failures.shockwave = failures.attackRing = null;
+    failures.sprite =
+      failures.shockwave =
+      failures.attackRing =
+      failures.mushroom =
+        null;
     calls.length = 0;
     consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -112,6 +135,8 @@ describe("FxPass sub-pass fallback", () => {
     expect(calls).toContain("shockwave.draw");
     expect(calls).toContain("attackRing.update");
     expect(calls).toContain("attackRing.draw");
+    expect(calls).toContain("mushroom.push");
+    expect(calls).toContain("mushroom.draw");
     // Still reported, so telemetry keeps naming the program.
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledWith(err);
@@ -129,6 +154,17 @@ describe("FxPass sub-pass fallback", () => {
     expect(calls.some((c) => c.startsWith("shockwave."))).toBe(false);
     expect(calls.some((c) => c.startsWith("attackRing."))).toBe(false);
     expect(consoleError).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back for the mushroom cloud pass", () => {
+    failures.mushroom = linkError("FxMushroomPass");
+
+    const fx = makeFxPass();
+    expect(() => exercise(fx)).not.toThrow();
+
+    expect(calls.some((c) => c.startsWith("mushroom."))).toBe(false);
+    expect(calls).toContain("shockwave.pushNukeShockwave");
+    expect(consoleError).toHaveBeenCalledTimes(1);
   });
 
   it("still throws on a lost context", () => {

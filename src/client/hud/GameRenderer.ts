@@ -25,10 +25,12 @@ import { FrameProfiler } from "./FrameProfiler";
 import { ActionableEvents } from "./layers/ActionableEvents";
 import { AlertFrame } from "./layers/AlertFrame";
 import { AttacksDisplay } from "./layers/AttacksDisplay";
+import { BattleCards } from "./layers/BattleCards";
 import { BuildMenu } from "./layers/BuildMenu";
 import { ChatDisplay } from "./layers/ChatDisplay";
 import { ChatModal } from "./layers/ChatModal";
 import { ControlPanel } from "./layers/ControlPanel";
+import { DepositLayer } from "./layers/DepositLayer";
 import { EmojiTable } from "./layers/EmojiTable";
 import { EventsDisplay } from "./layers/EventsDisplay";
 import { GameLeftSidebar } from "./layers/GameLeftSidebar";
@@ -37,15 +39,19 @@ import { HeadsUpMessage } from "./layers/HeadsUpMessage";
 import { ImmunityTimer } from "./layers/ImmunityTimer";
 import { InGamePromo } from "./layers/InGamePromo";
 import { MainRadialMenu } from "./layers/MainRadialMenu";
+import { Minimap } from "./layers/Minimap";
 import { MultiTabModal } from "./layers/MultiTabModal";
+import { NewEraPanel } from "./layers/NewEraPanel";
 import { NewLobbyPrompt } from "./layers/NewLobbyPrompt";
 import { OnboardingOverlay } from "./layers/OnboardingOverlay";
 import { PerformanceOverlay } from "./layers/PerformanceOverlay";
 import { PlayerInfoOverlay } from "./layers/PlayerInfoOverlay";
 import { PlayerPanel } from "./layers/PlayerPanel";
 import { PotShare } from "./layers/PotShare";
+import { RaidLayer } from "./layers/RaidLayer";
 import { ReplayPanel } from "./layers/ReplayPanel";
 import { SettingsModal } from "./layers/SettingsModal";
+import { Showtime } from "./layers/Showtime";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
@@ -344,6 +350,52 @@ export function createRenderer(
   onboardingOverlay.transformHandler = transformHandler;
   onboardingOverlay.uiState = uiState;
 
+  const battleCards = document.querySelector("battle-cards") as BattleCards;
+  if (!(battleCards instanceof BattleCards)) {
+    console.error("battle cards not found");
+  }
+  battleCards.game = game;
+  battleCards.transformHandler = transformHandler;
+  battleCards.userSettings = userSettings;
+
+  const showtime = document.querySelector("landpot-showtime") as Showtime;
+  if (!(showtime instanceof Showtime)) {
+    console.error("showtime not found");
+  }
+  showtime.game = game;
+  showtime.eventBus = eventBus;
+  showtime.transformHandler = transformHandler;
+
+  const minimap = document.querySelector("landpot-minimap") as Minimap;
+  if (!(minimap instanceof Minimap)) {
+    console.error("minimap not found");
+  }
+  minimap.game = game;
+  minimap.eventBus = eventBus;
+  minimap.transformHandler = transformHandler;
+
+  const newEra = document.querySelector("landpot-newera") as NewEraPanel;
+  if (!(newEra instanceof NewEraPanel)) {
+    console.error("new era panel not found");
+  }
+  newEra.game = game;
+  newEra.eventBus = eventBus;
+
+  const deposits = document.querySelector("landpot-deposits") as DepositLayer;
+  if (!(deposits instanceof DepositLayer)) {
+    console.error("deposit layer not found");
+  }
+  deposits.game = game;
+  deposits.transformHandler = transformHandler;
+
+  const raids = document.querySelector("landpot-raids") as RaidLayer;
+  if (!(raids instanceof RaidLayer)) {
+    console.error("raid layer not found");
+  }
+  raids.game = game;
+  raids.transformHandler = transformHandler;
+  raids.eventBus = eventBus;
+
   const layers: Controller[] = [
     new WarshipSelectionController(game, eventBus, transformHandler, view),
     new BuildPreviewController(
@@ -365,6 +417,12 @@ export function createRenderer(
     eventsDisplay,
     actionableEvents,
     attacksDisplay,
+    battleCards,
+    showtime,
+    minimap,
+    newEra,
+    deposits,
+    raids,
     chatDisplay,
     buildMenu,
     new MainRadialMenu(

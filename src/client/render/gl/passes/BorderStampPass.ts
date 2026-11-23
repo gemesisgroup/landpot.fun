@@ -10,6 +10,11 @@ import type { RenderSettings } from "../RenderSettings";
 import { getPaletteSize } from "../utils/ColorUtils";
 import { createMapQuad, createProgram, shaderSrc } from "../utils/GlUtils";
 import { TILE_DEFINES } from "../utils/TileCodec";
+import {
+  CaptureBinding,
+  type CaptureScatterPass,
+  withCapture,
+} from "./CaptureScatterPass";
 
 import borderStampFragSrc from "../shaders/day-night/border-stamp.frag.glsl?raw";
 import borderStampVertSrc from "../shaders/day-night/border-stamp.vert.glsl?raw";
@@ -40,6 +45,8 @@ export class BorderStampPass {
   private affiliationTex: WebGLTexture | null = null;
   private altView = false;
   private highlightOwner = 0;
+  private captureBinding: CaptureBinding;
+  private captureSource: CaptureScatterPass | null = null;
 
   constructor(
     gl: WebGL2RenderingContext,
@@ -61,7 +68,7 @@ export class BorderStampPass {
     this.program = createProgram(
       gl,
       borderStampVertSrc,
-      shaderSrc(borderStampFragSrc, {
+      shaderSrc(withCapture(borderStampFragSrc), {
         PALETTE_SIZE: getPaletteSize(),
         ...TILE_DEFINES,
       }),
@@ -99,8 +106,14 @@ export class BorderStampPass {
     gl.uniform1i(gl.getUniformLocation(this.program, "uBorderTex"), 2);
     gl.uniform1i(gl.getUniformLocation(this.program, "uAffiliation"), 3);
     gl.uniform1i(gl.getUniformLocation(this.program, "uDefenseCoverageTex"), 4);
+    this.captureBinding = new CaptureBinding(gl, this.program, 5);
 
     this.vao = createMapQuad(gl, mapW, mapH);
+  }
+
+  /** Capture times from TerritoryPass, for the capture animation. */
+  setCaptureSource(source: CaptureScatterPass): void {
+    this.captureSource = source;
   }
 
   setAltView(active: boolean): void {
@@ -159,6 +172,8 @@ export class BorderStampPass {
       gl.activeTexture(gl.TEXTURE4);
       gl.bindTexture(gl.TEXTURE_2D, this.defenseCoverageTex);
     }
+
+    if (this.captureSource) this.captureBinding.bind(this.captureSource);
 
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 6);

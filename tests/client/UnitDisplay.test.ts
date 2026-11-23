@@ -3,6 +3,7 @@ import {
   PlayerBuildableUnitType,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
+import { NEW_ERA_UNITS } from "@openfront/engine-lib/game/NewEra";
 import { EventBus } from "@openfront/shared/EventBus";
 import { describe, expect, test, vi } from "vitest";
 import type { UnitDisplay } from "../../src/client/hud/layers/UnitDisplay";
@@ -41,7 +42,9 @@ function makeDisplay(
     myPlayer: () => player,
     inSpawnPhase: () => false,
     config: () => ({
-      isUnitDisabled: (unitType: UnitType) => disabledUnits.includes(unitType),
+      // Classic: the New Era units are disabled unless a game turns it on.
+      isUnitDisabled: (unitType: UnitType) =>
+        NEW_ERA_UNITS.includes(unitType) || disabledUnits.includes(unitType),
       gameConfig: () => ({ tutorial }),
     }),
   } as any;
@@ -138,7 +141,10 @@ describe("mobile UnitDisplay layout", () => {
       await display.updateComplete;
 
       const grid = display.querySelector<HTMLElement>(".unit-display-grid");
-      expect(grid?.children).toHaveLength(BuildMenus.types.length - 1);
+      // City is turned off here and the New Era units are off in Classic.
+      expect(grid?.children).toHaveLength(
+        BuildMenus.types.filter((t) => !NEW_ERA_UNITS.includes(t)).length - 1,
+      );
     } finally {
       display.remove();
     }

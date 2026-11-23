@@ -79,7 +79,7 @@ import {
   terrainMapFileLoader,
 } from "./TerrainMapFileLoader";
 import { themeProvider } from "./theme/ThemeProvider";
-import { GoToPlayerEvent } from "./TransformHandler";
+import { GoToPlayerEvent, IntroFlightEvent } from "./TransformHandler";
 import {
   counterAttackTroops,
   MoveWarshipIntentEvent,
@@ -1242,7 +1242,8 @@ export class ClientGameRunner {
           this.userSettings.goToPlayer()
         ) {
           hasGoneToPlayer = true;
-          this.eventBus.emit(new GoToPlayerEvent(this.gameView.myPlayer()!, 8));
+          // Landpot: Showtime pulls out over the map, then dives in at zoom 8.
+          this.eventBus.emit(new IntroFlightEvent());
         }
 
         // Track when we receive the turn to calculate delay

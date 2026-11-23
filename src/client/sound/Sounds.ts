@@ -33,7 +33,12 @@ export type SoundEffect =
   | "spawn"
   | "game-start"
   | "victory"
-  | "defeat";
+  | "defeat"
+  // Landpot 8-bit cues.
+  | "lp-landing"
+  | "lp-salvo"
+  | "lp-boom"
+  | "lp-capture";
 
 export const soundEffectUrls: ReadonlyMap<SoundEffect, string> = new Map([
   ["ka-ching", assetUrl("sounds/effects/ka-ching.mp3")],
@@ -69,6 +74,10 @@ export const soundEffectUrls: ReadonlyMap<SoundEffect, string> = new Map([
   ["game-start", assetUrl("sounds/effects/game-start.mp3")],
   ["victory", assetUrl("sounds/effects/victory.mp3")],
   ["defeat", assetUrl("sounds/effects/defeat.mp3")],
+  ["lp-landing", assetUrl("sounds/effects/landing.wav")],
+  ["lp-salvo", assetUrl("sounds/effects/salvo.wav")],
+  ["lp-boom", assetUrl("sounds/effects/boom.wav")],
+  ["lp-capture", assetUrl("sounds/effects/capture.wav")],
 ]);
 
 export type AmbienceTrack = "city" | "factory" | "missile-silo" | "sam-silo";
@@ -129,6 +138,10 @@ const CUE_CATEGORY: Record<SoundEffect, Exclude<CueCategory, "ambience">> = {
   "game-start": "effects",
   victory: "effects",
   defeat: "effects",
+  "lp-landing": "effects",
+  "lp-salvo": "effects",
+  "lp-boom": "effects",
+  "lp-capture": "effects",
 };
 
 /** Channel of a cue. A pure function of the name — call sites never choose. */

@@ -50,6 +50,8 @@ vec3 lpPlate(vec3 c, vec2 tile, float px) {
   return c;
 }
 
+//#include capture
+
 void main() {
   vec2 lpFw = fwidth(vWorldPos);
   float lpPx = max(lpFw.x, lpFw.y);
@@ -61,7 +63,24 @@ void main() {
   uint owner = raw & uint(OWNER_MASK);
   bool fallout = (raw & (1u << FALLOUT_BIT)) != 0u;
 
-  if (owner == 0u && !fallout) discard;
+  uint lpPrev = 0u;
+  float lpP = (uAltView == 0 && !fallout) ? lpCaptureProgress(tc, lpPrev) : -1.0;
+  float lpPlateVis = 1.0 - smoothstep(0.12, 0.28, lpPx);
+  vec2 lpF = abs(fract(vWorldPos) - 0.5);
+  float lpD = max(lpF.x, lpF.y); // 0 at the tile centre, 0.5 at its edge
+
+  if (owner == 0u && !fallout) {
+    // Land just lost to nobody (burned, abandoned): the old plate shrinks
+    // and chars away instead of vanishing.
+    if (lpP < 0.0 || lpPrev == 0u || lpP >= 1.0) discard;
+    float h = 0.5 * (1.0 - lpP * lpP);
+    if (lpPlateVis > 0.5 && lpD > h) discard;
+    vec3 c = mix(lpOwnerColor(lpPrev), vec3(0.16, 0.07, 0.04), lpP);
+    c = lpHeat(c, 2.0 * (1.0 - lpP) * lpP);
+    c = lpPlate(c, vWorldPos, lpPx);
+    fragColor = vec4(c, uTerritoryAlpha * (lpPlateVis > 0.5 ? 1.0 : 1.0 - lpP));
+    return;
+  }
 
   // --- Stale-nuke ground (any fallout tile, owned or not) ---
   // Renders for owned tiles too so the player's territory color can't bleed
@@ -158,6 +177,34 @@ void main() {
 
   color.rgb = lpPlate(color.rgb, vWorldPos, lpPx);
   color.a = uTerritoryAlpha;
+
+  if (lpP >= 0.0 && lpP < 1.0) {
+    float e = 1.0 - (1.0 - lpP) * (1.0 - lpP) * (1.0 - lpP);
+    float heat = (1.0 - lpP) * (1.0 - lpP) * (1.0 - lpP);
+    if (lpPlateVis > 0.0) {
+      // The plate's half-size grows from a speck to the full tile.
+      float h = mix(0.06, 0.5, e);
+      float aa = max(0.02, 0.6 * lpPx);
+      float inside = 1.0 - smoothstep(h - aa, h, lpD);
+      float rim = smoothstep(h - 0.12 - aa, h - 0.12, lpD) * inside;
+      vec3 plate = lpHeat(color.rgb, 0.75 * heat + 0.6 * rim * (1.0 - e));
+      // Under the plate: the old owner's tile, or bare ground.
+      vec3 under = lpPrev != 0u
+        ? lpPlate(lpOwnerColor(lpPrev), vWorldPos, lpPx) * 0.8
+        : color.rgb;
+      float underA = lpPrev != 0u ? uTerritoryAlpha : 0.0;
+      // A soft shadow just outside the plate while it is still settling.
+      float shadow = (1.0 - smoothstep(h, h + 0.12, lpD)) * (1.0 - inside) * (1.0 - e);
+      under *= 1.0 - 0.45 * shadow;
+      underA = max(underA, 0.5 * shadow * uTerritoryAlpha);
+      vec3 zoomedIn = mix(under, plate, inside);
+      float zoomedInA = mix(underA, uTerritoryAlpha, inside);
+      color.rgb = mix(lpHeat(color.rgb, 0.8 * heat), zoomedIn, lpPlateVis);
+      color.a = mix(uTerritoryAlpha, zoomedInA, lpPlateVis);
+    } else {
+      color.rgb = lpHeat(color.rgb, 0.8 * heat);
+    }
+  }
 
   fragColor = color;
 }

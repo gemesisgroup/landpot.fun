@@ -51,8 +51,17 @@ export class NightCompositePass {
   // Ambient
   // -------------------------------------------------------------------------
 
+  /** Landpot: the day cycle's ambient, used when no manual ambient is set. */
+  private cycleAmbient = 1;
+
+  setCycleAmbient(a: number): void {
+    this.cycleAmbient = a;
+  }
+
   getAmbient(): number {
-    return this.settings.lighting.ambient;
+    // A manual ambient (graphics settings) wins over the day cycle.
+    if (this.settings.lighting.enabled) return this.settings.lighting.ambient;
+    return this.cycleAmbient;
   }
 
   // -------------------------------------------------------------------------

@@ -18,9 +18,12 @@ import {
   UT_CITY,
   UT_DEFENSE_POST,
   UT_FACTORY,
+  UT_MINE,
   UT_MISSILE_SILO,
+  UT_OIL_WELL,
   UT_PORT,
   UT_SAM_LAUNCHER,
+  UT_SHIPYARD,
 } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
@@ -51,6 +54,9 @@ const STRUCTURE_ORDER = [
   UT_DEFENSE_POST,
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
+  UT_MINE,
+  UT_OIL_WELL,
+  UT_SHIPYARD,
 ] as const;
 
 /** Max characters per level label (handles up to "99"). */
@@ -125,6 +131,9 @@ export class StructureLevelPass {
   private uOutlineWidth: WebGLUniformLocation;
   private uLevelScale: WebGLUniformLocation;
   private uLevelOffsetY: WebGLUniformLocation;
+  private uSpriteZoom: WebGLUniformLocation;
+  private uSpriteFade: WebGLUniformLocation;
+  private uSpriteScale: WebGLUniformLocation;
   private uHighlightMask: WebGLUniformLocation;
   private uHighlightDimAlpha: WebGLUniformLocation;
   private uClassic: WebGLUniformLocation;
@@ -232,6 +241,9 @@ export class StructureLevelPass {
     this.uOutlineWidth = gl.getUniformLocation(this.program, "uOutlineWidth")!;
     this.uLevelScale = gl.getUniformLocation(this.program, "uLevelScale")!;
     this.uLevelOffsetY = gl.getUniformLocation(this.program, "uLevelOffsetY")!;
+    this.uSpriteZoom = gl.getUniformLocation(this.program, "uSpriteZoom")!;
+    this.uSpriteFade = gl.getUniformLocation(this.program, "uSpriteFade")!;
+    this.uSpriteScale = gl.getUniformLocation(this.program, "uSpriteScale")!;
     this.uHighlightMask = gl.getUniformLocation(
       this.program,
       "uHighlightMask",
@@ -386,6 +398,9 @@ export class StructureLevelPass {
     gl.uniform1f(this.uOutlineWidth, sl.outlineWidth);
     gl.uniform1f(this.uLevelScale, sl.scale);
     gl.uniform1f(this.uLevelOffsetY, sl.offsetY);
+    gl.uniform1f(this.uSpriteZoom, ss.spriteZoom);
+    gl.uniform1f(this.uSpriteFade, ss.spriteFade);
+    gl.uniform1f(this.uSpriteScale, ss.spriteScale);
     gl.uniform1i(this.uHighlightMask, this.highlightMask);
     gl.uniform1f(this.uHighlightDimAlpha, ss.highlightDimAlpha);
     gl.uniform1i(this.uClassic, classic ? 1 : 0);

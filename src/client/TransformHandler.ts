@@ -19,8 +19,12 @@ export class GoToPositionEvent implements GameEvent {
   constructor(
     public x: number,
     public y: number,
+    public zoom?: number,
   ) {}
 }
+
+/** Landpot: the spawn phase is over — fly over the map, then dive onto the player. */
+export class IntroFlightEvent implements GameEvent {}
 
 export class GoToUnitEvent implements GameEvent {
   constructor(public unit: UnitView) {}
@@ -229,6 +233,7 @@ export class TransformHandler {
   onGoToPosition(event: GoToPositionEvent) {
     this.clearTarget();
     this.target = new Cell(event.x, event.y);
+    this.targetScale = event.zoom ?? null;
     this.intervalID = setInterval(() => this.goTo(), GOTO_INTERVAL_MS);
   }
 

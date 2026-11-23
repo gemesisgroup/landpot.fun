@@ -18,6 +18,7 @@ uniform vec2 uMapSize;
 uniform float uTrailAlpha;
 uniform float uTime;              // seconds, for animated effect styles
 uniform int uAltView;
+uniform int uBoatTrails;          // 0 = skip boat trails (ships leave a wake instead)
 
 in vec2 vWorldPos;
 out vec4 fragColor;
@@ -31,6 +32,7 @@ void main() {
   uint owner = trailVal & 0xFFFu;       // bits 0-11 = owner smallID
   if (owner == 0u) discard;
   uint isNuke = (trailVal >> 12) & 1u;  // bit 12 = nuke trail
+  if (isNuke == 0u && uBoatTrails == 0) discard;
 
   vec3 color;
   if (uAltView != 0) {

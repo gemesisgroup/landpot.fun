@@ -45,6 +45,12 @@ const HUD_TAGS = [
   "in-game-promo",
   "tutorial-panel",
   "onboarding-overlay",
+  "battle-cards",
+  "landpot-showtime",
+  "landpot-minimap",
+  "landpot-newera",
+  "landpot-deposits",
+  "landpot-raids",
 ] as const;
 
 describe("createRenderer", () => {

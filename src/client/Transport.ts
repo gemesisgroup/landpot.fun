@@ -10,6 +10,8 @@ import {
 import {
   AllPlayersStats,
   ClientID,
+  FactorySpec,
+  NewEraCommand,
   Intent,
   Winner,
 } from "@openfront/engine-api/Schemas";
@@ -194,6 +196,19 @@ export class SendDeleteUnitIntentEvent implements GameEvent {
   constructor(public readonly unitId: number) {}
 }
 
+/** New Era: choose what a factory's capacity is for. */
+export class SendSetFactorySpecIntentEvent implements GameEvent {
+  constructor(
+    public readonly unitId: number,
+    public readonly spec: FactorySpec,
+  ) {}
+}
+
+/** New Era: a shipping route, a ship order or a ship's task. */
+export class SendNewEraCommandEvent implements GameEvent {
+  constructor(public readonly command: NewEraCommand) {}
+}
+
 export class CancelAttackIntentEvent implements GameEvent {
   constructor(public readonly attackID: string) {}
 }
@@ -365,6 +380,18 @@ export class Transport {
 
     this.subscribe(SendDeleteUnitIntentEvent, (e) =>
       this.onSendDeleteUnitIntent(e),
+    );
+
+    this.subscribe(SendSetFactorySpecIntentEvent, (e) =>
+      this.sendIntent({
+        type: "set_factory_spec",
+        unitId: e.unitId,
+        spec: e.spec,
+      }),
+    );
+
+    this.subscribe(SendNewEraCommandEvent, (e) =>
+      this.sendIntent({ type: "new_era_command", command: e.command }),
     );
 
     this.subscribe(SendKickPlayerIntentEvent, (e) =>

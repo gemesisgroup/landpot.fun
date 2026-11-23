@@ -36,6 +36,21 @@ const STATION_CAPABLE_TYPES = new Set<UnitType>([
   UnitType.Port,
 ]);
 
+// Landpot 8-bit cues: warships fire often, keep the salvo to one per interval.
+const SALVO_SOUND_INTERVAL_TICKS = 4;
+const BOOM_SOUND_INTERVAL_TICKS = 3;
+const CAPTURE_SOUND_INTERVAL_TICKS = 5;
+
+// Structures whose capture plays the capture cue.
+const CAPTURABLE_TYPES = new Set<UnitType>([
+  UnitType.City,
+  UnitType.Factory,
+  UnitType.Port,
+  UnitType.DefensePost,
+  UnitType.SAMLauncher,
+  UnitType.MissileSilo,
+]);
+
 const NUKE_INBOUND_MESSAGES = new Set<MessageType>([
   MessageType.NUKE_INBOUND,
   MessageType.HYDROGEN_BOMB_INBOUND,
@@ -51,6 +66,11 @@ export class SoundEffectController implements Controller {
   // one when first seen (e.g. joining mid-game) stay silent.
   private hadTrainStation = new Map<number, boolean>();
   private lastTrainStationSweepTick = -Infinity;
+  private lastSalvoTick = -Infinity;
+  private lastBoomTick = -Infinity;
+  private lastCaptureTick = -Infinity;
+  /** Owner of each capturable structure, to hear it change hands. */
+  private structureOwner = new Map<number, unknown>();
 
   constructor(
     private readonly game: GameView,
@@ -121,6 +141,7 @@ export class SoundEffectController implements Controller {
     if (STATION_CAPABLE_TYPES.has(unit.type())) {
       this.handleTrainStation(unit);
     }
+    this.landpotCues(unit);
     switch (unit.type()) {
       case UnitType.AtomBomb:
         this.onNukeDetonation(unit, "atom-hit");
@@ -131,6 +152,66 @@ export class SoundEffectController implements Controller {
       case UnitType.HydrogenBomb:
         this.onNukeDetonation(unit, "hydrogen-hit");
         break;
+    }
+  }
+
+  /** Landpot 8-bit cues: landing, salvo, a ship lost, a structure taken. */
+  private landpotCues(unit: UnitView): void {
+    const me = this.game.myPlayer();
+    if (me === null) return;
+    const tick = this.game.ticks();
+    const type = unit.type();
+    const mine = unit.owner() === me;
+
+    if (
+      type === UnitType.Shell &&
+      unit.isActive() &&
+      unit.createdAt() === tick
+    ) {
+      if (mine && tick - this.lastSalvoTick >= SALVO_SOUND_INTERVAL_TICKS) {
+        this.lastSalvoTick = tick;
+        this.emit("lp-salvo");
+      }
+      return;
+    }
+
+    if (
+      !unit.isActive() &&
+      mine &&
+      (type === UnitType.TransportShip || type === UnitType.Warship)
+    ) {
+      // The engine doesn't flag a landing: a ship gone beside the coast
+      // landed, one gone in open water was sunk.
+      const at = unit.lastTile();
+      const landed =
+        type === UnitType.TransportShip &&
+        this.game.neighbors(at).some((n) => this.game.isLand(n));
+      if (landed) {
+        this.emit("lp-landing");
+      } else if (tick - this.lastBoomTick >= BOOM_SOUND_INTERVAL_TICKS) {
+        this.lastBoomTick = tick;
+        this.emit("lp-boom");
+      }
+      return;
+    }
+
+    if (CAPTURABLE_TYPES.has(type)) {
+      if (!unit.isActive()) {
+        this.structureOwner.delete(unit.id());
+        return;
+      }
+      const owner = unit.owner();
+      const prev = this.structureOwner.get(unit.id());
+      this.structureOwner.set(unit.id(), owner);
+      if (
+        prev !== undefined &&
+        prev !== owner &&
+        mine &&
+        tick - this.lastCaptureTick >= CAPTURE_SOUND_INTERVAL_TICKS
+      ) {
+        this.lastCaptureTick = tick;
+        this.emit("lp-capture");
+      }
     }
   }
 
