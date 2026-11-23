@@ -7,6 +7,7 @@ import "./LandpotArsenal";
 import "./LandpotLive";
 import "./NavUtilityIcons";
 import "./LandpotStrip";
+import "./DuelCard";
 import "./PaidMatch";
 import "./SteamWishlist";
 import "./StreamingNow";
@@ -90,6 +91,9 @@ export class PlayPage extends LitElement {
         <landpot-paid-match
           class="block empty:hidden sm:-mx-4 lg:mx-0 -mt-2 mb-4 lg:mt-0"
         ></landpot-paid-match>
+
+        <!-- Landpot: 1v1 Caldera duels, by link or from the queue. -->
+        <landpot-duel class="block sm:-mx-4 lg:mx-0 mb-4"></landpot-duel>
 
         <!-- Top strip: news + identity on the left, Streaming Now on the right. The 2fr/1fr
              split only exists while the panel is live (.streaming-live via has-[]) —

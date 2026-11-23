@@ -24,6 +24,7 @@ import {
 } from "@openfront/engine-api/game/GameUpdates";
 import { MapFiles } from "@openfront/engine-api/game/MapFiles";
 import { ClientID, GameStartInfo, Turn } from "@openfront/engine-api/Schemas";
+import { hasLockedTeams } from "@openfront/engine-lib/game/Caldera";
 import { packUnitUpdates } from "@openfront/engine-lib/game/PackedUnitUpdates";
 import { loadTerrainMap } from "@openfront/engine-lib/game/TerrainMapLoader";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
@@ -199,7 +200,11 @@ export class GameRunner {
     }
     const caldera = this.game.config().gameConfig().caldera;
     // Score the cup after the eruption removes land on the deciding tick.
-    if (caldera?.teamCup && caldera.eruptionSeconds > 0)
+    if (
+      caldera !== undefined &&
+      hasLockedTeams(caldera) &&
+      caldera.eruptionSeconds > 0
+    )
       this.game.addExecution(new EruptionExecution());
     this.game.addExecution(new WinCheckExecution());
     if (this.game.config().doomsdayClockConfig().enabled) {
@@ -210,7 +215,7 @@ export class GameRunner {
     }
     if (
       caldera !== undefined &&
-      !caldera.teamCup &&
+      !hasLockedTeams(caldera) &&
       caldera.eruptionSeconds > 0
     ) {
       this.game.addExecution(new EruptionExecution());

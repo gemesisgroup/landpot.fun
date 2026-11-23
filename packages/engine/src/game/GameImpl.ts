@@ -40,7 +40,10 @@ import {
 } from "@openfront/engine-api/Schemas";
 import { ATTACK_INDEX_SENT } from "@openfront/engine-api/StatsSchemas";
 import { renderNumber } from "@openfront/engine-lib/Format";
-import { cupSpawnArea } from "@openfront/engine-lib/game/Caldera";
+import {
+  calderaSpawnArea,
+  hasLockedTeams,
+} from "@openfront/engine-lib/game/Caldera";
 import { GameMapImpl } from "@openfront/engine-lib/game/GameMapImpl";
 import {
   MotionPlanRecord,
@@ -1229,7 +1232,7 @@ export class GameImpl implements Game {
     if (p.team() !== team || p.clientID() === null || !p.hasSpawned()) {
       return false;
     }
-    if (this._config.gameConfig().caldera?.teamCup) return true;
+    if (hasLockedTeams(this._config.gameConfig().caldera)) return true;
     if (!p.isDisconnected()) return true;
     const snap = p.disconnectSnapshot();
     if (!snap || !snap.wasAlive) return true;
@@ -1273,8 +1276,9 @@ export class GameImpl implements Game {
   }
 
   teamSpawnArea(team: Team): SpawnArea | undefined {
-    if (this._config.gameConfig().caldera?.teamCup) {
-      return cupSpawnArea(this, this.playerTeams.indexOf(team));
+    const caldera = this._config.gameConfig().caldera;
+    if (hasLockedTeams(caldera)) {
+      return calderaSpawnArea(this, caldera, this.playerTeams.indexOf(team));
     }
     if (!this._teamGameSpawnAreas) {
       return undefined;

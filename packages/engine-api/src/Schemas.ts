@@ -233,6 +233,9 @@ export const CalderaConfigSchema = z.object({
   craterWeight: zb.uint({ min: 1, max: 10 }),
   eruptionSeconds: zb.uint({ max: 3600 }),
   eruptionPermille: zb.uint({ max: 750 }),
+  // A 1v1 duel: two teams of one, mirrored start areas, weighted land
+  // decides at the timer, an exact tie has no winner.
+  duel: z.literal(true).optional(),
 });
 export type CalderaConfig = z.infer<typeof CalderaConfigSchema>;
 

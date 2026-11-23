@@ -56,6 +56,7 @@ import { logger } from "./Logger";
 import { registerPlayerProfileRoute } from "./PlayerProfileRoute";
 import { resolveVerifiedJoin } from "./Privilege";
 
+import { DuelHost, registerDuelRoutes } from "./Duel";
 import { loadGatekeeper } from "./Gatekeeper";
 import { MapPlaylist } from "./MapPlaylist";
 import { setNoStoreHeaders } from "./NoStoreHeaders";
@@ -318,6 +319,19 @@ export async function startWorker() {
       : null;
   paidLobbies?.start();
 
+  // Caldera duels: worker 0 hosts the queue, the links and their games
+  // (src/server/Duel.ts). Clients reach it at /w0/api/duel/*.
+  const duels =
+    workerId === 0
+      ? new DuelHost({
+          games: gm,
+          newGameId: () => ServerEnv.generateGameIdForWorker(workerId),
+          baseConfig: () => playlist.gameConfig("ffa"),
+          log: (msg, fields) => log.info(msg, fields),
+        })
+      : null;
+  if (duels) setInterval(() => duels.tick(), 1000).unref();
+
   if (ServerEnv.rankedMatchmakingEnabled()) {
     setTimeout(
       () => {
@@ -503,6 +517,20 @@ export async function startWorker() {
   });
 
   registerListingRoute({ app, gm, lobbyService, log });
+
+  if (duels) {
+    registerDuelRoutes(
+      app,
+      duels,
+      async (req) => {
+        const header = req.headers.authorization;
+        if (!header?.startsWith("Bearer ")) return null;
+        const auth = await verifyClientToken(header.substring(7));
+        return auth.type === "success" ? auth.persistentId : null;
+      },
+      (msg, fields) => log.warn(msg, fields),
+    );
+  }
 
   // The host of a listed lobby pays (plutonium, charged by the API with the
   // host's token) to put it in the public Special queue, right behind the
@@ -720,6 +748,15 @@ export async function startWorker() {
             ws.close(CloseCode.Forbidden, CloseReason.PotNotSeated);
             return;
           }
+        }
+
+        // A duel's game seats its two players only.
+        if (
+          duels?.isDuelGame(clientMsg.gameID) &&
+          !duels.admits(clientMsg.gameID, persistentId)
+        ) {
+          ws.close(CloseCode.Forbidden, CloseReason.PotNotSeated);
+          return;
         }
 
         if (clientMsg.type === "rejoin") {

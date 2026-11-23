@@ -28,6 +28,28 @@ export function cupSpawnArea(
   };
 }
 
+/**
+ * Where team `index` may spawn: the Cup's four boxes, or, in a duel, two of
+ * them mirrored through the map's centre (top-left and bottom-right).
+ */
+export function calderaSpawnArea(
+  map: Pick<GameMap, "width" | "height">,
+  rules: CalderaConfig | undefined,
+  index: number,
+) {
+  if (rules?.duel) {
+    return index === 0 || index === 1
+      ? cupSpawnArea(map, index * 3)
+      : undefined;
+  }
+  return rules?.teamCup ? cupSpawnArea(map, index) : undefined;
+}
+
+/** Locked-team Caldera rules: the Cup's pairs or a duel's two players. */
+export function hasLockedTeams(rules: CalderaConfig | undefined): boolean {
+  return rules?.teamCup === true || rules?.duel === true;
+}
+
 /** Squared distance from the map centre, in doubled tile units. */
 export function centreDistance2(map: GameMap, tile: TileRef): number {
   const dx = 2 * map.x(tile) + 1 - map.width();

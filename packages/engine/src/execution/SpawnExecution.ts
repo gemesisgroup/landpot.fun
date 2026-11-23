@@ -6,6 +6,7 @@ import {
   SpawnArea,
 } from "@openfront/engine-api/game/GameTypes";
 import { GameID } from "@openfront/engine-api/Schemas";
+import { hasLockedTeams } from "@openfront/engine-lib/game/Caldera";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import { zNum, zRandom } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { simpleHash } from "@openfront/engine-lib/Util";
@@ -137,7 +138,7 @@ export class SpawnExecution implements Execution {
 
   private getSpawn(center?: TileRef): Spawn | undefined {
     if (center !== undefined) {
-      if (this.mg.config().gameConfig().caldera?.teamCup) {
+      if (hasLockedTeams(this.mg.config().gameConfig().caldera)) {
         const area = this.getTeamSpawnArea();
         const x = this.mg.x(center),
           y = this.mg.y(center);

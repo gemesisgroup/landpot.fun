@@ -5,7 +5,7 @@ import {
   RankedType,
   Team,
 } from "@openfront/engine-api/game/GameTypes";
-import { landValue } from "@openfront/engine-lib/game/Caldera";
+import { hasLockedTeams, landValue } from "@openfront/engine-lib/game/Caldera";
 import { z } from "zod";
 import { Execution, Game } from "../game/Game";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
@@ -59,7 +59,7 @@ export class WinCheckExecution implements Execution {
     this.checkedRankedSpawns = true;
     const gameConfig = this.mg.config().gameConfig();
     if (
-      !gameConfig.caldera?.teamCup &&
+      !hasLockedTeams(gameConfig.caldera) &&
       !isRankedTeamGame(gameConfig.rankedType)
     ) {
       return false;
@@ -168,7 +168,9 @@ export class WinCheckExecution implements Execution {
     if (this.mg === null) throw new Error("Not initialized");
 
     const config = this.mg.config().gameConfig();
-    if (config.caldera?.teamCup) {
+    // The Cup and the duel: the last team with land wins at once; at the
+    // timer the most weighted land; an exact tie has no winner.
+    if (hasLockedTeams(config.caldera)) {
       const game = this.mg;
       const living = game.players().filter((p) => p.numTilesOwned() > 0);
       const teams = new Set(living.map((p) => p.team()));

@@ -38,3 +38,38 @@ export const PAID_MATCH_DISABLED_UNITS: UnitType[] = [
   UnitType.SAMLauncher,
   UnitType.Warship,
 ];
+
+/**
+ * A 1v1 Caldera duel (docs/CalderaDuel.md): six minutes, two mirrored start
+ * boxes, the same crater weighting. Free for now: the stake waits on the
+ * playtest (does the loser ask for a rematch?) and on an escrow for two.
+ */
+export const DUEL_MINUTES = 6;
+
+/**
+ * Tuning knob: how long the island erupts at the end of a duel. A longer
+ * eruption punishes sitting on the edge harder; the playtest's question is
+ * whether fighting for the crater pays without it.
+ */
+export const DUEL_ERUPTION_SECONDS = 90;
+
+export const DUEL_CALDERA: CalderaConfig = {
+  ...PAID_MATCH_CALDERA,
+  eruptionSeconds: DUEL_ERUPTION_SECONDS,
+  duel: true,
+};
+
+/**
+ * What a paid duel would cost and pay, shown before the free duel starts so
+ * the playtest sees players react to real terms. Whole LANDPOT. The fee is
+ * the pot's burn plus treasury cut (2% + 3%).
+ */
+export const DUEL_PREVIEW_ENTRY = 10_000;
+export const DUEL_PREVIEW_FEE_BPS = 500;
+
+/** The winner's payout and gain on a 1v1 pot of two entries. */
+export function duelPrize(entry: number, feeBps: number) {
+  const pot = 2 * entry;
+  const prize = pot - Math.floor((pot * feeBps) / 10_000);
+  return { prize, profit: prize - entry };
+}
