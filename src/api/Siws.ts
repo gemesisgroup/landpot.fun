@@ -1,24 +1,15 @@
 import { ed25519 } from "@noble/curves/ed25519";
 import { base58 } from "@scure/base";
 import { randomBytes } from "node:crypto";
+import { isAddress as isEvmAddress, verifyMessage, type Address, type Hex } from "viem";
 import { isPublicKey } from "./ApiEnv";
-
-/**
- * Sign-In With Solana: the EIP-4361 message shape Solana wallets show for
- * "sign in", signed with the wallet's ed25519 key through Wallet Standard
- * `solana:signMessage`.
- *
- * The server writes the whole message and keeps it with the nonce, then
- * verifies the signature against exactly that text. Nothing the client sends
- * is parsed back into fields, so domain, URI, cluster and expiry cannot be
- * tampered with: changing any byte breaks the signature or the lookup.
- * Addresses are base58 public keys and case-sensitive: compared exactly.
- */
 
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 export function isAddress(value: unknown): value is string {
-  return typeof value === "string" && isPublicKey(value);
+  if (typeof value !== "string") return false;
+  if (value.startsWith("0x")) return isEvmAddress(value, { strict: false });
+  return isPublicKey(value);
 }
 
 export function newNonce(): string {
@@ -28,22 +19,30 @@ export function newNonce(): string {
 export function buildSiwsMessage(opts: {
   siteOrigin: string;
   address: string;
-  /** "mainnet", "devnet" or "localnet". */
+  /** "bsc", "bsc-testnet", "mainnet", "devnet" or "localnet". */
   chainId: string;
   nonce: string;
   issuedAt: Date;
   expiresAt: Date;
 }): string {
   const url = new URL(opts.siteOrigin);
+  const isEvm = opts.address.startsWith("0x");
+  const chainLabel = isEvm ? "BNB Chain" : "Solana";
+  const chainValue =
+    opts.chainId === "bsc"
+      ? "56"
+      : opts.chainId === "bsc-testnet"
+        ? "97"
+        : opts.chainId;
   return [
-    `${url.host} wants you to sign in with your Solana account:`,
+    `${url.host} wants you to sign in with your ${chainLabel} account:`,
     opts.address,
     "",
     "Sign in to Landpot. This request will not trigger a blockchain transaction or cost any fees.",
     "",
     `URI: ${url.origin}`,
     "Version: 1",
-    `Chain ID: ${opts.chainId}`,
+    `Chain ID: ${chainValue}`,
     `Nonce: ${opts.nonce}`,
     `Issued At: ${opts.issuedAt.toISOString()}`,
     `Expiration Time: ${opts.expiresAt.toISOString()}`,
@@ -57,16 +56,25 @@ export function nonceOf(message: string): string | null {
 }
 
 /**
- * Whether `signature` (base58, 64 bytes) is `address`'s ed25519 signature of
- * exactly these message bytes. Strict RFC 8032 checks, so one message has
- * one valid signature encoding.
+ * Verifies either an EVM EIP-191 `personal_sign` signature (0x... address) or
+ * a Solana ed25519 signature (base58 address).
  */
-export function verifySignature(
+export async function verifySignature(
   message: string,
   signature: string,
   address: string,
-): boolean {
+): Promise<boolean> {
   try {
+    if (address.startsWith("0x")) {
+      if (!isEvmAddress(address, { strict: false }) || !signature.startsWith("0x")) {
+        return false;
+      }
+      return await verifyMessage({
+        address: address as Address,
+        message,
+        signature: signature as Hex,
+      });
+    }
     const sig = base58.decode(signature);
     const key = base58.decode(address);
     if (sig.length !== 64 || key.length !== 32) return false;

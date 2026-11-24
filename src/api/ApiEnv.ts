@@ -28,18 +28,19 @@ export interface ApiConfig {
 }
 
 export interface PotConfig {
-  readonly mode: "program" | "custodial";
+  readonly mode: "program" | "custodial" | "bsc";
   readonly rpcUrl: string;
-  /** "mainnet-beta", "devnet" or "localnet": for explorer links. */
+  /** "bsc", "bsc-testnet", "mainnet-beta", "devnet" or "localnet": for explorer links. */
   readonly cluster: string;
-  /** The escrow program id (program mode) or vault pubkey (custodial mode), base58. */
+  /** The escrow contract/program id (or vault pubkey), base58 or 0x address. */
   readonly programId: string;
-  /** Co-signs every result; the escrow config's oracle (program mode). 64-byte secret key. */
+  /** Co-signs every result; the escrow config's oracle (Solana). */
   readonly oracleKey: Uint8Array;
-  /**
-   * The escrow config's operator (program mode) or vault keypair (custodial mode).
-   */
+  /** Operator key (Solana). */
   readonly operatorKey: Uint8Array;
+  /** EVM private keys (0x..., BSC mode only). */
+  readonly evmOperatorKey?: `0x${string}`;
+  readonly evmOracleKey?: `0x${string}`;
   /** Token mint (custodial mode only). */
   readonly mint?: string;
   /** Treasury wallet pubkey (custodial mode only). */
@@ -55,7 +56,13 @@ export interface PotConfig {
   readonly fundingSeconds: number;
 }
 
-const CLUSTERS = new Set(["mainnet-beta", "devnet", "localnet"]);
+const CLUSTERS = new Set([
+  "bsc",
+  "bsc-testnet",
+  "mainnet-beta",
+  "devnet",
+  "localnet",
+]);
 const POT_REQUIRED = [
   "LANDPOT_POT_RPC_URL",
   "LANDPOT_POT_CLUSTER",
@@ -96,10 +103,33 @@ const CUSTODIAL_REQUIRED = [
   "LANDPOT_POT_STAKE",
 ] as const;
 
+const BSC_REQUIRED = [
+  "LANDPOT_POT_RPC_URL",
+  "LANDPOT_POT_CLUSTER",
+  "LANDPOT_POT_CONTRACT",
+  "LANDPOT_POT_OPERATOR_KEY",
+  "LANDPOT_POT_ORACLE_KEY",
+  "LANDPOT_POT_STAKE",
+] as const;
+
+function evmPrivateKey(name: string, value: string): `0x${string}` {
+  const raw = value.startsWith("0x") ? value : readFileSync(value, "utf8").trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(raw)) {
+    throw new Error(`${name} must be a 32-byte 0x hex private key`);
+  }
+  return raw as `0x${string}`;
+}
+
 /** All of the required LANDPOT_POT_* variables, or none of them. */
 function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
   const v = (k: string) => env[k]?.trim() ?? "";
-  const mode = v("LANDPOT_POT_MODE") === "custodial" ? "custodial" : "program";
+  const rawMode = v("LANDPOT_POT_MODE");
+  const mode =
+    rawMode === "bsc"
+      ? "bsc"
+      : rawMode === "custodial"
+        ? "custodial"
+        : "program";
 
   const int = (k: string, fallback: number) => {
     const raw = v(k);
@@ -117,6 +147,57 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     }
     return n;
   };
+
+  if (mode === "bsc") {
+    const set = BSC_REQUIRED.filter((k) => v(k) !== "").length;
+    if (set === 0) return null;
+    if (set !== BSC_REQUIRED.length) {
+      throw new Error(
+        `Set all of ${BSC_REQUIRED.join(", ")}, or none (bsc mode)`,
+      );
+    }
+    const cluster = v("LANDPOT_POT_CLUSTER");
+    if (cluster !== "bsc" && cluster !== "bsc-testnet") {
+      throw new Error("LANDPOT_POT_CLUSTER must be bsc or bsc-testnet in bsc mode");
+    }
+    const contract = v("LANDPOT_POT_CONTRACT");
+    if (!/^0x[0-9a-fA-F]{40}$/.test(contract)) {
+      throw new Error("LANDPOT_POT_CONTRACT must be a 0x EVM contract address");
+    }
+    const stake = v("LANDPOT_POT_STAKE");
+    if (!/^[1-9]\d*$/.test(stake)) {
+      throw new Error("LANDPOT_POT_STAKE must be a whole number of tokens");
+    }
+    const cupHour = v("LANDPOT_CUP_WEEK_HOUR_UTC");
+    const cupHourUTC = cupHour === "" ? undefined : Number(cupHour);
+    if (
+      cupHourUTC !== undefined &&
+      (!/^\d+$/.test(cupHour) || cupHourUTC > 167)
+    ) {
+      throw new Error("Invalid cup hour (0..167, Sunday UTC first)");
+    }
+    return {
+      mode: "bsc",
+      rpcUrl: v("LANDPOT_POT_RPC_URL"),
+      cluster,
+      programId: contract,
+      oracleKey: new Uint8Array(),
+      operatorKey: new Uint8Array(),
+      evmOperatorKey: evmPrivateKey(
+        "LANDPOT_POT_OPERATOR_KEY",
+        v("LANDPOT_POT_OPERATOR_KEY"),
+      ),
+      evmOracleKey: evmPrivateKey(
+        "LANDPOT_POT_ORACLE_KEY",
+        v("LANDPOT_POT_ORACLE_KEY"),
+      ),
+      cupHourUTC,
+      stakeTokens: BigInt(stake),
+      minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
+      maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
+      fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,
+    };
+  }
 
   if (mode === "custodial") {
     const set = CUSTODIAL_REQUIRED.filter((k) => v(k) !== "").length;

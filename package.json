@@ -95,6 +95,7 @@
     "oxlint": "^1.88.0",
     "oxlint-plugin-eslint": "^1.88.0",
     "oxlint-tsgolint": "^7.0.2004",
+    "solc": "^0.8.38",
     "tailwindcss": "^4.2.4",
     "typescript": "^7.0.2",
     "vite": "^8.0.16",
@@ -147,6 +148,7 @@
     "node-html-parser": "^7.1.0",
     "obscenity": "^0.4.6",
     "tsx": "^4.22.4",
+    "viem": "^2.58.0",
     "winston": "^3.19.0",
     "ws": "^8.21.0",
     "zod": "^4.4.2"

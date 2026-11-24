@@ -1,4 +1,3 @@
-import type { Wallet, WalletAccount } from "@wallet-standard/base";
 import { getApiBase } from "./Api";
 import { getAuthHeader } from "./Auth";
 import {
@@ -7,6 +6,8 @@ import {
   isUserRejection,
   signAndSend,
   WalletError,
+  type Wallet,
+  type WalletAccount,
 } from "./Wallet";
 
 /**
@@ -291,8 +292,9 @@ export class PotTxError extends Error {
   }
 }
 
-/** Wallet Standard chain ids. */
 const CHAINS: Record<string, string> = {
+  bsc: "eip155:56",
+  "bsc-testnet": "eip155:97",
   "mainnet-beta": "solana:mainnet",
   devnet: "solana:devnet",
   localnet: "solana:localnet",
@@ -300,6 +302,9 @@ const CHAINS: Record<string, string> = {
 
 export function explorerTx(cluster: string, signature: string): string | null {
   if (cluster === "localnet") return null;
+  if (cluster === "bsc") return `https://bscscan.com/tx/${signature}`;
+  if (cluster === "bsc-testnet")
+    return `https://testnet.bscscan.com/tx/${signature}`;
   const q = cluster === "mainnet-beta" ? "" : `?cluster=${cluster}`;
   return `https://explorer.solana.com/tx/${signature}${q}`;
 }

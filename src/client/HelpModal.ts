@@ -175,7 +175,7 @@ export class HelpModal extends BaseModal {
       {
         num: "04",
         title: "Claim On-Chain",
-        desc: "Every paid match settles via verifiable replay on Solana. Winners claim $LANDPOT straight from the non-custodial vault.",
+        desc: "Every paid match settles via verifiable replay on BNB Smart Chain. Winners claim $LANDPOT straight from the non-custodial escrow.",
         img: icon("coins"),
       },
     ];
@@ -193,7 +193,7 @@ export class HelpModal extends BaseModal {
               class="lp-mono inline-flex w-fit items-center gap-1.5 rounded bg-[#c6ff3d] px-2.5 py-0.5 text-[11px] font-bold text-[#0b0d10]"
             >
               <span class="lp-burn-pulse"></span>
-              REAL-TIME TERRITORY CONQUEST ON SOLANA
+              REAL-TIME TERRITORY CONQUEST ON BNB CHAIN
             </span>
             <h2 class="lp-display text-xl sm:text-2xl text-white">
               Take land. Outlast everyone.
@@ -439,7 +439,7 @@ export class HelpModal extends BaseModal {
           <span
             class="lp-mono text-[11px] text-[#c6ff3d] bg-[#c6ff3d]/10 border border-[#c6ff3d]/30 rounded px-2 py-0.5"
           >
-            NON-CUSTODIAL SOLANA ANCHOR
+            NON-CUSTODIAL BSC ESCROW
           </span>
         </div>
 
@@ -469,7 +469,7 @@ export class HelpModal extends BaseModal {
           <div
             class="rounded-lg border border-[#c6ff3d]/50 bg-[#c6ff3d]/10 p-3 text-center shadow-[0_0_24px_rgba(198,255,61,0.12)]"
           >
-            <div class="lp-mono text-[10px] text-[#c6ff3d]">SOLANA VAULT</div>
+            <div class="lp-mono text-[10px] text-[#c6ff3d]">BSC ESCROW</div>
             <div class="lp-display text-sm text-white mt-0.5">
               Per-Round Escrow
             </div>

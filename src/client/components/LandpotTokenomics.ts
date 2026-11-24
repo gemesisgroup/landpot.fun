@@ -74,7 +74,7 @@ export class LandpotTokenomics extends LitElement {
 
   render() {
     const mint =
-      this.config?.cluster === "mainnet-beta"
+      this.config?.cluster === "bsc" || this.config?.cluster === "mainnet-beta"
         ? this.config.token.address
         : null;
     const buyHref = pumpFunUrl(mint);
@@ -95,7 +95,7 @@ export class LandpotTokenomics extends LitElement {
                 class="lp-mono inline-flex items-center gap-1.5 rounded-md bg-[#c6ff3d] px-2.5 py-0.5 text-[11px] font-bold tracking-widest text-[#0b0d10]"
               >
                 <span class="lp-burn-pulse" aria-hidden="true"></span>
-                $LANDPOT · SOLANA TOKEN-2022
+                $LANDPOT · BNB CHAIN (BEP-20)
               </span>
               <span
                 class="lp-mono rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-gray-300"
@@ -110,10 +110,10 @@ export class LandpotTokenomics extends LitElement {
               <span class="text-[#c6ff3d]">Every payout is on-chain.</span>
             </h2>
             <p class="lp-mono text-xs sm:text-sm text-gray-300 max-w-2xl">
-              Landpot runs on a Solana Anchor escrow program. The server never
-              holds player funds — deposits lock in a per-round vault, 2% burns
-              straight from the supply on settlement, and winners claim directly
-              from their wallet.
+              Landpot runs on a non-custodial BNB Smart Chain escrow contract.
+              The server never holds player funds — deposits lock on-chain, 2%
+              burns permanently to the dead address on settlement, and winners
+              claim directly from their wallet.
             </p>
           </div>
 
@@ -125,7 +125,7 @@ export class LandpotTokenomics extends LitElement {
               data-testid="buy-pumpfun-section"
               class="lp-pump-btn inline-flex items-center gap-2 rounded-xl px-5 py-3 lp-display text-sm font-bold text-[#0b0d10]"
             >
-              <span>Buy $LANDPOT on Pump.fun</span>
+              <span>Buy $LANDPOT (BNB Chain)</span>
               <span aria-hidden="true">↗</span>
             </a>
             ${
@@ -150,8 +150,8 @@ export class LandpotTokenomics extends LitElement {
             </span>
             <span class="lp-display text-xl text-white">1,000,000,000</span>
             <p class="lp-mono text-[11px] leading-relaxed text-gray-400">
-              Token-2022 launched on Pump.fun. Zero mint authority, zero freeze
-              authority, zero transfer tax.
+              BEP-20 on BNB Smart Chain. Fixed supply, zero transfer tax,
+              verified non-custodial escrow contract.
             </p>
           </div>
 

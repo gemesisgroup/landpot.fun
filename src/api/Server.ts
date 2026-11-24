@@ -3,6 +3,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { loadApiConfig } from "./ApiEnv";
 import { createApp, publicRecordJson } from "./App";
+import { BscEscrow } from "./pot/BscEscrow";
 import { CustodialEscrow } from "./pot/CustodialEscrow";
 import { PotService } from "./pot/PotService";
 import { replayRecord } from "./pot/Replay";
@@ -21,7 +22,15 @@ async function main() {
   const pot = config.pot
     ? new PotService({
         chain:
-          config.pot.mode === "custodial"
+          config.pot.mode === "bsc"
+            ? new BscEscrow({
+                rpcUrl: config.pot.rpcUrl,
+                cluster: config.pot.cluster as "bsc" | "bsc-testnet",
+                contractAddress: config.pot.programId as `0x${string}`,
+                operatorPrivateKey: config.pot.evmOperatorKey!,
+                oraclePrivateKey: config.pot.evmOracleKey!,
+              })
+            : config.pot.mode === "custodial"
             ? new CustodialEscrow({
                 connection: new Connection(config.pot.rpcUrl, "confirmed"),
                 cluster: config.pot.cluster,

@@ -344,7 +344,7 @@ export function createApp(deps: AppDeps): express.Express {
         throw new HttpError(400, "challenge expired or unknown");
       }
       const signer = challenge.address;
-      if (!verifySignature(challenge.message, body.data.signature, signer)) {
+      if (!(await verifySignature(challenge.message, body.data.signature, signer))) {
         throw new HttpError(401, "signature does not match the address");
       }
 

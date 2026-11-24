@@ -79,7 +79,9 @@ export function splitPot(opts: {
 
   const id = fromHex(roundId);
   const tie = players.map((p) => {
-    const key = new PublicKey(p).toBytes();
+    const key = p.startsWith("0x")
+      ? fromHex(p.toLowerCase() as Hex)
+      : new PublicKey(p).toBytes();
     const bytes = new Uint8Array(id.length + key.length);
     bytes.set(id);
     bytes.set(key, id.length);
