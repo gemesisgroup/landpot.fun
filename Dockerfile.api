@@ -21,12 +21,11 @@ COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY package*.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
 COPY src/api ./src/api
-COPY resources/streams.json ./resources/streams.json
+COPY resources ./resources
 # Pot settlement replays matches with the game server's own replayer
 # (src/server/WinnerReplay.ts, a subprocess) and needs the map binaries it
 # reads from resources/maps when there is no built asset manifest.
 COPY src/server ./src/server
-COPY resources/maps ./resources/maps
 
 ENV LANDPOT_API_PORT=8787 \
     LANDPOT_DATA_DIR=/data
