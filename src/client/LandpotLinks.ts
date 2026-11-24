@@ -9,7 +9,7 @@ export const LAUNCHPAD_URL = "https://bscscan.com";
 export const PUMP_FUN_URL = LAUNCHPAD_URL;
 
 export const SOCIAL_LINKS = {
-  twitter: "",
+  twitter: "https://x.com/landpot_bnb",
   discord: "",
   telegram: "",
 } as const;
