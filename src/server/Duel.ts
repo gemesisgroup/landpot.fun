@@ -14,7 +14,7 @@ import {
 import { randomBytes } from "crypto";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import type { PaidGame, PaidGames } from "./PaidLobby";
+import type { PaidGame, PaidGames, PotApi } from "./PaidLobby";
 
 /**
  * Caldera duels (docs/CalderaDuel.md): 1v1, six minutes, free for now.
@@ -43,6 +43,7 @@ export const REMATCH_WINDOW_MS = 3 * 60_000;
 export type DuelPhase =
   | "invite" // a link is out, nobody took it yet
   | "confirm" // two players, waiting for both to confirm
+  | "funding" // paid duel: escrow round open, waiting for both deposits
   | "starting" // game made, waiting for both to be in
   | "playing"
   | "ended"
@@ -52,6 +53,8 @@ export interface DuelSide {
   pid: string;
   name: string;
   ready: boolean;
+  /** Whether this side's escrow deposit is confirmed on chain (paid duels). */
+  paid?: boolean;
   /** Rematch answer after the result: undefined until given. */
   rematch?: boolean;
   rematchAt?: number;
@@ -64,6 +67,12 @@ export interface Duel {
   kind: "friend" | "queue";
   sides: DuelSide[];
   phase: DuelPhase;
+  /** True when backed by a 2-player Solana escrow round. */
+  paid?: boolean;
+  /** Chain timestamp (seconds) when deposits close (paid duels). */
+  fundingEnds?: number;
+  /** Last time the server polled the escrow lobby (ms). */
+  lastPollAt?: number;
   createdAt: number;
   /** Second player found (link taken or queue matched). */
   matchedAt?: number;
@@ -154,6 +163,8 @@ interface QueueEntry {
 export class DuelHost {
   private readonly duels = new Map<string, Duel>();
   private readonly byGame = new Map<string, Duel>();
+  private readonly opening = new Map<string, Promise<void>>();
+  private ticking = false;
   private queue: QueueEntry | null = null;
   /** Players who left the queue unmatched, for the stats. */
   private queueAbandoned = 0;
@@ -161,6 +172,8 @@ export class DuelHost {
   constructor(
     private readonly deps: {
       games: PaidGames;
+      /** When set, confirmed duels open a 2-player escrow round before starting. */
+      pot?: PotApi;
       newGameId: () => string | null;
       baseConfig: () => Promise<GameConfig>;
       log: (msg: string, fields?: Record<string, unknown>) => void;
@@ -313,24 +326,75 @@ export class DuelHost {
   async confirm(id: string, pid: string): Promise<Duel> {
     const duel = this.mustSide(id, pid);
     if (duel.phase !== "confirm") {
-      if (duel.phase === "starting" || duel.phase === "playing") return duel;
+      if (
+        duel.phase === "funding" ||
+        duel.phase === "starting" ||
+        duel.phase === "playing"
+      ) {
+        return duel;
+      }
       throw new DuelError(409, duel.phase);
     }
     duel.sides.find((s) => s.pid === pid)!.ready = true;
-    if (duel.sides.every((s) => s.ready)) await this.makeGame(duel);
+    if (duel.sides.every((s) => s.ready)) {
+      let p = this.opening.get(duel.id);
+      if (!p) {
+        p = (
+          this.deps.pot ? this.openEscrow(duel) : this.makeGame(duel)
+        ).finally(() => this.opening.delete(duel.id));
+        this.opening.set(duel.id, p);
+      }
+      await p;
+    }
     return duel;
   }
 
-  decline(id: string, pid: string): Duel {
+  async decline(id: string, pid: string): Promise<Duel> {
     const duel = this.mustSide(id, pid);
     if (duel.phase === "invite" || duel.phase === "confirm") {
+      this.cancel(duel, "declined");
+      return duel;
+    }
+    if (duel.phase === "funding" && duel.gameId && this.deps.pot) {
+      try {
+        const lobby = await this.deps.pot.lobby(duel.gameId);
+        if (lobby.deposited >= 2) {
+          // Both already paid on chain; let tick() start the match.
+          return duel;
+        }
+        await this.deps.pot.cancel(duel.gameId, lobby.deposited);
+      } catch (e) {
+        this.deps.log("duel escrow cancel failed", {
+          duel: duel.id,
+          gameID: duel.gameId,
+          error: String(e),
+        });
+      }
       this.cancel(duel, "declined");
     }
     return duel;
   }
 
-  private async makeGame(duel: Duel): Promise<void> {
+  private async openEscrow(duel: Duel): Promise<void> {
+    const pot = this.deps.pot!;
     const gameId = this.deps.newGameId();
+    if (gameId === null) throw new DuelError(503, "no_game_id");
+    const openFn = pot.openDuel ? pot.openDuel(gameId) : pot.open(gameId);
+    const opened = await openFn;
+    duel.gameId = gameId;
+    duel.paid = true;
+    duel.fundingEnds = opened.fundingEnds;
+    duel.phase = "funding";
+    this.byGame.set(gameId, duel);
+    this.deps.log("duel escrow opened", {
+      duel: duel.id,
+      gameID: gameId,
+      fundingEnds: opened.fundingEnds,
+    });
+  }
+
+  private async makeGame(duel: Duel, existingGameId?: string): Promise<void> {
+    const gameId = existingGameId ?? this.deps.newGameId();
     if (gameId === null) throw new DuelError(503, "no_game_id");
     const game = this.deps.games.createGame(
       gameId,
@@ -356,29 +420,62 @@ export class DuelHost {
   }
 
   /** Every second or so: start, drop or close games, expire stale states. */
-  tick(): void {
-    const now = this.now();
-    if (this.queue && now - this.queue.seen > QUEUE_STALE_MS) {
-      this.queue = null;
-      this.queueAbandoned++;
-    }
-    for (const duel of this.duels.values()) {
-      if (duel.phase === "invite" && now - duel.createdAt > INVITE_TTL_MS) {
-        this.cancel(duel, "expired");
-      } else if (
-        duel.phase === "confirm" &&
-        now - (duel.matchedAt ?? duel.createdAt) > CONFIRM_WINDOW_MS
-      ) {
-        this.cancel(duel, "not_confirmed");
-      } else if (duel.phase === "starting") {
-        this.driveStart(duel, now);
-      } else if (duel.phase === "playing") {
-        const game = this.deps.games.game(duel.gameId!);
-        if (!game || game.hasEnded()) {
-          duel.phase = "ended";
-          duel.endedAt = now;
+  async tick(): Promise<void> {
+    if (this.ticking) return;
+    this.ticking = true;
+    try {
+      const now = this.now();
+      if (this.queue && now - this.queue.seen > QUEUE_STALE_MS) {
+        this.queue = null;
+        this.queueAbandoned++;
+      }
+      for (const duel of this.duels.values()) {
+        if (duel.phase === "invite" && now - duel.createdAt > INVITE_TTL_MS) {
+          this.cancel(duel, "expired");
+        } else if (
+          duel.phase === "confirm" &&
+          now - (duel.matchedAt ?? duel.createdAt) > CONFIRM_WINDOW_MS
+        ) {
+          this.cancel(duel, "not_confirmed");
+        } else if (duel.phase === "funding") {
+          await this.driveFunding(duel, now);
+        } else if (duel.phase === "starting") {
+          this.driveStart(duel, now);
+        } else if (duel.phase === "playing") {
+          const game = this.deps.games.game(duel.gameId!);
+          if (!game || game.hasEnded()) {
+            duel.phase = "ended";
+            duel.endedAt = now;
+          }
         }
       }
+    } finally {
+      this.ticking = false;
+    }
+  }
+
+  private async driveFunding(duel: Duel, now: number): Promise<void> {
+    const pot = this.deps.pot;
+    if (!pot || !duel.gameId) return;
+    if (duel.lastPollAt !== undefined && now - duel.lastPollAt < 2_000) return;
+    duel.lastPollAt = now;
+    try {
+      const lobby = await pot.lobby(duel.gameId);
+      const paid = new Set(lobby.depositors);
+      for (const s of duel.sides) s.paid = paid.has(s.pid);
+      if (duel.sides.every((s) => s.paid)) {
+        await pot.start(duel.gameId);
+        await this.makeGame(duel, duel.gameId);
+      } else if (now / 1000 >= lobby.fundingEnds - 5) {
+        await pot.cancel(duel.gameId, lobby.deposited);
+        this.cancel(duel, "not_funded");
+      }
+    } catch (e) {
+      this.deps.log("duel funding poll failed", {
+        duel: duel.id,
+        gameID: duel.gameId,
+        error: String(e),
+      });
     }
   }
 
@@ -552,12 +649,19 @@ export function duelView(duel: Duel, pid: string) {
     id: duel.id,
     kind: duel.kind,
     phase: duel.phase,
+    paid: Boolean(duel.paid),
+    fundingEnds: duel.fundingEnds,
     reason: duel.reason,
     side: me,
-    opponent: them ? { name: them.name, ready: them.ready } : null,
+    opponent: them
+      ? { name: them.name, ready: them.ready, funded: Boolean(them.paid) }
+      : null,
     ready: duel.sides[me]?.ready ?? false,
+    funded: Boolean(duel.sides[me]?.paid),
     gameId:
-      duel.phase === "starting" || duel.phase === "playing"
+      duel.phase === "funding" ||
+      duel.phase === "starting" ||
+      duel.phase === "playing"
         ? duel.gameId
         : undefined,
     rematch: {
@@ -664,7 +768,9 @@ export function registerDuelRoutes(
   );
   app.post(
     "/api/duel/:id/decline",
-    handle((req, pid) => view(host.decline(String(req.params.id), pid), pid)),
+    handle(async (req, pid) =>
+      view(await host.decline(String(req.params.id), pid), pid),
+    ),
   );
   app.post(
     "/api/duel/:id/report",

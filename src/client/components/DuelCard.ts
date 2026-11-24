@@ -1,3 +1,4 @@
+import type { UserMeResponse } from "@openfront/shared/ApiSchemas";
 import {
   DUEL_MINUTES,
   DUEL_PREVIEW_ENTRY,
@@ -17,7 +18,17 @@ import {
   type DuelView,
 } from "../Duel";
 import { whenModalLoaded } from "../LazyModals";
+import {
+  formatUnits,
+  netEntryPot,
+  payEntry,
+  potConfig,
+  PotTxError,
+  type PotConfig,
+} from "../Pot";
+import { lastUserMeResponse } from "../UserMeBroadcast";
 import { translateText } from "../Utils";
+import { CONNECT_WALLET_EVENT } from "../Wallet";
 
 /**
  * Caldera duel on the home page (docs/CalderaDuel.md): challenge a friend
@@ -40,6 +51,7 @@ const LINK_KEYS: Record<string, string> = {
 const CANCEL_KEYS: Record<string, string> = {
   declined: "duel.cancelled.declined",
   not_confirmed: "duel.cancelled.not_confirmed",
+  not_funded: "duel.cancelled.not_funded",
   no_show: "duel.cancelled.no_show",
   expired: "duel.cancelled.expired",
   replaced: "duel.cancelled.replaced",
@@ -63,7 +75,10 @@ export class DuelCard extends LitElement {
   @state() private link: DuelInvite | null = null;
   @state() private notice = "";
   @state() private busy = false;
+  @state() private paying = false;
   @state() private copied = false;
+  @state() private pot: PotConfig | null = null;
+  @state() private address: string | null = null;
   /** The last cancelled duel, shown once. */
   @state() private cancelled: string | null = null;
   private timer: number | null = null;
@@ -76,6 +91,12 @@ export class DuelCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.linkId = duelFromUrl();
+    document.addEventListener("userMeResponse", this.onUserMe);
+    const last = lastUserMeResponse();
+    if (last) this.readUser(last.response);
+    void potConfig().then((c) => {
+      this.pot = c;
+    });
     void this.refresh();
     this.timer = window.setInterval(() => {
       if (!document.hidden) void this.refresh();
@@ -84,7 +105,16 @@ export class DuelCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    document.removeEventListener("userMeResponse", this.onUserMe);
     if (this.timer !== null) clearInterval(this.timer);
+  }
+
+  private onUserMe = (e: Event) => {
+    this.readUser((e as CustomEvent<UserMeResponse | false>).detail);
+  };
+
+  private readUser(me: UserMeResponse | false) {
+    this.address = me === false ? null : (me.user.wallet?.address ?? null);
   }
 
   private async refresh() {
@@ -191,6 +221,27 @@ export class DuelCard extends LitElement {
   private confirm = () =>
     this.run(async () => this.track(await duelApi.confirm(this.duel!.id)));
 
+  private payDuel = () =>
+    this.run(async () => {
+      const d = this.duel;
+      const pot = this.pot;
+      if (!d?.gameId || !pot) return;
+      if (this.address === null) {
+        window.dispatchEvent(new Event(CONNECT_WALLET_EVENT));
+        return;
+      }
+      this.paying = true;
+      try {
+        await payEntry(this.address, pot, { gameId: d.gameId }, () => {});
+        await this.refresh();
+      } catch (e) {
+        if (e instanceof PotTxError && e.kind === "rejected") return;
+        throw e;
+      } finally {
+        this.paying = false;
+      }
+    });
+
   private decline = () =>
     this.run(async () => {
       await duelApi.decline(this.duel!.id);
@@ -204,11 +255,28 @@ export class DuelCard extends LitElement {
 
   /** Entry, prize and refund rules, the same before every duel. */
   private terms() {
-    const { prize, profit } = duelPrize(
-      DUEL_PREVIEW_ENTRY,
-      DUEL_PREVIEW_FEE_BPS,
-    );
+    const pot = this.pot;
     const n = (v: number) => v.toLocaleString("en-US");
+    let entryText: string;
+    let prizeText: string;
+    let profitText: string;
+    if (pot) {
+      const stake = BigInt(pot.stake);
+      const prize = netEntryPot(pot.stake, 2, pot);
+      const profit = prize > stake ? prize - stake : 0n;
+      const sym = pot.token.symbol;
+      entryText = `${formatUnits(stake, pot.token.decimals)} ${sym}`;
+      prizeText = `${formatUnits(prize, pot.token.decimals)} ${sym}`;
+      profitText = formatUnits(profit, pot.token.decimals);
+    } else {
+      const { prize, profit } = duelPrize(
+        DUEL_PREVIEW_ENTRY,
+        DUEL_PREVIEW_FEE_BPS,
+      );
+      entryText = `${n(DUEL_PREVIEW_ENTRY)} LANDPOT`;
+      prizeText = `${n(prize)} LANDPOT`;
+      profitText = n(profit);
+    }
     const fact = (label: string, value: string, note = "") =>
       html`<div class="flex flex-col">
         <span class="lp-mono text-[11px] text-gray-400">${label}</span>
@@ -223,20 +291,24 @@ export class DuelCard extends LitElement {
       </div>`;
     return html`<div class="flex flex-col gap-2" data-testid="duel-terms">
       <div class="grid grid-cols-3 gap-3">
-        ${fact(translateText("duel.entry"), `${n(DUEL_PREVIEW_ENTRY)} LANDPOT`)}
+        ${fact(translateText("duel.entry"), entryText)}
         ${fact(
           translateText("duel.prize"),
-          `${n(prize)} LANDPOT`,
-          translateText("duel.profit", { amount: n(profit) }),
+          prizeText,
+          translateText("duel.profit", { amount: profitText }),
         )}
         ${fact(translateText("duel.length"), translateText("duel.minutes", { minutes: DUEL_MINUTES }))}
       </div>
       <p class="lp-mono text-[11px] leading-snug text-gray-400">
         ${translateText("duel.refund")}
       </p>
-      <p class="lp-mono text-[11px] leading-snug text-[#ffd37a]">
-        ${translateText("duel.free_note")}
-      </p>
+      ${
+        pot
+          ? nothing
+          : html`<p class="lp-mono text-[11px] leading-snug text-[#ffd37a]">
+              ${translateText("duel.free_note")}
+            </p>`
+      }
     </div>`;
   }
 
@@ -339,6 +411,44 @@ export class DuelCard extends LitElement {
         <div class="flex flex-wrap gap-2">
           ${d.ready ? nothing : this.button(translateText("duel.confirm"), this.confirm, true, "duel-confirm-btn")}
           ${this.button(translateText("duel.decline"), this.decline)}
+        </div>
+      </div>`;
+    }
+    if (d?.phase === "funding" && d.opponent) {
+      const pot = this.pot;
+      const entryText = pot
+        ? `${formatUnits(pot.stake, pot.token.decimals)} ${pot.token.symbol}`
+        : `${DUEL_PREVIEW_ENTRY.toLocaleString("en-US")} LANDPOT`;
+      return html`<div class="flex flex-col gap-3" data-testid="duel-funding">
+        <p class="lp-display text-sm text-white">
+          ${translateText(d.rematchOf ? "duel.rematch_vs" : "duel.vs", { name: d.opponent.name })}
+        </p>
+        ${this.terms()}
+        <p class="lp-mono text-xs" data-testid="duel-paid-status">
+          <span class=${d.funded ? "text-[#c6ff3d]" : "text-[#ffd37a]"}
+            >${translateText(d.funded ? "duel.you_paid" : "duel.you_unpaid")}</span
+          >
+          ·
+          <span class=${d.opponent.funded ? "text-[#c6ff3d]" : "text-[#ffd37a]"}
+            >${translateText(
+              d.opponent.funded ? "duel.they_paid" : "duel.they_unpaid",
+            )}</span
+          >
+        </p>
+        <div class="flex flex-wrap gap-2">
+          ${
+            d.funded
+              ? nothing
+              : this.button(
+                  this.paying
+                    ? translateText("duel.paying")
+                    : translateText("duel.pay", { entry: entryText }),
+                  this.payDuel,
+                  true,
+                  "duel-pay",
+                )
+          }
+          ${this.button(translateText("duel.cancel"), this.decline)}
         </div>
       </div>`;
     }

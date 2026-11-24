@@ -9,6 +9,7 @@ import { ClientEnv } from "./ClientEnv";
 export type DuelPhase =
   | "invite"
   | "confirm"
+  | "funding"
   | "starting"
   | "playing"
   | "ended"
@@ -18,10 +19,13 @@ export interface DuelView {
   id: string;
   kind: "friend" | "queue";
   phase: DuelPhase;
+  paid?: boolean;
+  fundingEnds?: number;
   reason?: string;
   side: number;
-  opponent: { name: string; ready: boolean } | null;
+  opponent: { name: string; ready: boolean; funded?: boolean } | null;
   ready: boolean;
+  funded?: boolean;
   gameId?: string;
   rematch: { mine?: boolean; theirs?: boolean; next?: string };
   rematchOf?: string;

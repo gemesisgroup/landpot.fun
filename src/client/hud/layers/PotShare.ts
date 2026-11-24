@@ -362,7 +362,14 @@ export class PotShare extends LitElement implements Controller {
   private duelPanel() {
     const [mine, theirs] = this.duelScore;
     const n = (v: number) => v.toLocaleString("en-US");
-    const { prize } = duelPrize(DUEL_PREVIEW_ENTRY, DUEL_PREVIEW_FEE_BPS);
+    const c = this.config;
+    const paid = c !== null;
+    const entryText = paid
+      ? `${formatUnits(c.stake, c.token.decimals)} ${c.token.symbol}`
+      : n(DUEL_PREVIEW_ENTRY);
+    const prizeText = paid
+      ? `${formatUnits(netEntryPot(c.stake, 2, c), c.token.decimals)} ${c.token.symbol}`
+      : n(duelPrize(DUEL_PREVIEW_ENTRY, DUEL_PREVIEW_FEE_BPS).prize);
     if (this.duelResult) {
       const r = this.duelRematch;
       const next = r && (r.id !== this.duelId || r.rematch.next);
@@ -378,21 +385,37 @@ export class PotShare extends LitElement implements Controller {
         <div class="text-xs text-[var(--px-muted)]">
           ${
             this.duelResult === "tie"
-              ? translateText("duel.result.tie_payout", {
-                  entry: n(DUEL_PREVIEW_ENTRY),
-                })
+              ? translateText(
+                  paid ? "duel.result.tie_paid" : "duel.result.tie_payout",
+                  { entry: entryText },
+                )
               : translateText(
                   this.duelResult === "win"
-                    ? "duel.result.win_payout"
-                    : "duel.result.loss_payout",
-                  { prize: n(prize), entry: n(DUEL_PREVIEW_ENTRY) },
+                    ? paid
+                      ? "duel.result.win_paid"
+                      : "duel.result.win_payout"
+                    : paid
+                      ? "duel.result.loss_paid"
+                      : "duel.result.loss_payout",
+                  { prize: prizeText, entry: entryText },
                 )
           }
         </div>
         ${
           next
-            ? html`<div class="text-xs text-[var(--px-lime)]">
-                ${translateText("duel.rematch_ready")}
+            ? html`<div class="flex flex-col gap-2">
+                <div class="text-xs text-[var(--px-lime)]">
+                  ${translateText("duel.rematch_ready")}
+                </div>
+                <button
+                  class="px-btn px-3 py-1 text-sm"
+                  data-testid="duel-rematch-go"
+                  @click=${() => {
+                    window.location.href = "/";
+                  }}
+                >
+                  ${translateText("duel.rematch_go")}
+                </button>
               </div>`
             : r?.rematch.theirs === false
               ? html`<div class="text-xs text-[var(--px-muted)]">
@@ -413,7 +436,7 @@ export class PotShare extends LitElement implements Controller {
                       @click=${() => this.askRematch(true)}
                     >
                       ${translateText("duel.rematch", {
-                        entry: n(DUEL_PREVIEW_ENTRY),
+                        entry: entryText,
                       })}
                     </button>
                     <button

@@ -325,12 +325,13 @@ export async function startWorker() {
     workerId === 0
       ? new DuelHost({
           games: gm,
+          pot: ServerEnv.paidLobbiesEnabled() ? httpPotApi : undefined,
           newGameId: () => ServerEnv.generateGameIdForWorker(workerId),
           baseConfig: () => playlist.gameConfig("ffa"),
           log: (msg, fields) => log.info(msg, fields),
         })
       : null;
-  if (duels) setInterval(() => duels.tick(), 1000).unref();
+  if (duels) setInterval(() => void duels.tick(), 1000).unref();
 
   if (ServerEnv.rankedMatchmakingEnabled()) {
     setTimeout(

@@ -270,6 +270,12 @@ export class TransportShipExecution implements Execution {
           }
           return;
         }
+        if (this.mg.isImpassable(this.dst)) {
+          // Caldera eruption turned the landing tile into impassable rock in transit.
+          this.boat.delete(false);
+          this.active = false;
+          return;
+        }
         this.attacker.conquer(this.dst);
         if (this.target.isPlayer() && this.attacker.isFriendly(this.target)) {
           this.attacker.addTroops(this.boat.troops());

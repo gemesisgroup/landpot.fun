@@ -1265,6 +1265,7 @@
       "expired": "The challenge link expired.",
       "no_show": "Your opponent didn't come in time. The duel is off.",
       "not_confirmed": "Not both of you confirmed in time. The duel is off.",
+      "not_funded": "Not both deposits landed in time. Any paid entry is refundable in full.",
       "replaced": "You started another duel instead."
     },
     "challenge": "Challenge a friend",
@@ -1292,11 +1293,14 @@
       "title": "Duel challenge"
     },
     "minutes": "{minutes} min",
+    "pay": "Pay {entry} and lock in",
+    "paying": "Paying entry…",
     "prize": "Winner gets",
     "profit": "+{amount} on your entry",
     "refund": "Win by taking all your opponent's land, or hold more land when time runs out (crater ×3). Tie: both entries come back. Opponent doesn't come or the duel is cancelled before the start: full refund.",
     "rematch": "Rematch for {entry}",
     "rematch_declined": "Your opponent passed on a rematch.",
+    "rematch_go": "Go to rematch",
     "rematch_no_sent": "Thanks, noted.",
     "rematch_ready": "Rematch agreed. Go back to the menu to confirm it.",
     "rematch_skip": "Not now",
@@ -1304,10 +1308,13 @@
     "rematch_waiting": "Waiting for your opponent's answer…",
     "result": {
       "loss": "You lost",
+      "loss_paid": "Your opponent wins {prize}; your {entry} entry is gone.",
       "loss_payout": "In a paid duel the winner would get {prize}; your {entry} entry would be gone.",
       "tie": "Tie",
+      "tie_paid": "Both {entry} entries are refundable in full.",
       "tie_payout": "In a paid duel both {entry} entries would come back.",
       "win": "You won",
+      "win_paid": "You won {prize} for your {entry} entry. Claim it in the menu after review.",
       "win_payout": "In a paid duel you would get {prize} for your {entry} entry."
     },
     "rules": "One opponent, {minutes} minutes, mirrored starts. Most weighted land wins.",
@@ -1317,11 +1324,15 @@
     "starting": "Duel with {name} is ready.",
     "them": "them",
     "they_not_ready": "opponent hasn't confirmed",
+    "they_paid": "opponent paid",
     "they_ready": "opponent confirmed",
+    "they_unpaid": "opponent hasn't paid",
     "vs": "Opponent: {name}",
     "you": "you",
     "you_not_ready": "you haven't confirmed",
-    "you_ready": "you confirmed"
+    "you_paid": "you paid",
+    "you_ready": "you confirmed",
+    "you_unpaid": "you haven't paid"
   },
   "effects": {
     "nukeType": {

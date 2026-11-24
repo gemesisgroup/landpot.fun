@@ -398,7 +398,7 @@ async function send(
 export function payEntry(
   address: string,
   config: PotConfig,
-  lobby: PaidLobby,
+  lobby: Pick<PaidLobby, "gameId">,
   onStep: (step: PotStep) => void,
 ): Promise<string> {
   return send("deposit", address, config, lobby.gameId, onStep);

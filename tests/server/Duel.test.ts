@@ -9,7 +9,7 @@ import {
   duelGameConfig,
   duelView,
 } from "../../src/server/Duel";
-import type { PaidGame } from "../../src/server/PaidLobby";
+import type { PaidGame, PotApi } from "../../src/server/PaidLobby";
 
 class FakeGame implements PaidGame {
   held = false;
@@ -42,9 +42,10 @@ class FakeGame implements PaidGame {
   }
 }
 
-function host() {
+function host(pot?: PotApi) {
   let now = 1_000_000;
   let n = 0;
+  let gNum = 0;
   const games = new Map<string, FakeGame>();
   const h = new DuelHost({
     games: {
@@ -55,7 +56,8 @@ function host() {
         return g;
       },
     },
-    newGameId: () => "game" + games.size,
+    pot,
+    newGameId: () => "game" + gNum++,
     baseConfig: async () => ({}) as GameConfig,
     log: () => {},
     now: () => now,
@@ -105,6 +107,7 @@ describe("Caldera duel host", () => {
     expect(duelView(duel, "bob").opponent).toEqual({
       name: "Alice",
       ready: false,
+      funded: false,
     });
     await h.confirm(duel.id, "alice");
     expect(games.size).toBe(0);
@@ -145,12 +148,12 @@ describe("Caldera duel host", () => {
     expect(h.stats().queueAbandoned).toBe(1);
   });
 
-  it("cancels a pair that doesn't confirm in time", () => {
+  it("cancels a pair that doesn't confirm in time", async () => {
     const { h, advance } = host();
     h.joinQueue("alice", "Alice");
     const duel = h.joinQueue("bob", "Bob")!;
     advance(CONFIRM_WINDOW_MS + 1);
-    h.tick();
+    await h.tick();
     expect(duel.phase).toBe("cancelled");
     expect(duel.reason).toBe("not_confirmed");
   });
@@ -163,10 +166,10 @@ describe("Caldera duel host", () => {
     await h.confirm(duel.id, "bob");
     const game = games.get(duel.gameId!)!;
     game.connected.add("alice");
-    h.tick();
+    await h.tick();
     expect(game.started).toBe(false);
     game.connected.add("bob");
-    h.tick();
+    await h.tick();
     expect(game.started).toBe(true);
     expect(game.pairs).toEqual([["alice"], ["bob"]]);
     expect(duel.phase).toBe("playing");
@@ -181,7 +184,7 @@ describe("Caldera duel host", () => {
     const game = games.get(duel.gameId!)!;
     game.connected.add("alice");
     advance(START_WINDOW_MS + 1);
-    h.tick();
+    await h.tick();
     expect(game.ended).toBe(true);
     expect(duel.phase).toBe("cancelled");
     expect(duel.reason).toBe("no_show");
@@ -197,7 +200,7 @@ describe("Caldera duel host", () => {
     const game = games.get(duel.gameId!)!;
     game.connected = new Set(["alice", "bob"]);
     advance(20_000);
-    h.tick();
+    await h.tick();
     h.report(duel.id, "bob", report);
     expect(duel.phase).toBe("ended");
     // The loser (alice) asks first.
@@ -231,12 +234,86 @@ describe("Caldera duel host", () => {
     await h.confirm(duel.id, "alice");
     await h.confirm(duel.id, "bob");
     games.get(duel.gameId!)!.connected = new Set(["alice", "bob"]);
-    h.tick();
+    await h.tick();
     h.report(duel.id, "alice", report);
     h.rematch(duel.id, "alice", true);
     const after = h.rematch(duel.id, "bob", false);
     expect(after.id).toBe(duel.id);
     expect(after.rematchId).toBeUndefined();
     expect(() => h.rematch(duel.id, "carol", true)).toThrow("not_found");
+  });
+
+  it("opens an escrow round for paid duels, starts once both pay, and requires a new deposit on rematch", async () => {
+    const deposited = new Map<string, string[]>();
+    const started: string[] = [];
+    const cancelled: { id: string; count: number }[] = [];
+    const pot: PotApi = {
+      open: async () => ({ fundingEnds: 2000, minPlayers: 8, maxPlayers: 16 }),
+      openDuel: async (id) => {
+        deposited.set(id, []);
+        return { duel: true, fundingEnds: 2000, minPlayers: 2, maxPlayers: 2 };
+      },
+      lobby: async (id) => ({
+        gameId: id,
+        phase: 1,
+        minPlayers: 2,
+        maxPlayers: 2,
+        fundingEnds: 2000,
+        deposited: deposited.get(id)?.length ?? 0,
+        depositors: deposited.get(id) ?? [],
+      }),
+      seat: async () => true,
+      start: async (id) => {
+        started.push(id);
+        return deposited.get(id) ?? [];
+      },
+      cancel: async (id, count) => {
+        cancelled.push({ id, count });
+      },
+    };
+    const { h, games, advance } = host(pot);
+    h.joinQueue("alice", "Alice");
+    const duel = h.joinQueue("bob", "Bob")!;
+    await h.confirm(duel.id, "alice");
+    await h.confirm(duel.id, "bob");
+    expect(duel.phase).toBe("funding");
+    expect(duel.paid).toBe(true);
+    expect(games.size).toBe(0);
+
+    // Only Alice pays: duel stays in funding.
+    deposited.get(duel.gameId!)!.push("alice");
+    await h.tick();
+    expect(duel.phase).toBe("funding");
+    expect(duelView(duel, "alice")).toMatchObject({
+      funded: true,
+      opponent: { name: "Bob", ready: true, funded: false },
+    });
+
+    // Bob pays too: escrow starts and the game is created.
+    deposited.get(duel.gameId!)!.push("bob");
+    advance(3_000);
+    await h.tick();
+    expect(started).toEqual([duel.gameId]);
+    expect(duel.phase).toBe("starting");
+    const game = games.get(duel.gameId!)!;
+    game.connected = new Set(["alice", "bob"]);
+    await h.tick();
+    expect(duel.phase).toBe("playing");
+
+    // Rematch opens a fresh confirm -> funding cycle requiring new deposits.
+    h.report(duel.id, "alice", report);
+    h.rematch(duel.id, "alice", true);
+    const rematch = h.rematch(duel.id, "bob", true);
+    expect(rematch.phase).toBe("confirm");
+    await h.confirm(rematch.id, "alice");
+    await h.confirm(rematch.id, "bob");
+    expect(rematch.phase).toBe("funding");
+    expect(rematch.gameId).not.toBe(duel.gameId);
+
+    // Declining during funding cancels the escrow round for a full refund.
+    deposited.get(rematch.gameId!)!.push("alice");
+    await h.decline(rematch.id, "bob");
+    expect(rematch.phase).toBe("cancelled");
+    expect(cancelled).toEqual([{ id: rematch.gameId!, count: 1 }]);
   });
 });

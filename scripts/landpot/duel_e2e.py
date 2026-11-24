@@ -120,11 +120,23 @@ async def main():
             await p.page.wait_for_selector("[data-testid=duel-confirm]", timeout=30_000)
         step("queue matched 3 and 4")
 
-        # Everyone confirms; the game opens on its own.
+        # Everyone confirms; in paid mode each player then signs and sends their entry deposit.
         t_confirm = time.time()
         for p in players:
             await p.page.click("[data-testid=duel-confirm-btn]")
             await asyncio.sleep(1)
+        # If paid duels are active, the card enters funding and shows [data-testid=duel-pay].
+        try:
+            await p1.page.wait_for_selector("[data-testid=duel-pay]", timeout=15_000)
+            await shot(p1.page, "06b-funding-desktop")
+            await shot(p2.page, "06b-funding-phone")
+            for p in players:
+                btn = await p.page.wait_for_selector("[data-testid=duel-pay]", timeout=30_000)
+                await btn.click()
+                await asyncio.sleep(1)
+            step("all 4 deposits sent")
+        except Exception:
+            pass
         for _ in range(90):
             in_game = await asyncio.gather(*(p.page.evaluate(
                 "() => !!document.querySelector('canvas') && location.pathname.includes('/game/')") for p in players))
