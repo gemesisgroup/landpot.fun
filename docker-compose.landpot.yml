@@ -1,0 +1,50 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    env_file:
+      - .env.landpot
+    environment:
+      LANDPOT_API_PORT: "8787"
+      LANDPOT_DATA_DIR: "/data"
+      GAME_ENV: "prod"
+    volumes:
+      - landpot_data:/data
+      - ./solana-keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  game:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-landpot}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file:
+      - .env.landpot
+    environment:
+      GAME_ENV: "prod"
+      NUM_WORKERS: "2"
+      INSTANCE_LETTER: "a"
+      LANDPOT_PAID_LOBBIES: "1"
+      GIT_COMMIT: ${GIT_COMMIT:-landpot}
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - game
+      - api
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+
+volumes:
+  landpot_data:

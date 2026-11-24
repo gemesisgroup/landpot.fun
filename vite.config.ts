@@ -514,7 +514,11 @@ export default defineConfig(({ mode }) => {
         langCoverage(path.join(resourcesDir, "lang")),
       ),
       "process.env.WEBSOCKET_URL": JSON.stringify(
-        isProduction ? "" : "localhost:3000",
+        process.env.WEBSOCKET_URL !== undefined
+          ? process.env.WEBSOCKET_URL
+          : isProduction
+            ? ""
+            : "localhost:3000",
       ),
       "process.env.GAME_ENV": JSON.stringify(isProduction ? "prod" : "dev"),
       // Force empty under vitest (mode "test") so the getApiBase localhost-
@@ -557,6 +561,7 @@ export default defineConfig(({ mode }) => {
       port: 9000,
       strictPort: true,
       host: process.env.VITE_HOST === "lan",
+      allowedHosts: true,
       // Automatically open the browser when the server starts
       open: process.env.SKIP_BROWSER_OPEN !== "true",
       proxy: {
