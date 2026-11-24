@@ -3,6 +3,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { loadApiConfig } from "./ApiEnv";
 import { createApp, publicRecordJson } from "./App";
+import { CustodialEscrow } from "./pot/CustodialEscrow";
 import { PotService } from "./pot/PotService";
 import { replayRecord } from "./pot/Replay";
 import { SolanaEscrow } from "./pot/SolanaEscrow";
@@ -19,13 +20,26 @@ async function main() {
   const keys = await loadSigningKeys(config);
   const pot = config.pot
     ? new PotService({
-        chain: new SolanaEscrow({
-          connection: new Connection(config.pot.rpcUrl, "confirmed"),
-          programId: new PublicKey(config.pot.programId),
-          operator: Keypair.fromSecretKey(config.pot.operatorKey),
-          oracle: Keypair.fromSecretKey(config.pot.oracleKey),
-          cluster: config.pot.cluster,
-        }),
+        chain:
+          config.pot.mode === "custodial"
+            ? new CustodialEscrow({
+                connection: new Connection(config.pot.rpcUrl, "confirmed"),
+                cluster: config.pot.cluster,
+                mint: new PublicKey(config.pot.mint!),
+                vault: Keypair.fromSecretKey(config.pot.operatorKey),
+                treasury: new PublicKey(config.pot.treasury!),
+                dbPath: path.join(config.dataDir, "custodial_escrow.sqlite"),
+                burnBps: config.pot.burnBps,
+                treasuryBps: config.pot.treasuryBps,
+                reviewDelay: config.pot.reviewDelay,
+              })
+            : new SolanaEscrow({
+                connection: new Connection(config.pot.rpcUrl, "confirmed"),
+                programId: new PublicKey(config.pot.programId),
+                operator: Keypair.fromSecretKey(config.pot.operatorKey),
+                oracle: Keypair.fromSecretKey(config.pot.oracleKey),
+                cluster: config.pot.cluster,
+              }),
         store,
         replay: replayRecord,
         rules: config.pot,

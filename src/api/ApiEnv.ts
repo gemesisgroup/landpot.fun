@@ -28,18 +28,25 @@ export interface ApiConfig {
 }
 
 export interface PotConfig {
+  readonly mode: "program" | "custodial";
   readonly rpcUrl: string;
   /** "mainnet-beta", "devnet" or "localnet": for explorer links. */
   readonly cluster: string;
-  /** The escrow program id, base58. */
+  /** The escrow program id (program mode) or vault pubkey (custodial mode), base58. */
   readonly programId: string;
-  /** Co-signs every result; the escrow config's oracle. 64-byte secret key. */
+  /** Co-signs every result; the escrow config's oracle (program mode). 64-byte secret key. */
   readonly oracleKey: Uint8Array;
   /**
-   * The escrow config's operator: opens and starts rounds, closes unfilled
-   * lobbies, and pays fees and rent for everything the API sends.
+   * The escrow config's operator (program mode) or vault keypair (custodial mode).
    */
   readonly operatorKey: Uint8Array;
+  /** Token mint (custodial mode only). */
+  readonly mint?: string;
+  /** Treasury wallet pubkey (custodial mode only). */
+  readonly treasury?: string;
+  readonly burnBps?: number;
+  readonly treasuryBps?: number;
+  readonly reviewDelay?: number;
   /** Entry per player, whole tokens. */
   readonly cupHourUTC?: number;
   readonly stakeTokens: bigint;
@@ -80,14 +87,20 @@ function keypairBytes(name: string, value: string): Uint8Array {
   return Uint8Array.from(bytes as number[]);
 }
 
+const CUSTODIAL_REQUIRED = [
+  "LANDPOT_POT_RPC_URL",
+  "LANDPOT_POT_CLUSTER",
+  "LANDPOT_POT_MINT",
+  "LANDPOT_POT_VAULT_KEY",
+  "LANDPOT_POT_TREASURY",
+  "LANDPOT_POT_STAKE",
+] as const;
+
 /** All of the required LANDPOT_POT_* variables, or none of them. */
 function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
   const v = (k: string) => env[k]?.trim() ?? "";
-  const set = POT_REQUIRED.filter((k) => v(k) !== "").length;
-  if (set === 0) return null;
-  if (set !== POT_REQUIRED.length) {
-    throw new Error(`Set all of ${POT_REQUIRED.join(", ")}, or none`);
-  }
+  const mode = v("LANDPOT_POT_MODE") === "custodial" ? "custodial" : "program";
+
   const int = (k: string, fallback: number) => {
     const raw = v(k);
     const n = raw === "" ? fallback : Number(raw);
@@ -96,6 +109,78 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     }
     return n;
   };
+  const nonNegInt = (k: string, fallback: number) => {
+    const raw = v(k);
+    const n = raw === "" ? fallback : Number(raw);
+    if (!Number.isSafeInteger(n) || n < 0) {
+      throw new Error(`${k} must be a non-negative integer`);
+    }
+    return n;
+  };
+
+  if (mode === "custodial") {
+    const set = CUSTODIAL_REQUIRED.filter((k) => v(k) !== "").length;
+    if (set === 0) return null;
+    if (set !== CUSTODIAL_REQUIRED.length) {
+      throw new Error(
+        `Set all of ${CUSTODIAL_REQUIRED.join(", ")}, or none (custodial mode)`,
+      );
+    }
+    const cluster = v("LANDPOT_POT_CLUSTER");
+    if (!CLUSTERS.has(cluster)) {
+      throw new Error(
+        `LANDPOT_POT_CLUSTER must be one of ${[...CLUSTERS].join(", ")}`,
+      );
+    }
+    const mint = v("LANDPOT_POT_MINT");
+    if (!isPublicKey(mint)) {
+      throw new Error("LANDPOT_POT_MINT must be a base58 public key");
+    }
+    const treasury = v("LANDPOT_POT_TREASURY");
+    if (!isPublicKey(treasury)) {
+      throw new Error("LANDPOT_POT_TREASURY must be a base58 public key");
+    }
+    const stake = v("LANDPOT_POT_STAKE");
+    if (!/^[1-9]\d*$/.test(stake)) {
+      throw new Error("LANDPOT_POT_STAKE must be a whole number of tokens");
+    }
+    const vaultKey = keypairBytes(
+      "LANDPOT_POT_VAULT_KEY",
+      v("LANDPOT_POT_VAULT_KEY"),
+    );
+    const cupHour = v("LANDPOT_CUP_WEEK_HOUR_UTC");
+    const cupHourUTC = cupHour === "" ? undefined : Number(cupHour);
+    if (
+      cupHourUTC !== undefined &&
+      (!/^\d+$/.test(cupHour) || cupHourUTC > 167)
+    ) {
+      throw new Error("Invalid cup hour (0..167, Sunday UTC first)");
+    }
+    return {
+      mode: "custodial",
+      rpcUrl: v("LANDPOT_POT_RPC_URL"),
+      cluster,
+      programId: mint,
+      oracleKey: vaultKey,
+      operatorKey: vaultKey,
+      mint,
+      treasury,
+      burnBps: nonNegInt("LANDPOT_POT_BURN_BPS", 200),
+      treasuryBps: nonNegInt("LANDPOT_POT_TREASURY_BPS", 300),
+      reviewDelay: nonNegInt("LANDPOT_POT_REVIEW_DELAY", 15),
+      cupHourUTC,
+      stakeTokens: BigInt(stake),
+      minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
+      maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
+      fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,
+    };
+  }
+
+  const set = POT_REQUIRED.filter((k) => v(k) !== "").length;
+  if (set === 0) return null;
+  if (set !== POT_REQUIRED.length) {
+    throw new Error(`Set all of ${POT_REQUIRED.join(", ")}, or none`);
+  }
   const cluster = v("LANDPOT_POT_CLUSTER");
   if (!CLUSTERS.has(cluster)) {
     throw new Error(
@@ -119,6 +204,7 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     throw new Error("Invalid cup hour (0..167, Sunday UTC first)");
   }
   return {
+    mode: "program",
     rpcUrl: v("LANDPOT_POT_RPC_URL"),
     cluster,
     programId,
