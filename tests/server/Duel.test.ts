@@ -316,4 +316,52 @@ describe("Caldera duel host", () => {
     expect(rematch.phase).toBe("cancelled");
     expect(cancelled).toEqual([{ id: rematch.gameId!, count: 1 }]);
   });
+
+  it("persists completed duel stats across restarts", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const file = path.join(os.tmpdir(), `duel-stats-${Date.now()}.json`);
+    try {
+      let now = 1_000_000;
+      const games = new Map<string, FakeGame>();
+      const makeHost = () =>
+        new DuelHost({
+          games: {
+            game: (id) => games.get(id) ?? null,
+            createGame: (id) => {
+              const g = new FakeGame();
+              games.set(id, g);
+              return g;
+            },
+          },
+          statsFile: file,
+          newGameId: () => "g" + games.size,
+          baseConfig: async () => ({}) as GameConfig,
+          log: () => {},
+          now: () => now,
+        });
+      const h1 = makeHost();
+      h1.joinQueue("alice", "Alice");
+      const d = h1.joinQueue("bob", "Bob")!;
+      await h1.confirm(d.id, "alice");
+      await h1.confirm(d.id, "bob");
+      games.get(d.gameId!)!.connected = new Set(["alice", "bob"]);
+      now += 15_000;
+      await h1.tick();
+      h1.report(d.id, "bob", report);
+      h1.rematch(d.id, "alice", true);
+
+      // Fresh DuelHost instance loads the persisted stats from disk.
+      const h2 = makeHost();
+      expect(h2.stats()).toMatchObject({
+        pairsFound: 1,
+        reachedMatch: 1,
+        decided: 1,
+        loserAskedRematch: 1,
+      });
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+  });
 });

@@ -80,6 +80,8 @@ export interface SettlementRow {
 export interface PotRoundRow {
   cup?: boolean;
   duel?: boolean;
+  /** Whitelisted Solana wallet addresses for a 1v1 duel round. */
+  duelWallets?: string[];
   gameId: string;
   roundId: string;
   /** In token base units, as a decimal string. */
@@ -309,6 +311,9 @@ function toRound(row: Row): PotRoundRow {
     roundId: row.round_id as string,
     ...(row.cup ? { cup: true } : {}),
     ...(row.duel ? { duel: true } : {}),
+    ...(row.duel_wallets
+      ? { duelWallets: JSON.parse(String(row.duel_wallets)) as string[] }
+      : {}),
     stake: row.stake as string,
     minPlayers: Number(row.min_players),
     maxPlayers: Number(row.max_players),
@@ -361,6 +366,7 @@ export class SqliteStore implements Store {
     for (const [name, type] of [
       ["cup", "INTEGER NOT NULL DEFAULT 0"],
       ["duel", "INTEGER NOT NULL DEFAULT 0"],
+      ["duel_wallets", "TEXT"],
       ["burn_bps", "INTEGER"],
       ["treasury_bps", "INTEGER"],
       ["filled_at", "INTEGER"],
@@ -405,7 +411,7 @@ export class SqliteStore implements Store {
       ),
       getSettlement: p("SELECT * FROM pot_settlements WHERE game_id = ?"),
       putRound: p(
-        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup, duel, burn_bps, treasury_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pot_rounds (game_id, round_id, stake, min_players, max_players, funding_ends, result_ends, state, created_at, cup, duel, duel_wallets, burn_bps, treasury_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ),
       getRound: p("SELECT * FROM pot_rounds WHERE game_id = ?"),
       setRoundState: p("UPDATE pot_rounds SET state = ? WHERE game_id = ?"),
@@ -756,6 +762,7 @@ export class SqliteStore implements Store {
       r.createdAt,
       r.cup ? 1 : 0,
       r.duel ? 1 : 0,
+      r.duelWallets ? JSON.stringify(r.duelWallets) : null,
       r.burnBps ?? null,
       r.treasuryBps ?? null,
     );

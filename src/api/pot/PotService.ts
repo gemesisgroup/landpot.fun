@@ -218,12 +218,23 @@ export class PotService {
   }
 
   /** Open a 2-player paid Caldera duel round (minPlayers = maxPlayers = 2). */
-  openDuel(gameId: string): Promise<PotRoundRow> {
+  openDuel(gameId: string, playerIds?: string[]): Promise<PotRoundRow> {
     const existing = this.store.getRound(gameId);
     if (existing) return Promise.resolve(existing);
+    let duelWallets: string[] | undefined;
+    if (playerIds && playerIds.length > 0) {
+      if (playerIds.length !== 2 || new Set(playerIds).size !== 2) {
+        throw new PotError(400, "duel requires two distinct players");
+      }
+      const wallets = playerIds.map((pid) => this.store.getUser(pid)?.wallet);
+      if (wallets.some((w) => !w) || new Set(wallets).size !== 2) {
+        throw new PotError(409, "both duel players must have linked wallets");
+      }
+      duelWallets = wallets as string[];
+    }
     let p = this.opening.get(gameId);
     if (!p) {
-      p = this.openRound(gameId, "duel", this.now()).finally(() =>
+      p = this.openRound(gameId, "duel", this.now(), duelWallets).finally(() =>
         this.opening.delete(gameId),
       );
       this.opening.set(gameId, p);
@@ -254,6 +265,7 @@ export class PotService {
     gameId: string,
     mode: "ffa" | "cup" | "duel",
     createdAt: number,
+    duelWallets?: string[],
   ): Promise<PotRoundRow> {
     const rules = this.deps.rules;
     const cup = mode === "cup";
@@ -280,6 +292,7 @@ export class PotService {
     const row: PotRoundRow = {
       ...(cup ? { cup: true } : {}),
       ...(duel ? { duel: true } : {}),
+      ...(duelWallets ? { duelWallets } : {}),
       gameId,
       roundId,
       stake: stake.toString(),
@@ -487,7 +500,11 @@ export class PotService {
     const wallet = this.store.getUser(persistentID)?.wallet;
     if (
       !wallet ||
-      (row.cup && !this.store.cupPairs(gameId).flat().includes(wallet))
+      (row.cup && !this.store.cupPairs(gameId).flat().includes(wallet)) ||
+      (row.duel &&
+        row.duelWallets &&
+        row.duelWallets.length > 0 &&
+        !row.duelWallets.includes(wallet))
     )
       return false;
     const players = await this.chain.players(row.roundId as Hex);
@@ -707,6 +724,13 @@ export class PotService {
     const row = this.round(gameId);
     if (row.cup && !this.store.cupPairs(gameId).flat().includes(wallet))
       throw new PotError(409, "Confirm your partner before depositing");
+    if (
+      row.duel &&
+      row.duelWallets &&
+      row.duelWallets.length > 0 &&
+      !row.duelWallets.includes(wallet)
+    )
+      throw new PotError(403, "Not a participant in this duel");
     if (row.state !== "funding") throw new PotError(409, "lobby is closed");
     const roundId = row.roundId as Hex;
     const [status, players] = await Promise.all([

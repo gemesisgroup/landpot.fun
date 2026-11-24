@@ -205,3 +205,111 @@ attacks-display {
   transform: translateY(1px);
   box-shadow: 0 1px 0 0 rgb(0 0 0 / 0.45);
 }
+
+/* Pump.fun Buy $LANDPOT CTA: crisp acid-lime-to-emerald gradient with hover sheen. */
+.lp-pump-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #c6ff3d 0%, #65f59b 100%);
+  box-shadow:
+    0 2px 0 0 #3f7a14,
+    0 10px 24px -10px rgb(198 255 61 / 0.55);
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 150ms ease,
+    filter 150ms ease;
+}
+.lp-pump-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgb(255 255 255 / 0.45) 50%,
+    transparent 75%
+  );
+  transform: translateX(-130%);
+  transition: transform 520ms ease;
+}
+.lp-pump-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 4px 0 0 #3f7a14,
+    0 16px 32px -10px rgb(198 255 61 / 0.72);
+}
+.lp-pump-btn:hover::after {
+  transform: translateX(130%);
+}
+.lp-pump-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 0 #3f7a14;
+}
+
+/* Tokenomics metric & format cards: subtle lift + lime border glow. */
+.lp-tok-card {
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+.lp-tok-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(198 255 61 / 0.45);
+  box-shadow: 0 14px 30px -16px rgb(198 255 61 / 0.28);
+}
+
+.lp-social-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -12px rgb(198 255 61 / 0.45);
+}
+
+@keyframes lp-pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.75);
+  }
+}
+
+.lp-burn-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #0b0d10;
+  animation: lp-pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes lp-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lp-reveal {
+  animation: lp-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-pump-btn,
+  .lp-pump-btn::after,
+  .lp-tok-card,
+  .lp-social-btn,
+  .lp-burn-pulse,
+  .lp-reveal {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

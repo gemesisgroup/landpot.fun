@@ -7,6 +7,8 @@ import {
   isSteamShell,
 } from "../DesktopShell";
 import { currentGameVersion } from "../GameVersion";
+import { PUMP_FUN_URL, SOCIAL_LINKS } from "../LandpotLinks";
+import { ICON_DISCORD, ICON_TELEGRAM, ICON_X } from "./LandpotTokenomics";
 
 // Landpot: where this fork's source lives (AGPL-3.0 section 13).
 export const LANDPOT_SOURCE_URL = "https://github.com/gemesisgroup/landpot.fun";
@@ -60,6 +62,51 @@ export class Footer extends LitElement {
           <div
             class="flex items-center justify-center gap-4 lg:gap-6 pt-2 w-full relative"
           >
+            ${[
+              {
+                label: "X / Twitter",
+                href: SOCIAL_LINKS.twitter,
+                icon: ICON_X,
+              },
+              {
+                label: "Discord",
+                href: SOCIAL_LINKS.discord,
+                icon: ICON_DISCORD,
+              },
+              {
+                label: "Telegram",
+                href: SOCIAL_LINKS.telegram,
+                icon: ICON_TELEGRAM,
+              },
+            ].map(
+              (s) => html`<a
+                href=${s.href || "#"}
+                target=${s.href ? "_blank" : nothing}
+                rel=${s.href ? "noopener noreferrer" : nothing}
+                aria-label=${s.href ? s.label : `${s.label} (coming soon)`}
+                title=${s.href ? s.label : `${s.label} — link coming soon`}
+                class="opacity-60 hover:opacity-100 hover:text-[#c6ff3d] hover:scale-110 transition-all text-white"
+                @click=${(e: MouseEvent) => {
+                  if (!s.href) e.preventDefault();
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-6 w-6 lg:h-7 lg:w-7 fill-current pointer-events-none"
+                  aria-hidden="true"
+                >
+                  <path d=${s.icon} />
+                </svg>
+              </a>`,
+            )}
+            <a
+              href=${PUMP_FUN_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="lp-mono text-xs font-bold text-[#c6ff3d] opacity-80 hover:opacity-100 hover:scale-105 transition-all"
+            >
+              Buy $LANDPOT ↗
+            </a>
             <a
               href=${LANDPOT_SOURCE_URL}
               target="_blank"

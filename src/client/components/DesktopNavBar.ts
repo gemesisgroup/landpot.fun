@@ -1,5 +1,7 @@
-import { LitElement, html } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { customElement } from "lit/decorators.js";
+import { PUMP_FUN_URL, SOCIAL_LINKS } from "../LandpotLinks";
+import { ICON_DISCORD, ICON_TELEGRAM, ICON_X } from "./LandpotTokenomics";
 import "./NavUtilityIcons";
 import "./WalletButton";
 
@@ -75,6 +77,47 @@ export class DesktopNavBar extends LitElement {
           data-page="page-play"
           data-i18n="main.play"
         ></button>
+        <a
+          href=${PUMP_FUN_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="buy-pumpfun-nav"
+          class="lp-pump-btn inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 lp-mono text-xs font-bold text-[#0b0d10]"
+        >
+          <span>Buy $LANDPOT</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+        <div class="flex items-center gap-1.5">
+          ${[
+            { label: "X / Twitter", href: SOCIAL_LINKS.twitter, icon: ICON_X },
+            { label: "Discord", href: SOCIAL_LINKS.discord, icon: ICON_DISCORD },
+            {
+              label: "Telegram",
+              href: SOCIAL_LINKS.telegram,
+              icon: ICON_TELEGRAM,
+            },
+          ].map(
+            (s) => html`<a
+              href=${s.href || "#"}
+              target=${s.href ? "_blank" : nothing}
+              rel=${s.href ? "noopener noreferrer" : nothing}
+              aria-label=${s.href ? s.label : `${s.label} (coming soon)`}
+              title=${s.href ? s.label : `${s.label} — link coming soon`}
+              class="lp-social-btn flex size-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-white/70 hover:border-[#c6ff3d]/60 hover:text-[#c6ff3d] transition-all"
+              @click=${(e: MouseEvent) => {
+                if (!s.href) e.preventDefault();
+              }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="size-4 fill-current"
+                aria-hidden="true"
+              >
+                <path d=${s.icon} />
+              </svg>
+            </a>`,
+          )}
+        </div>
         <!-- Utility cluster: bell, help, settings and the profile control are
              account/notification/utility affordances rather than page links,
              so they sit tight together behind a divider instead of in the nav

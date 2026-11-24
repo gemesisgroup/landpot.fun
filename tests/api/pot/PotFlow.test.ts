@@ -803,13 +803,25 @@ describe.skipIf(!validatorAvailable())(
 
       // 1. Victory: winner takes full net pot (95% of 2 * STAKE); repeat claim and loser claim return 409.
       const winId = "DuelWin1";
-      const opened = await api("POST", `/pot/open/${winId}`, { mode: "duel" });
+      const opened = await api("POST", `/pot/open/${winId}`, {
+        mode: "duel",
+        players: [userIds.get(addr(p0))!, userIds.get(addr(p1))!],
+      });
       expect(opened.status).toBe(200);
       expect(opened.body).toMatchObject({
         duel: true,
         minPlayers: 2,
         maxPlayers: 2,
       });
+      // Non-participant wallet is refused before building a deposit tx.
+      expect(
+        (
+          await api("POST", "/public/pot/deposit-tx", {
+            gameId: winId,
+            wallet: addr(players[2]),
+          })
+        ).status,
+      ).toBe(403);
       // Duel rounds stay out of the public 8-16 player lobby list.
       const lobbies = (await api("GET", "/public/pot/lobbies")).body.lobbies as {
         gameId: string;

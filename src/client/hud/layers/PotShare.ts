@@ -522,7 +522,9 @@ export class PotShare extends LitElement implements Controller {
         const end = this.transform.worldToScreenCoordinates(
           new Cell(area.x + area.width, area.y + area.height),
         );
-        return html`<div class="px-panel text-white">
+        return html`<div
+            class="px-panel fixed bottom-28 left-1/2 z-40 -translate-x-1/2 max-w-[calc(100vw-2rem)] px-3 py-1.5 text-center text-xs text-white sm:bottom-auto sm:top-3 sm:text-sm"
+          >
             ${translateText(this.rules!.duel ? "duel.spawn" : "cup.spawn")}
           </div>
           <div

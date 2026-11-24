@@ -627,14 +627,27 @@ export function createApp(deps: AppDeps): express.Express {
 
   // Game server: run a paid lobby (or a 1v1 duel round when body.mode === "duel").
   app.post("/pot/open/:id", requireApiKey, json, async (req, res) => {
-    const mode = (req.body as { mode?: unknown } | undefined)?.mode;
+    const body = req.body as { mode?: unknown; players?: unknown } | undefined;
+    const mode = body?.mode;
     if (mode !== undefined && mode !== "duel") {
       throw new HttpError(400, "invalid mode");
+    }
+    let players: string[] | undefined;
+    if (body?.players !== undefined) {
+      if (
+        !Array.isArray(body.players) ||
+        !body.players.every((p): p is string => typeof p === "string")
+      ) {
+        throw new HttpError(400, "invalid players");
+      }
+      players = body.players;
     }
     const id = req.params.id as string;
     sendJson(
       res,
-      mode === "duel" ? await needPot().openDuel(id) : await needPot().open(id),
+      mode === "duel"
+        ? await needPot().openDuel(id, players)
+        : await needPot().open(id),
     );
   });
   // The host: make the next paid lobby a Cup (docs/CalderaCupHost.md).

@@ -7,6 +7,7 @@ import "./LandpotArsenal";
 import "./LandpotLive";
 import "./NavUtilityIcons";
 import "./LandpotStrip";
+import "./LandpotTokenomics";
 import "./DuelCard";
 import "./PaidMatch";
 import "./SteamWishlist";
@@ -132,6 +133,10 @@ export class PlayPage extends LitElement {
         </div>
 
         <game-mode-selector></game-mode-selector>
+
+        <landpot-tokenomics
+          class="block sm:-mx-4 lg:mx-0 mt-6"
+        ></landpot-tokenomics>
 
         <landpot-arsenal class="block sm:-mx-4 lg:mx-0 mt-6"></landpot-arsenal>
 

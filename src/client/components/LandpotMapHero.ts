@@ -1,6 +1,7 @@
 import { assetUrl } from "@openfront/shared/AssetUrls";
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { PUMP_FUN_URL } from "../LandpotLinks";
 import { translateText } from "../Utils";
 import { HeroRender, type View } from "./landpot-map/HeroRender";
 import { HeroSim } from "./landpot-map/HeroSim";
@@ -279,6 +280,16 @@ export class LandpotMapHero extends LitElement {
               <span aria-hidden="true">▶</span>
               ${translateText("landpot.play_now")}
             </button>
+            <a
+              href=${PUMP_FUN_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="buy-pumpfun-hero"
+              class="lp-pump-btn inline-flex items-center justify-center gap-2 h-12 px-5 rounded-[6px] lp-display text-sm font-bold text-[#0b0d10]"
+            >
+              <span>Buy $LANDPOT</span>
+              <span aria-hidden="true">↗</span>
+            </a>
             <button
               class="px-btn px-btn-ghost h-12 px-5 text-base"
               @click=${() => this.howItWorks()}

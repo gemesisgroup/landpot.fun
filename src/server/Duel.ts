@@ -12,6 +12,8 @@ import {
   PAID_MATCH_MAP,
 } from "@openfront/shared/PaidMatch";
 import { randomBytes } from "crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import path from "path";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import type { PaidGame, PaidGames, PotApi } from "./PaidLobby";
@@ -174,13 +176,62 @@ export class DuelHost {
       games: PaidGames;
       /** When set, confirmed duels open a 2-player escrow round before starting. */
       pot?: PotApi;
+      /** Optional JSON file path to persist completed duels across restarts. */
+      statsFile?: string;
       newGameId: () => string | null;
       baseConfig: () => Promise<GameConfig>;
       log: (msg: string, fields?: Record<string, unknown>) => void;
       now?: () => number;
       newId?: () => string;
     },
-  ) {}
+  ) {
+    this.loadHistory();
+  }
+
+  private loadHistory(): void {
+    const file = this.deps.statsFile;
+    if (!file || !existsSync(file)) return;
+    try {
+      const raw = JSON.parse(readFileSync(file, "utf8")) as {
+        queueAbandoned?: number;
+        duels?: Duel[];
+      };
+      if (typeof raw.queueAbandoned === "number") {
+        this.queueAbandoned = raw.queueAbandoned;
+      }
+      if (Array.isArray(raw.duels)) {
+        for (const d of raw.duels) {
+          if (d.phase === "ended" || d.phase === "cancelled") {
+            this.duels.set(d.id, d);
+          }
+        }
+      }
+    } catch (e) {
+      this.deps.log("duel stats load failed", { error: String(e) });
+    }
+  }
+
+  private saveHistory(): void {
+    const file = this.deps.statsFile;
+    if (!file) return;
+    try {
+      mkdirSync(path.dirname(file), { recursive: true });
+      const finished = [...this.duels.values()].filter(
+        (d) => d.phase === "ended" || d.phase === "cancelled",
+      );
+      writeFileSync(
+        file,
+        JSON.stringify(
+          { queueAbandoned: this.queueAbandoned, duels: finished },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+    } catch (e) {
+      this.deps.log("duel stats save failed", { error: String(e) });
+    }
+  }
 
   private now(): number {
     return this.deps.now?.() ?? Date.now();
@@ -379,7 +430,8 @@ export class DuelHost {
     const pot = this.deps.pot!;
     const gameId = this.deps.newGameId();
     if (gameId === null) throw new DuelError(503, "no_game_id");
-    const openFn = pot.openDuel ? pot.openDuel(gameId) : pot.open(gameId);
+    const pids = duel.sides.map((s) => s.pid);
+    const openFn = pot.openDuel ? pot.openDuel(gameId, pids) : pot.open(gameId);
     const opened = await openFn;
     duel.gameId = gameId;
     duel.paid = true;
@@ -511,6 +563,7 @@ export class DuelHost {
       const game = this.deps.games.game(duel.gameId);
       if (game && !game.hasStarted()) game.cancelPaidLobby();
     }
+    this.saveHistory();
   }
 
   // ── after the match ──
@@ -529,6 +582,7 @@ export class DuelHost {
       duel.phase = "ended";
       duel.endedAt = this.now();
     }
+    this.saveHistory();
   }
 
   /**
@@ -562,8 +616,10 @@ export class DuelHost {
       };
       this.duels.set(next.id, next);
       duel.rematchId = next.id;
+      this.saveHistory();
       return next;
     }
+    this.saveHistory();
     return duel;
   }
 

@@ -326,6 +326,10 @@ export async function startWorker() {
       ? new DuelHost({
           games: gm,
           pot: ServerEnv.paidLobbiesEnabled() ? httpPotApi : undefined,
+          statsFile: path.join(
+            process.env.LANDPOT_DATA_DIR ?? ".data",
+            "duel-stats.json",
+          ),
           newGameId: () => ServerEnv.generateGameIdForWorker(workerId),
           baseConfig: () => playlist.gameConfig("ffa"),
           log: (msg, fields) => log.info(msg, fields),

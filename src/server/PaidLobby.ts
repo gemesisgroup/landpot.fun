@@ -54,7 +54,10 @@ export class PotApiError extends Error {
 
 export interface PotApi {
   open(gameID: string): Promise<z.infer<typeof OpenedSchema>>;
-  openDuel?(gameID: string): Promise<z.infer<typeof OpenedSchema>>;
+  openDuel?(
+    gameID: string,
+    players?: string[],
+  ): Promise<z.infer<typeof OpenedSchema>>;
   lobby(gameID: string): Promise<PaidLobbyStatus>;
   seat(gameID: string, persistentID: string): Promise<boolean>;
   /** Closes deposits on chain; resolves to the persistentIDs that are in. */
@@ -98,9 +101,14 @@ export const httpPotApi: PotApi = {
     OpenedSchema.parse(
       await call("POST", `/pot/open/${id}`, undefined, 60_000),
     ),
-  openDuel: async (id) =>
+  openDuel: async (id, players) =>
     OpenedSchema.parse(
-      await call("POST", `/pot/open/${id}`, { mode: "duel" }, 60_000),
+      await call(
+        "POST",
+        `/pot/open/${id}`,
+        { mode: "duel", ...(players ? { players } : {}) },
+        60_000,
+      ),
     ),
   lobby: async (id) => LobbySchema.parse(await call("GET", `/pot/lobby/${id}`)),
   seat: async (id, persistentID) =>
