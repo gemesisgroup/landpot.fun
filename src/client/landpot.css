@@ -307,9 +307,120 @@ attacks-display {
   .lp-tok-card,
   .lp-social-btn,
   .lp-burn-pulse,
-  .lp-reveal {
+  .lp-reveal,
+  .lp-help-torp,
+  .lp-help-torp-sprite,
+  .lp-help-splash,
+  .lp-help-mush,
+  .lp-help-eruption-ring {
     animation: none !important;
     transition: none !important;
     transform: none !important;
   }
+}
+
+/* How It Works animated pixel-art showcases */
+@keyframes lp-torp-swim {
+  0% {
+    transform: translateX(0px);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  58% {
+    transform: translateX(175px);
+    opacity: 1;
+  }
+  62%,
+  100% {
+    transform: translateX(180px);
+    opacity: 0;
+  }
+}
+
+@keyframes lp-torp-frames {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -256px 0;
+  }
+}
+
+@keyframes lp-splash-frames {
+  0%,
+  56% {
+    opacity: 0;
+    background-position: 0 0;
+  }
+  58% {
+    opacity: 1;
+    background-position: 0 0;
+  }
+  96% {
+    opacity: 1;
+    background-position: -1024px 0;
+  }
+  100% {
+    opacity: 0;
+    background-position: -1024px 0;
+  }
+}
+
+@keyframes lp-mush-frames {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -768px 0;
+  }
+}
+
+@keyframes lp-eruption-shrink {
+  0%,
+  15% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  75% {
+    transform: scale(0.46);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.46);
+    opacity: 0.2;
+  }
+}
+
+.lp-help-torp {
+  animation: lp-torp-swim 3.2s linear infinite;
+}
+
+.lp-help-torp-sprite {
+  width: 64px;
+  height: 32px;
+  background-size: 256px 32px;
+  image-rendering: pixelated;
+  animation: lp-torp-frames 0.4s steps(4) infinite;
+}
+
+.lp-help-splash {
+  width: 128px;
+  height: 128px;
+  background-size: 1024px 128px;
+  image-rendering: pixelated;
+  animation: lp-splash-frames 3.2s steps(8) infinite;
+}
+
+.lp-help-mush {
+  width: 64px;
+  height: 64px;
+  background-size: 768px 64px;
+  image-rendering: pixelated;
+  animation: lp-mush-frames 2.2s steps(12) infinite;
+}
+
+.lp-help-eruption-ring {
+  animation: lp-eruption-shrink 5s ease-in-out infinite;
 }

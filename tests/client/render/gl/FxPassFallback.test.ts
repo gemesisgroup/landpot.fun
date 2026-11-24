@@ -22,6 +22,7 @@ const failures = vi.hoisted(() => ({
   shockwave: null as Error | null,
   attackRing: null as Error | null,
   mushroom: null as Error | null,
+  torpedo: null as Error | null,
 }));
 const calls = vi.hoisted(() => [] as string[]);
 
@@ -60,6 +61,12 @@ vi.mock(
   "../../../../src/client/render/gl/passes/fx-pass/FxMushroomPass",
   () => ({
     FxMushroomPass: recorder("mushroom", () => failures.mushroom),
+  }),
+);
+vi.mock(
+  "../../../../src/client/render/gl/passes/fx-pass/FxTorpedoPass",
+  () => ({
+    FxTorpedoPass: recorder("torpedo", () => failures.torpedo),
   }),
 );
 

@@ -35,6 +35,7 @@
 import type { Config } from "@openfront/engine-lib/configuration/Config";
 import { assetUrl } from "@openfront/shared/AssetUrls";
 import type { WakeShip } from "../../frame/WakeEmitter";
+import type { TorpedoTrack } from "./fx-pass/FxTorpedoPass";
 import type { RendererConfig, UnitState } from "../../types";
 import {
   SMOOTHED_NUKE_TYPES,
@@ -255,6 +256,8 @@ export class UnitPass {
   private groundSmoothSegs: number[] = [];
   /** Ships drawn this tick: id, atlas column, from x/y, to x/y (SHIP_STRIDE). */
   private shipTracks: number[] = [];
+  private torpedoSegs: number[] = [];
+  private torpedoOut: TorpedoTrack[] = [];
   private wakeShips: WakeShip[] = [];
 
   private affiliationTex: WebGLTexture | null = null;
@@ -578,6 +581,7 @@ export class UnitPass {
     this.smoothSegs.length = 0;
     this.groundSmoothSegs.length = 0;
     this.shipTracks.length = 0;
+    this.torpedoSegs.length = 0;
     this.facingSeen.clear();
 
     for (const unit of units.values()) {
@@ -650,6 +654,14 @@ export class UnitPass {
       const y = (unit.pos - x) / this.mapW;
 
       if (isMissile) {
+        if (unit.unitType === UT_SHELL) {
+          const lx = unit.lastPos % this.mapW;
+          const ly = (unit.lastPos - lx) / this.mapW;
+          this.torpedoSegs.push(lx, ly, x, y);
+          // Also leave a foamy underwater bubble wake on WakePass.
+          this.shipTracks.push(unit.id, 2, lx, ly, x, y);
+          continue;
+        }
         if (
           SMOOTHED_NUKE_TYPES.has(unit.unitType) &&
           unit.lastPos !== unit.pos
@@ -659,13 +671,6 @@ export class UnitPass {
           this.smoothSegs.push(this.missileCount, lx, ly, x, y);
         }
         this.emitMissile(x, y, unit.ownerID, atlasIdx, flags);
-
-        // Shells emit a second instance at lastPos (2-pixel trail effect)
-        if (unit.unitType === UT_SHELL && unit.lastPos !== unit.pos) {
-          const lx = unit.lastPos % this.mapW;
-          const ly = (unit.lastPos - lx) / this.mapW;
-          this.emitMissile(lx, ly, unit.ownerID, atlasIdx, flags);
-        }
       } else if (atlasIdx < SHIP_COLS) {
         // Ships glide from tile to tile and keep their heading.
         const lx = unit.lastPos % this.mapW;
@@ -813,6 +818,31 @@ export class UnitPass {
 
   private applyMissileSmoothing(): void {
     this.applySmoothing(this.smoothSegs, this.missileBuf, this.missileCount);
+  }
+
+  /** Smoothly interpolated in-flight underwater torpedoes for FxTorpedoPass. */
+  torpedoes(): TorpedoTrack[] {
+    const segs = this.torpedoSegs;
+    const out = this.torpedoOut;
+    out.length = 0;
+    if (segs.length === 0) return out;
+    const alpha = Math.min(
+      1,
+      (performance.now() - this.lastUnitsUpdateMs) / this.tickIntervalMs,
+    );
+    for (let i = 0; i < segs.length; i += 4) {
+      const lx = segs[i];
+      const ly = segs[i + 1];
+      const x = segs[i + 2];
+      const y = segs[i + 3];
+      out.push({
+        lx,
+        ly,
+        x: lx + (x - lx) * alpha,
+        y: ly + (y - ly) * alpha,
+      });
+    }
+    return out;
   }
 
   /**

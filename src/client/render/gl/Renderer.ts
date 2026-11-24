@@ -1599,6 +1599,7 @@ export class GPURenderer {
 
     if (pe.fx) {
       if (!this.altView) this.spawnStructureFx();
+      this.fxPass.setTorpedoes(this.unitPass.torpedoes());
       this.fxPass.tick();
       this.fxPass.draw(cam, zoom);
     }

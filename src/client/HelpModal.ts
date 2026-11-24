@@ -1,27 +1,27 @@
 import { assetUrl } from "@openfront/shared/AssetUrls";
-import { html } from "lit";
-import { customElement, query, state } from "lit/decorators.js";
-import {
-  DESKTOP_TUTORIAL_VIDEO_URL,
-  textDirection,
-  translateText,
-  TUTORIAL_VIDEO_URL,
-} from "../client/Utils";
+import { html, nothing } from "lit";
+import { customElement, state } from "lit/decorators.js";
 import { BaseModal } from "./components/BaseModal";
-import "./components/Difficulties";
 import { modalHeader } from "./components/ui/ModalHeader";
 import { KeyboardLayoutController } from "./KeyboardLayout";
+import { PUMP_FUN_URL } from "./LandpotLinks";
 import { KEYBOARD_DETECTED_EVENT, Platform } from "./Platform";
 import { TroubleshootingModal } from "./TroubleshootingModal";
 import { UserSettings } from "./UserSettings";
+
+type HelpTab = "overview" | "caldera" | "warfare" | "economy" | "controls";
+
+const icon = (name: string) => assetUrl(`images/landpot/icons/${name}.png`);
+const TORP_URL = assetUrl("images/landpot/torpedo-strip.png");
+const SPLASH_URL = assetUrl("images/landpot/torpedo-splash-strip.png");
+const MUSH_URL = assetUrl("images/landpot/mushroom-strip.png");
 
 @customElement("help-modal")
 export class HelpModal extends BaseModal {
   protected routerName = "help";
 
+  @state() private tab: HelpTab = "overview";
   @state() private keybinds: Record<string, string> = this.getKeybinds();
-  @query("#tutorial-video-iframe") private videoIframe?: HTMLIFrameElement;
-  @query("#tutorial-video-player") private videoPlayer?: HTMLVideoElement;
   private keyboardLayout = new KeyboardLayoutController(this);
 
   private handleKeyboardDetected = () => {
@@ -51,7 +51,6 @@ export class HelpModal extends BaseModal {
   private getKeyLabel(code: string): string {
     if (!code) return "";
     const layoutMap = this.keyboardLayout.map;
-
     const specialLabels: Record<string, string> = {
       ShiftLeft: "⇧ Shift",
       ShiftRight: "⇧ Shift",
@@ -71,7 +70,6 @@ export class HelpModal extends BaseModal {
       Period: ">",
       Comma: "<",
     };
-
     if ((code === "Period" || code === "Comma") && layoutMap?.has(code)) {
       return layoutMap.get(code)!.toUpperCase();
     }
@@ -86,1259 +84,721 @@ export class HelpModal extends BaseModal {
     if (code.startsWith("Key") && code.length === 4) return code.slice(3);
     if (code.startsWith("Digit")) return code.slice(5);
     if (code.startsWith("Numpad")) return `Num ${code.slice(6)}`;
-
     return code;
   }
 
   private renderKey(code: string) {
-    const label = this.getKeyLabel(code);
-    // Key names stay left-to-right even inside RTL locales so the badges
-    // (and combos like "Shift + click") never scramble.
     return html`<span
       dir="ltr"
-      class="inline-block min-w-[32px] text-center px-2 py-1 rounded bg-[#2a2a2a] border-b-2 border-[#1a1a1a] text-white font-mono text-xs font-bold mx-0.5"
-      >${label}</span
+      class="inline-block min-w-[32px] text-center px-2 py-1 rounded bg-[#1a1f28] border border-white/15 border-b-2 border-b-black text-[#c6ff3d] lp-mono text-xs font-bold mx-0.5"
+      >${this.getKeyLabel(code)}</span
     >`;
+  }
+
+  private startTutorial() {
+    this.close();
+    document.dispatchEvent(new CustomEvent("start-tutorial"));
   }
 
   protected renderHeaderSlot() {
     return modalHeader({
-      title: translateText("main.help"),
+      title: "HOW LANDPOT WORKS",
       onBack: () => this.close(),
-      ariaLabel: translateText("common.back"),
+      ariaLabel: "Back",
     });
   }
 
-  protected renderBody() {
-    const keybinds = this.keybinds;
-    const hideHotkeys = Platform.isTouch && !Platform.hasKeyboard;
+  private renderTabs() {
+    const tabs: { id: HelpTab; label: string }[] = [
+      { id: "overview", label: "Overview" },
+      { id: "caldera", label: "Caldera & $LANDPOT" },
+      { id: "warfare", label: "Naval & Combat" },
+      { id: "economy", label: "Economy & Terrain" },
+      { id: "controls", label: "Controls" },
+    ];
+    return html`<div
+      class="sticky top-0 z-20 flex flex-wrap gap-1.5 border-b border-white/10 bg-[#0b0d10]/95 backdrop-blur-md px-5 py-3"
+      role="tablist"
+      data-testid="help-tabs"
+    >
+      ${tabs.map(
+        (t) => html`<button
+          type="button"
+          role="tab"
+          aria-selected=${this.tab === t.id}
+          data-testid=${`help-tab-${t.id}`}
+          class="lp-mono text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-all ${
+            this.tab === t.id
+              ? "bg-[#c6ff3d] text-[#0b0d10] font-bold shadow-[0_2px_0_0_#3f7a14]"
+              : "border border-white/10 bg-white/[0.03] text-gray-300 hover:border-[#c6ff3d]/50 hover:text-white"
+          }"
+          @click=${() => {
+            this.tab = t.id;
+          }}
+        >
+          ${t.label}
+        </button>`,
+      )}
+    </div>`;
+  }
 
-    return html`
+  private renderOverview() {
+    const steps = [
+      {
+        num: "01",
+        title: "Spawn on Your Plate",
+        desc: "Pick your starting tile during the spawn phase. In 1v1 Duels and Cup matches, your outlined starting zone is mirrored for fair symmetry.",
+        img: icon("globe"),
+      },
+      {
+        num: "02",
+        title: "Expand & Conquer",
+        desc: "Click neutral or enemy land to send troops. Balance your attack slider: push fast on plains, fortify mountain passes, and capture enemy ports.",
+        img: icon("swords"),
+      },
+      {
+        num: "03",
+        title: "Fight for the Crater",
+        desc: "On Caldera, the center crater counts ×3 toward your final score. In the closing minutes, volcanic eruption turns the outer rim to lava rock.",
+        img: icon("volcano"),
+      },
+      {
+        num: "04",
+        title: "Claim On-Chain",
+        desc: "Every paid match is settled by verifiable replay on Solana. Winners claim $LANDPOT directly from the escrow vault — zero server custody.",
+        img: icon("coins"),
+      },
+    ];
+
+    return html`<div class="lp-reveal flex flex-col gap-6">
+      <!-- Top hero banner -->
       <div
-        dir=${textDirection()}
-        class="prose prose-invert prose-sm max-w-none px-6 py-3
-          [&_a]:text-blue-400 [&_a:hover]:text-blue-300 transition-colors
-          [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:text-white [&_h1]:border-b [&_h1]:border-white/10 [&_h1]:pb-2
-          [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-blue-200
-          [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-blue-100
-          [&_ul]:ps-5 [&_ul]:list-disc [&_ul]:space-y-1
-          [&_li]:text-gray-300 [&_li]:leading-relaxed
-          [&_p]:text-gray-300 [&_p]:mb-3 [&_strong]:text-white [&_strong]:font-bold
-          [&_p]:[unicode-bidi:plaintext] [&_li]:[unicode-bidi:plaintext]
-          [&_td:nth-child(2)]:[unicode-bidi:plaintext]
-          [&_td:nth-child(3)]:[unicode-bidi:plaintext]"
+        class="rounded-2xl border border-[#c6ff3d]/30 bg-gradient-to-br from-[#121820] via-[#0d1118] to-[#0b0d10] p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
       >
-          <!-- In-game tutorial: starts a default solo game with the guide on -->
-          <section
-            class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 rounded-xl border border-white/10 px-5 py-4 mb-8"
+        <div class="flex flex-col gap-2 max-w-2xl">
+          <span
+            class="lp-mono inline-flex w-fit items-center gap-1.5 rounded bg-[#c6ff3d] px-2 py-0.5 text-[11px] font-bold text-[#0b0d10]"
           >
-            <div>
-              <h3 class="!mt-0 !mb-1">
-                ${translateText("help_modal.in_game_tutorial")}
-              </h3>
-              <p class="!mb-0 text-sm">
-                ${translateText("help_modal.in_game_tutorial_desc")}
-              </p>
-            </div>
-            <button
-              class="shrink-0 hover:bg-white/5 px-6 py-2 text-xs font-bold transition-all duration-200 rounded-lg uppercase tracking-widest bg-malibu-blue/20 text-aquarius border border-malibu-blue/30 shadow-[var(--shadow-malibu-blue)]"
-              @click=${() =>
-                document.dispatchEvent(new CustomEvent("start-tutorial"))}
-            >
-              ${translateText("help_modal.in_game_tutorial_start")}
-            </button>
-          </section>
-
-          <!-- Video Tutorial Section -->
-          <div class="flex items-center gap-3 mb-3">
-            <div class="text-blue-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-            </div>
-            <h3
-              class="text-xl font-bold uppercase tracking-widest text-white/90"
-            >
-              ${translateText("help_modal.video_tutorial")}
-            </h3>
-            <div
-              class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-            ></div>
-          </div>
-          <section
-            class="bg-white/5 rounded-xl border border-white/10 overflow-hidden mb-8"
+            <span class="lp-burn-pulse"></span>
+            REAL-TIME TERRITORY STRATEGY ON SOLANA
+          </span>
+          <h2 class="lp-display text-xl sm:text-2xl text-white">
+            Take land. Outlast everyone.
+            <span class="text-[#c6ff3d]">Take the pot.</span>
+          </h2>
+          <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+            Landpot combines fast real-time map conquest with non-custodial
+            Solana matches. Practice free in any lobby, or stake $LANDPOT in 1v1
+            Duels, 8–16 player FFA pots, and the Weekly Caldera Cup.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2 shrink-0">
+          <button
+            type="button"
+            class="px-btn px-4 py-2.5 text-sm"
+            @click=${() => this.startTutorial()}
           >
-            <div class="relative w-full h-0 pb-[56.25%]">
-              ${
-                Platform.isElectron
-                  ? html`<video
-                      id="tutorial-video-player"
-                      class="absolute top-0 left-0 w-full h-full"
-                      src="${DESKTOP_TUTORIAL_VIDEO_URL}"
-                      title="${translateText(
-                        "help_modal.video_tutorial_title",
-                      )}"
-                      controls
-                      preload="metadata"
-                    ></video>`
-                  : html`<iframe
-                      id="tutorial-video-iframe"
-                      class="absolute top-0 left-0 w-full h-full"
-                      src="${this.isModalOpen ? TUTORIAL_VIDEO_URL : ""}"
-                      title="${translateText(
-                        "help_modal.video_tutorial_title",
-                      )}"
-                      frameborder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowfullscreen
-                    ></iframe>`
-              }
-            </div>
-          </section>
+            ▶ Solo Tutorial
+          </button>
+          <a
+            href=${PUMP_FUN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="lp-pump-btn inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 lp-display text-xs font-bold text-[#0b0d10]"
+          >
+            Buy $LANDPOT ↗
+          </a>
+        </div>
+      </div>
 
-          <!-- Troubleshooting Section -->
-          <div class="flex items-center gap-3 mb-3">
-            <div class="text-blue-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+      <!-- 4-step game loop -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        ${steps.map(
+          (s) => html`<div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-2"
+          >
+            <div class="flex items-center justify-between">
+              <img
+                src=${s.img}
+                alt=""
+                class="size-8 object-contain"
+                style="image-rendering: pixelated"
+              />
+              <span class="lp-mono text-xs font-bold text-[#c6ff3d]"
+                >${s.num}</span
               >
-                <path d="M2 20 L12 0 L22 20 L2 20"></path>
-                <line x1="12" y1="8" x2="12" y2="14"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
             </div>
-            <h3
-              class="text-xl font-bold uppercase tracking-widest text-white/90"
-            >
-              ${translateText("main.troubleshooting")}
-            </h3>
-            <div
-              class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-            ></div>
-          </div>
-          <section>
-            <div class="w-full flex flex-col items-center">
-              <p class="mb-6 text-white/70 text-sm">
-                ${translateText("help_modal.troubleshooting_desc")}
-              </p>
-              <button
-                id="troubleshooting-button"
-                class="w-full sm:w-fit max-w-full hover:bg-white/5 px-4 sm:px-6 py-2 text-sm sm:text-xs font-bold transition-all duration-200 rounded-lg uppercase tracking-widest bg-malibu-blue/20 text-aquarius border border-malibu-blue/30 shadow-[var(--shadow-malibu-blue)] whitespace-normal break-words text-center"
-                data-page="page-troubleshooting"
-                @click="${this.openTroubleshooting}"
-              >
-                <span
-                  class="relative z-10 block max-w-full leading-snug"
-                  >${translateText("main.go_to_troubleshooting")}</span
-                >
-              </button>
-            </div>
-          </section>
-          <!-- Hotkeys Section -->
+            <h3 class="lp-display text-sm text-white">${s.title}</h3>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              ${s.desc}
+            </p>
+          </div>`,
+        )}
+      </div>
+
+      <!-- Game Modes -->
+      <div class="flex flex-col gap-3">
+        <h3 class="lp-display text-base text-white">Game Formats</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div
-            id="help-hotkeys-heading"
-            class="flex items-center gap-3 mb-3"
-            ?hidden=${hideHotkeys}
+            class="lp-tok-card rounded-xl border border-[#c6ff3d]/35 bg-[#0f151d] p-4 flex flex-col gap-2"
           >
-            <div class="text-blue-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-5 h-5 text-blue-400"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+            <div class="flex items-center justify-between">
+              <span class="lp-display text-sm text-white"
+                >1v1 Caldera Duels</span
               >
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
-                <path d="M6 8h.001"></path>
-                <path d="M10 8h.001"></path>
-                <path d="M14 8h.001"></path>
-                <path d="M18 8h.001"></path>
-                <path d="M6 12h.001"></path>
-                <path d="M10 12h.001"></path>
-                <path d="M14 12h.001"></path>
-                <path d="M18 12h.001"></path>
-                <path d="M6 16h12"></path>
-              </svg>
+              <span class="lp-mono text-[11px] text-[#c6ff3d]">6 MIN</span>
             </div>
-            <h3
-              class="text-xl font-bold uppercase tracking-widest text-white/90"
-            >
-              ${translateText("help_modal.hotkeys")}
-            </h3>
+            <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+              Challenge a friend by invite link or join the open queue. Mirrored
+              starts, crater ×3, 2-minute eruption. Two 10,000 entries pay
+              <b class="text-white">19,000 $LANDPOT</b> (+9,000) to the winner.
+              Instant 1-click rematch.
+            </p>
+          </div>
+          <div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-2"
+          >
+            <div class="flex items-center justify-between">
+              <span class="lp-display text-sm text-white">Caldera FFA Pot</span>
+              <span class="lp-mono text-[11px] text-gray-400">8–16 PLAYERS</span>
+            </div>
+            <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+              12-minute free-for-all on 16 identical volcanic plates. No bots,
+              no alliances, no nukes. At the timer (or 80% domination), the net
+              pot splits proportionally by final weighted land.
+            </p>
+          </div>
+          <div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-2"
+          >
+            <div class="flex items-center justify-between">
+              <span class="lp-display text-sm text-white"
+                >Weekly Caldera Cup</span
+              >
+              <span class="lp-mono text-[11px] text-gray-400">4 PAIRS (2V2V2V2)</span>
+            </div>
+            <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+              Lock in a teammate with an invite link. Four pairs battle for 14
+              minutes using team map markers (Hold / Attack / Help). The winning
+              pair splits the entire net pot 50/50.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  private renderCaldera() {
+    return html`<div class="lp-reveal flex flex-col gap-6">
+      <!-- Animated Caldera Crater & Eruption diagram -->
+      <div
+        class="rounded-2xl border border-white/10 bg-[#0d1016]/90 p-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 items-center"
+      >
+        <div
+          class="relative mx-auto flex size-52 items-center justify-center rounded-full border border-cyan-500/20 bg-[#07111c] overflow-hidden"
+          aria-hidden="true"
+        >
+          <!-- Island silhouette -->
+          <div
+            class="size-44 rounded-full border-2 border-emerald-400/35 bg-emerald-950/50 flex items-center justify-center"
+          >
+            <!-- Shrinking volcanic eruption ring -->
             <div
-              class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
+              class="lp-help-eruption-ring absolute inset-4 rounded-full border-4 border-dashed border-orange-500/90 shadow-[0_0_24px_rgba(249,115,22,0.55)]"
+            ></div>
+            <!-- Inner x3 Crater -->
+            <div
+              class="relative z-10 flex size-20 flex-col items-center justify-center rounded-full border-2 border-[#c6ff3d] bg-[#c6ff3d]/15 shadow-[0_0_25px_rgba(198,255,61,0.4)]"
+            >
+              <span class="lp-display text-sm text-[#c6ff3d]">CRATER</span>
+              <span class="lp-mono text-[11px] font-bold text-white"
+                >×3 SCORE</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <h3 class="lp-display text-lg text-white">
+            Caldera Rules: Crater ×3 &amp; Volcanic Eruption
+          </h3>
+          <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+            Every paid match takes place on <b class="text-white">Caldera</b> —
+            a symmetrical volcanic island divided into 16 identical plates so no
+            spawn has an unfair terrain advantage.
+          </p>
+          <ul class="lp-mono text-xs text-gray-300 space-y-2 list-disc pl-4">
+            <li>
+              <b class="text-[#c6ff3d]">Center Crater counts ×3:</b> Every land
+              tile inside the central crater ring is worth 3× normal rim tiles
+              when calculating your share of the pot.
+            </li>
+            <li>
+              <b class="text-orange-400">Shrinking Eruption:</b> During the
+              closing minutes (last 2 min in Duels, last 3 min in FFA), lava
+              closes inward from the coast, turning rim tiles into permanent
+              impassable rock. Camping the edge loses — end the match on the
+              crater.
+            </li>
+            <li>
+              <b class="text-white">Pure Skill Ruleset:</b> No bots, no AI
+              nations, no alliances, and no nukes/SAMs/warships in paid Caldera
+              pots.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Solana Escrow & Tokenomics breakdown -->
+      <div class="flex flex-col gap-3">
+        <h3 class="lp-display text-base text-white">
+          Solana Escrow &amp; $LANDPOT Tokenomics
+        </h3>
+        <!-- Payout split bar -->
+        <div
+          class="rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-3"
+        >
+          <div class="flex items-center justify-between lp-mono text-xs">
+            <span class="text-[#c6ff3d] font-bold">95% Winners</span>
+            <span class="text-orange-400 font-bold">2% Burned On-Chain</span>
+            <span class="text-sky-400 font-bold">3% Treasury</span>
+          </div>
+          <div class="flex h-3.5 w-full overflow-hidden rounded-full bg-black">
+            <div class="h-full bg-[#c6ff3d]" style="width: 95%"></div>
+            <div class="h-full bg-orange-500" style="width: 2%"></div>
+            <div class="h-full bg-sky-400" style="width: 3%"></div>
+          </div>
+          <p class="lp-mono text-[11px] text-gray-400">
+            Example (1v1 Duel): two 10,000 $LANDPOT entries = 20,000 pot →
+            <b class="text-white">19,000 $LANDPOT</b> to the winner (+9,000
+            profit), <b class="text-orange-300">400 burned forever</b>, 600 to
+            treasury.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-1.5"
+          >
+            <span class="lp-display text-sm text-white">Zero Custody</span>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              Your wallet signs each deposit directly into an Anchor escrow
+              vault. The game server never holds private keys or player tokens.
+            </p>
+          </div>
+          <div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-1.5"
+          >
+            <span class="lp-display text-sm text-white">100% Refunds</span>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              If a lobby doesn't fill, an opponent never shows, or a duel/cup
+              ends in an exact tie, every player claims 100% of their entry
+              back.
+            </p>
+          </div>
+          <div
+            class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex flex-col gap-1.5"
+          >
+            <span class="lp-display text-sm text-white"
+              >Verifiable Settlement</span
+            >
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              The server replays the archived match deterministically and posts
+              its keccak256 hash on-chain. Anyone can download and verify the
+              replay during the review window.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  private renderWarfare() {
+    return html`<div class="lp-reveal flex flex-col gap-6">
+      <!-- LIVE ANIMATED TORPEDO & WATER PLUME SHOWCASE -->
+      <div
+        class="rounded-2xl border border-cyan-400/30 bg-[#07111c] p-5 flex flex-col gap-3"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="lp-display text-sm text-white"
+            >Naval Warfare: Underwater Torpedoes &amp; Impact Plumes</span
+          >
+          <span
+            class="lp-mono rounded bg-cyan-400/15 border border-cyan-400/40 px-2 py-0.5 text-[11px] text-cyan-200"
+          >
+            LIVE PIXEL-ART FX
+          </span>
+        </div>
+
+        <div
+          class="relative h-36 w-full overflow-hidden rounded-xl border border-cyan-500/20 bg-gradient-to-b from-[#081524] via-[#0a1c2e] to-[#06101b]"
+        >
+          <!-- Subtle ocean grid lines -->
+          <div
+            class="absolute inset-0 opacity-20"
+            style="background-image: radial-gradient(#38bdf8 1px, transparent 1px); background-size: 16px 16px;"
+          ></div>
+
+          <!-- Launching warship icon on left -->
+          <img
+            src=${icon("warship")}
+            alt="Warship"
+            class="absolute left-5 top-1/2 -translate-y-1/2 size-12 object-contain"
+            style="image-rendering: pixelated"
+          />
+
+          <!-- Animated underwater torpedo swimming right -->
+          <div class="lp-help-torp absolute left-16 top-1/2 -translate-y-1/2">
+            <div
+              class="lp-help-torp-sprite"
+              style=${`background-image: url('${TORP_URL}')`}
             ></div>
           </div>
-          <section
-            id="help-hotkeys-content"
-            class="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
-            ?hidden=${hideHotkeys}
+
+          <!-- Target ship + massive 8-frame water plume geyser on impact -->
+          <img
+            src=${icon("warship")}
+            alt="Enemy Ship"
+            class="absolute left-[250px] top-1/2 -translate-y-1/2 size-12 object-contain opacity-90 -scale-x-100"
+            style="image-rendering: pixelated"
+          />
+          <div
+            class="lp-help-splash absolute left-[212px] top-1/2 -translate-y-[74%] pointer-events-none"
+            style=${`background-image: url('${SPLASH_URL}')`}
+          ></div>
+
+          <span
+            class="lp-mono absolute bottom-2 right-3 text-[10px] text-cyan-300/70"
           >
-            <div class="pt-2 pb-4 px-4 overflow-x-auto">
-              <table class="w-full text-sm border-separate border-spacing-y-1">
-                <thead>
-                  <tr
-                    class="text-white/40 text-xs uppercase tracking-wider text-start"
-                  >
-                    <th class="pb-2 ps-4">
-                      ${translateText("help_modal.table_key")}
-                    </th>
-                    <th class="pb-2">
-                      ${translateText("help_modal.table_action")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="text-white/80">
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey("Escape")}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_esc")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey("Enter")}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_enter")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.toggleView)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("user_setting.toggle_view_desc")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.coordinateGrid)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_coordinate_grid")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.swapDirection)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.bomb_direction")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.shiftKey)}
-                        <span class="text-white/40 font-bold">+</span>
-                        <div
-                          class="w-5 h-8 border border-white/40 rounded-full relative"
-                        >
-                          <div
-                            class="absolute top-0 left-0 w-1/2 h-1/2 bg-red-500/80 rounded-tl-full"
-                          ></div>
-                          <div
-                            class="w-0.5 h-1.5 bg-white/40 rounded-full absolute top-1.5 left-1/2 -translate-x-1/2"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_attack_altclick")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.buildMenuModifier)}
-                        <span class="text-white/40 font-bold">+</span>
-                        <div
-                          class="w-5 h-8 border border-white/40 rounded-full relative"
-                        >
-                          <div
-                            class="absolute top-0 left-0 w-1/2 h-1/2 bg-red-500/80 rounded-tl-full"
-                          ></div>
-                          <div
-                            class="w-0.5 h-1.5 bg-white/40 rounded-full absolute top-1.5 left-1/2 -translate-x-1/2"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_build")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.emojiMenuModifier)}
-                        <span class="text-white/40 font-bold">+</span>
-                        <div
-                          class="w-5 h-8 border border-white/40 rounded-full relative"
-                        >
-                          <div
-                            class="absolute top-0 left-0 w-1/2 h-1/2 bg-red-500/80 rounded-tl-full"
-                          ></div>
-                          <div
-                            class="w-0.5 h-1.5 bg-white/40 rounded-full absolute top-1.5 left-1/2 -translate-x-1/2"
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_emote")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.quickChat)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_quick_chat")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.emojiMenu)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_emote")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.playerPanel)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_player_panel")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.centerCamera)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("user_setting.center_camera_desc")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.pauseGame)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_pause_game")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="flex flex-wrap gap-2">
-                        ${this.renderKey(keybinds.gameSpeedDown)}
-                        ${this.renderKey(keybinds.gameSpeedUp)}
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_game_speed")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="flex flex-wrap gap-2">
-                        ${this.renderKey(keybinds.zoomOut)}
-                        ${this.renderKey(keybinds.zoomIn)}
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_zoom")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="flex flex-wrap gap-1 max-w-[200px]">
-                        ${this.renderKey(keybinds.moveUp)}
-                        ${this.renderKey(keybinds.moveLeft)}
-                        ${this.renderKey(keybinds.moveDown)}
-                        ${this.renderKey(keybinds.moveRight)}
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_move_camera")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="flex flex-wrap gap-2">
-                        ${this.renderKey(keybinds.attackRatioDown)}
-                        ${this.renderKey(keybinds.attackRatioUp)}
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_ratio_change")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.shiftKey)}
-                        <span class="text-white/40 font-bold">+</span>
-                        <div class="flex items-center gap-1">
-                          <div
-                            class="w-5 h-8 border border-white/40 rounded-full relative"
-                          >
-                            <div
-                              class="w-0.5 h-2 bg-red-400 rounded-full absolute top-1.5 left-1/2 -translate-x-1/2"
-                            ></div>
-                          </div>
-                          <div class="flex flex-col text-[10px] text-white/50">
-                            <span>↑</span>
-                            <span>↓</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_ratio_change")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.altKey)}
-                        <span class="text-white/40 font-bold">+</span>
-                        ${this.renderKey(keybinds.resetGfx)}
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_reset_gfx")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div
-                        class="w-5 h-8 border border-white/40 rounded-full relative"
-                      >
-                        <div
-                          class="w-0.5 h-2 bg-red-400 rounded-full absolute top-1.5 left-1/2 -translate-x-1/2"
-                        ></div>
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_auto_upgrade")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      <div class="inline-flex items-center gap-2">
-                        ${this.renderKey(keybinds.boxSelectWarships)}
-                        <span class="text-white/40 font-bold">+</span>
-                        <span class="text-white/50 text-xs"
-                          >${translateText("help_modal.drag")}</span
-                        >
-                      </div>
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_warship_multiselect")}
-                    </td>
-                  </tr>
-                  <tr class="hover:bg-white/5 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5">
-                      ${this.renderKey(keybinds.selectAllWarships)}
-                    </td>
-                    <td class="py-3 border-b border-white/5 text-white/70">
-                      ${translateText("help_modal.action_warship_selectall")}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
+            Submerged bubble wake → Water-plume detonation
+          </span>
+        </div>
 
-          <!-- UI Interface Section -->
-          <section class="mb-8 mt-8">
-            <div class="flex items-center gap-3 mb-6">
-              <div class="text-blue-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="3" y1="9" x2="21" y2="9"></line>
-                  <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg>
-              </div>
-              <h3
-                class="text-xl font-bold uppercase tracking-widest text-white/90"
+        <p class="lp-mono text-xs text-gray-300 leading-relaxed">
+          Warships patrol the seas, intercept enemy troop transports and trade
+          convoys, and fire animated underwater torpedoes that detonate in
+          towering ocean geysers.
+        </p>
+      </div>
+
+      <!-- Combat & Unit cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div
+          class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex gap-3"
+        >
+          <img
+            src=${icon("swords")}
+            alt=""
+            class="size-9 shrink-0 object-contain"
+            style="image-rendering: pixelated"
+          />
+          <div class="flex flex-col gap-1">
+            <h4 class="lp-display text-sm text-white">
+              Land Fronts &amp; Attack Ratio
+            </h4>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              Adjust your attack slider (10%–100%) before clicking a target.
+              Never over-commit your entire army at once — keep reserve troops
+              to hold borders and fuel exponential population growth.
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex gap-3"
+        >
+          <img
+            src=${icon("warship")}
+            alt=""
+            class="size-9 shrink-0 object-contain"
+            style="image-rendering: pixelated"
+          />
+          <div class="flex flex-col gap-1">
+            <h4 class="lp-display text-sm text-white">
+              Transports, Trade &amp; Raid Hotspots
+            </h4>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              Click water or an enemy shore to send an amphibious transport.
+              Ports spawn automated trade ships for gold — raiding enemy trade
+              lanes creates glowing <b class="text-white">Raid Hotspots</b> on
+              the map.
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex gap-3"
+        >
+          <div
+            class="lp-help-mush shrink-0"
+            style=${`background-image: url('${MUSH_URL}')`}
+            aria-hidden="true"
+          ></div>
+          <div class="flex flex-col gap-1">
+            <h4 class="lp-display text-sm text-white">
+              Nukes, MIRVs &amp; SAMs (Standard Modes)
+            </h4>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              Build Missile Silos to launch Atom Bombs, Hydrogen Bombs, and
+              MIRVs, and build SAM Launchers to intercept incoming strikes.
+              <b class="text-[#c6ff3d]"
+                >Disabled in paid Caldera matches &amp; 1v1 Duels.</b
               >
-                ${translateText("help_modal.ui_section")}
-              </h3>
-              <div
-                class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-              ></div>
-            </div>
+            </p>
+          </div>
+        </div>
 
-            <div class="grid grid-cols-1 gap-6">
-              <!-- Leaderboard -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3 shrink-0">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.ui_leaderboard")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/leaderboard2.webp")}
-                    alt="Leaderboard"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div
-                  class="flex items-center text-white/70 text-sm leading-relaxed"
-                >
-                  <p>${translateText("help_modal.ui_leaderboard_desc")}</p>
-                </div>
-              </div>
+        <div
+          class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex gap-3"
+        >
+          <img
+            src=${icon("crown")}
+            alt=""
+            class="size-9 shrink-0 object-contain"
+            style="image-rendering: pixelated"
+          />
+          <div class="flex flex-col gap-1">
+            <h4 class="lp-display text-sm text-white">
+              Alliances &amp; Betrayal (Free FFA)
+            </h4>
+            <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+              In free public lobbies you can form alliances, share gold/troops,
+              and coordinate attacks. Breaking an alliance flags you as a
+              traitor with a temporary defense penalty.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
 
-              <!-- Control Panel -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3 shrink-0">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.ui_control")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/controlPanel.webp")}
-                    alt="Control Panel"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div class="flex flex-col justify-center text-white/70 text-sm">
-                  <p class="mb-4 leading-relaxed">
-                    ${translateText("help_modal.ui_control_desc")}
-                  </p>
-                  <ul class="space-y-2 list-disc ps-4 text-white/60">
-                    <li>${translateText("help_modal.ui_gold")}</li>
-                    <li>${translateText("help_modal.ui_attack_ratio")}</li>
-                  </ul>
-                </div>
-              </div>
+  private renderEconomy() {
+    const buildings = [
+      {
+        name: "City",
+        img: icon("city"),
+        desc: "Raises your maximum troop capacity and speeds up population growth.",
+      },
+      {
+        name: "Defense Post",
+        img: icon("defense"),
+        desc: "Fortifies nearby tiles and chokepoints, heavily punishing enemy attacks.",
+      },
+      {
+        name: "Port",
+        img: icon("port"),
+        desc: "Generates passive gold via Trade Ships and unlocks naval control.",
+      },
+      {
+        name: "Factory",
+        img: icon("factory"),
+        desc: "Boosts industrial gold output and connects rail trade networks.",
+      },
+      {
+        name: "Shipyard",
+        img: icon("shipyard"),
+        desc: "Produces Warships to patrol straits and launch underwater torpedoes.",
+      },
+      {
+        name: "Mine & Oil Well",
+        img: icon("mine"),
+        desc: "Built on resource deposits in New Era mode for massive late-game income.",
+      },
+    ];
 
-              <!-- Events Panel -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3 shrink-0">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.ui_events")}</span
-                  >
-                  <div class="flex flex-col gap-2">
-                    <img
-                      src=${assetUrl("images/helpModal/eventsPanel.webp")}
-                      alt="Events"
-                      class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                      loading="lazy"
-                    />
-                    <img
-                      src=${assetUrl("images/helpModal/eventsPanelAttack.webp")}
-                      alt="Events Attack"
-                      class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                      loading="lazy"
-                    />
-                  </div>
-                </div>
-                <div class="flex flex-col justify-center text-white/70 text-sm">
-                  <p class="mb-4 leading-relaxed">
-                    ${translateText("help_modal.ui_events_desc")}
-                  </p>
-                  <ul class="space-y-2 list-disc ps-4 text-white/60">
-                    <li>${translateText("help_modal.ui_events_alliance")}</li>
-                    <li>${translateText("help_modal.ui_events_attack")}</li>
-                    <li>${translateText("help_modal.ui_events_quickchat")}</li>
-                  </ul>
-                </div>
-              </div>
-
-              <!-- Options -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3 shrink-0">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.ui_options")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/options2.webp")}
-                    alt="Options"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div class="flex flex-col justify-center text-white/70 text-sm">
-                  <p class="mb-4 leading-relaxed">
-                    ${translateText("help_modal.ui_options_desc")}
-                  </p>
-                  <ul class="space-y-2 list-disc ps-4 text-white/60">
-                    <li>${translateText("help_modal.option_timer")}</li>
-                    <li>${translateText("help_modal.option_speed")}</li>
-                    <li>${translateText("help_modal.option_pause")}</li>
-                    <li>${translateText("help_modal.option_settings")}</li>
-                    <li>${translateText("help_modal.option_exit")}</li>
-                  </ul>
-                </div>
-              </div>
-
-              <!-- Player Overlay -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3 shrink-0">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.ui_playeroverlay")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/playerInfoOverlay.webp")}
-                    alt="Player Info"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div
-                  class="flex items-center text-white/70 text-sm leading-relaxed"
-                >
-                  <p>${translateText("help_modal.ui_playeroverlay_desc")}</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Radial Menu Section -->
-          <section class="mb-8">
-            <div class="flex items-center gap-3 mb-6">
-              <div class="text-blue-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </div>
-              <h3
-                class="text-xl font-bold uppercase tracking-widest text-white/90"
-              >
-                ${translateText("help_modal.radial_title")}
-              </h3>
-              <div
-                class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-              ></div>
-            </div>
-
-            <div
-              class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:bg-white/5 transition-colors"
+    return html`<div class="lp-reveal flex flex-col gap-6">
+      <div class="flex flex-col gap-3">
+        <h3 class="lp-display text-base text-white">Structures &amp; Economy</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${buildings.map(
+            (b) => html`<div
+              class="lp-tok-card rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 flex gap-3 items-start"
             >
-              <div class="flex flex-col gap-4 shrink-0">
-                <img
-                  src=${assetUrl("images/helpModal/radialMenu2.webp")}
-                  alt="Radial Menu"
-                  class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                  loading="lazy"
-                />
-                <img
-                  src=${assetUrl("images/helpModal/radialMenuAlly.webp")}
-                  alt="Radial Menu Ally"
-                  class="rounded-lg shadow-lg border border-white/20 max-w-[200px]"
-                  loading="lazy"
-                />
-              </div>
-              <div class="text-white/70 text-sm">
-                <p class="mb-4 leading-relaxed">
-                  ${translateText("help_modal.radial_desc")}
+              <img
+                src=${b.img}
+                alt=${b.name}
+                class="size-9 shrink-0 object-contain"
+                style="image-rendering: pixelated"
+              />
+              <div class="flex flex-col gap-1">
+                <span class="lp-display text-sm text-white">${b.name}</span>
+                <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+                  ${b.desc}
                 </p>
-                <ul class="space-y-3">
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/BuildIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span>${translateText("help_modal.radial_build")}</span>
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/InfoIcon.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span>${translateText("help_modal.radial_info")}</span>
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/BoatIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span>${translateText("help_modal.radial_boat")}</span>
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/AllianceIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span>${translateText("help_modal.info_alliance")}</span>
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/TraitorIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span>${translateText("help_modal.ally_betray")}</span>
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/DonateTroopIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span
-                      >${translateText("help_modal.radial_donate_troops")}</span
-                    >
-                  </li>
-                  <li class="flex items-center gap-3">
-                    <img
-                      src=${assetUrl("images/DonateGoldIconWhite.svg")}
-                      class="w-8 h-8 scale-75 origin-left"
-                    />
-                    <span
-                      >${translateText("help_modal.radial_donate_gold")}</span
-                    >
-                  </li>
-                </ul>
               </div>
-            </div>
-          </section>
+            </div>`,
+          )}
+        </div>
+      </div>
 
-          <!-- Info/Ally Panels Section -->
-          <section class="mb-8">
-            <div class="flex items-center gap-3 mb-6">
-              <div class="text-blue-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-              </div>
-              <h3
-                class="text-xl font-bold uppercase tracking-widest text-white/90"
-              >
-                ${translateText("help_modal.info_title")}
-              </h3>
-              <div
-                class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-              ></div>
-            </div>
+      <!-- Terrain Table -->
+      <div class="flex flex-col gap-3">
+        <h3 class="lp-display text-base text-white">Terrain Modifiers</h3>
+        <div
+          class="overflow-x-auto rounded-xl border border-white/10 bg-[#0d1016]/90"
+        >
+          <table class="w-full text-left lp-mono text-xs">
+            <thead class="border-b border-white/10 text-gray-400">
+              <tr>
+                <th class="px-4 py-2.5">Terrain</th>
+                <th class="px-4 py-2.5">Expansion Speed</th>
+                <th class="px-4 py-2.5">Defense Bonus</th>
+                <th class="px-4 py-2.5">Tactical Role</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 text-gray-200">
+              <tr>
+                <td class="px-4 py-2.5 font-bold text-emerald-300">Plains</td>
+                <td class="px-4 py-2.5">Fast</td>
+                <td class="px-4 py-2.5">Low</td>
+                <td class="px-4 py-2.5 text-gray-400">
+                  Quick early land grab; vulnerable without Defense Posts
+                </td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2.5 font-bold text-amber-200">Highlands</td>
+                <td class="px-4 py-2.5">Medium</td>
+                <td class="px-4 py-2.5">Medium</td>
+                <td class="px-4 py-2.5 text-gray-400">
+                  Balanced frontline territory
+                </td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2.5 font-bold text-gray-300">Mountains</td>
+                <td class="px-4 py-2.5">Slow</td>
+                <td class="px-4 py-2.5">Very High</td>
+                <td class="px-4 py-2.5 text-gray-400">
+                  Natural fortress &amp; chokepoints; expensive to push through
+                </td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2.5 font-bold text-[#c6ff3d]">
+                  Caldera Crater
+                </td>
+                <td class="px-4 py-2.5">Standard</td>
+                <td class="px-4 py-2.5">×3 Pot Value</td>
+                <td class="px-4 py-2.5 text-gray-400">
+                  Decides paid matches &amp; 1v1 duels — control the center
+                </td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2.5 font-bold text-orange-400">Lava Rock</td>
+                <td class="px-4 py-2.5">Impassable</td>
+                <td class="px-4 py-2.5">—</td>
+                <td class="px-4 py-2.5 text-gray-400">
+                  Created by Caldera eruption; permanently removes land &amp;
+                  buildings
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <!-- Enemy Info -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.info_enemy_panel")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/infoMenu2.webp")}
-                    alt="Enemy Info"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[240px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div class="text-white/70 text-sm">
-                  <p class="mb-4 leading-relaxed">
-                    ${translateText("help_modal.info_enemy_desc")}
-                  </p>
-                  <ul class="space-y-3">
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/ChatIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.info_chat")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/TargetIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.info_target")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/AllianceIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.info_alliance")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/EmojiIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.info_emoji")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/StopIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                        loading="lazy"
-                      />
-                      <span>${translateText("help_modal.info_trade")}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+  private renderControls() {
+    const kb = this.keybinds;
+    const hideHotkeys = Platform.isTouch && !Platform.hasKeyboard;
+    const rows: { action: string; keys: ReturnType<typeof html> }[] = [
+      {
+        action: "Pan camera",
+        keys: html`${this.renderKey(kb.moveUp)}${this.renderKey(kb.moveLeft)}${this.renderKey(kb.moveDown)}${this.renderKey(kb.moveRight)} or drag`,
+      },
+      {
+        action: "Zoom in / out",
+        keys: html`${this.renderKey(kb.zoomIn)} / ${this.renderKey(kb.zoomOut)} or mouse wheel`,
+      },
+      {
+        action: "Attack / Send troops",
+        keys: html`Left-click target territory`,
+      },
+      {
+        action: "Build menu / Actions",
+        keys: html`Right-click (or long-press on mobile)`,
+      },
+      {
+        action: "Adjust attack ratio",
+        keys: html`${this.renderKey(kb.attackRatioDown)} / ${this.renderKey(kb.attackRatioUp)}`,
+      },
+      {
+        action: "Toggle terrain / alt view",
+        keys: html`${this.renderKey(kb.toggleView)}`,
+      },
+      {
+        action: "Center camera",
+        keys: html`${this.renderKey(kb.centerCamera)}`,
+      },
+    ];
 
-              <!-- Ally Info -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-6 flex flex-col gap-6 hover:bg-white/5 transition-colors"
-              >
-                <div class="flex flex-col items-center gap-3">
-                  <span
-                    class="text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >${translateText("help_modal.info_ally_panel")}</span
-                  >
-                  <img
-                    src=${assetUrl("images/helpModal/infoMenu2Ally.webp")}
-                    alt="Ally Info"
-                    class="rounded-lg shadow-lg border border-white/20 max-w-[240px]"
-                    loading="lazy"
-                  />
-                </div>
-                <div class="text-white/70 text-sm">
-                  <p class="mb-4 leading-relaxed">
-                    ${translateText("help_modal.info_ally_desc")}
-                  </p>
-                  <ul class="space-y-3">
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/TraitorIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.ally_betray")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/DonateTroopIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span>${translateText("help_modal.ally_donate")}</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                      <img
-                        src=${assetUrl("images/DonateGoldIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                      <span
-                        >${translateText("help_modal.ally_donate_gold")}</span
-                      >
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Build Menu Section -->
-          <section class="mb-8">
-            <div class="flex items-center gap-3 mb-6">
-              <div class="text-blue-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path>
-                  <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path>
-                  <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path>
-                </svg>
-              </div>
-              <h3
-                class="text-xl font-bold uppercase tracking-widest text-white/90"
-              >
-                ${translateText("help_modal.build_menu_title")}
-              </h3>
-              <div
-                class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-              ></div>
-            </div>
-
-            <p class="mb-4 text-white/70 text-sm">
-              ${translateText("help_modal.build_menu_desc")}
-            </p>
-
-            <div class="overflow-hidden rounded-xl border border-white/10">
-              <table class="w-full border-collapse">
-                <thead class="bg-white/10">
+    return html`<div class="lp-reveal flex flex-col gap-5">
+      ${
+        hideHotkeys
+          ? html`<div
+              class="rounded-xl border border-white/10 bg-[#0d1016]/90 p-4 lp-mono text-xs text-gray-300 space-y-2"
+            >
+              <p><b class="text-white">Tap</b> a tile to expand or attack.</p>
+              <p>
+                <b class="text-white">Pinch</b> with two fingers to zoom,
+                <b class="text-white">drag</b> to pan the map.
+              </p>
+              <p>
+                <b class="text-white">Long-press</b> your land to open the build
+                menu.
+              </p>
+            </div>`
+          : html`<div
+              class="overflow-x-auto rounded-xl border border-white/10 bg-[#0d1016]/90"
+            >
+              <table class="w-full text-left lp-mono text-xs">
+                <thead class="border-b border-white/10 text-gray-400">
                   <tr>
-                    <th
-                      class="py-3 ps-4 text-start text-xs font-bold uppercase tracking-wider text-blue-300 w-[20%]"
-                    >
-                      ${translateText("help_modal.build_name")}
-                    </th>
-                    <th
-                      class="py-3 text-start text-xs font-bold uppercase tracking-wider text-blue-300 w-[8%]"
-                    >
-                      ${translateText("help_modal.build_icon")}
-                    </th>
-                    <th
-                      class="py-3 text-start text-xs font-bold uppercase tracking-wider text-blue-300"
-                    >
-                      ${translateText("help_modal.build_desc")}
-                    </th>
+                    <th class="px-4 py-2.5">Action</th>
+                    <th class="px-4 py-2.5">Control / Keybind</th>
                   </tr>
                 </thead>
-                <tbody class="text-white/80">
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.city")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/CityIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_city_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.defense_post")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/ShieldIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_defense_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.port")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/PortIcon.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_port_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.factory")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/FactoryIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_factory_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.warship")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/BattleshipIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_warship_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.missile_silo")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/MissileSiloIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_silo_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.sam_launcher")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/SamLauncherIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_sam_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.atom_bomb")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/NukeIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_atom_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.hydrogen_bomb")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/MushroomCloudIconWhite.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_hydrogen_desc")}
-                    </td>
-                  </tr>
-                  <tr class="bg-white/5 hover:bg-white/10 transition-colors">
-                    <td class="py-3 ps-4 border-b border-white/5 font-medium">
-                      ${translateText("unit_type.mirv")}
-                    </td>
-                    <td class="py-3 border-b border-white/5">
-                      <img
-                        src=${assetUrl("images/MIRVIcon.svg")}
-                        class="w-8 h-8 scale-75 origin-left"
-                      />
-                    </td>
-                    <td
-                      class="py-3 border-b border-white/5 text-white/60 text-sm"
-                    >
-                      ${translateText("help_modal.build_mirv_desc")}
-                    </td>
-                  </tr>
+                <tbody class="divide-y divide-white/5 text-gray-200">
+                  ${rows.map(
+                    (r) => html`<tr>
+                      <td class="px-4 py-2.5 font-semibold text-white">
+                        ${r.action}
+                      </td>
+                      <td class="px-4 py-2.5 text-gray-300">${r.keys}</td>
+                    </tr>`,
+                  )}
                 </tbody>
               </table>
-            </div>
-          </section>
+            </div>`
+      }
 
-          <!-- Player Icons Section -->
-          <section class="mb-4">
-            <div class="flex items-center gap-3 mb-6">
-              <div class="text-blue-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-              </div>
-              <h3
-                class="text-xl font-bold uppercase tracking-widest text-white/90"
-              >
-                ${translateText("help_modal.player_icons")}
-              </h3>
-              <div
-                class="flex-1 h-px bg-gradient-to-r from-blue-500/50 to-transparent"
-              ></div>
-            </div>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3"
+      >
+        <span class="lp-mono text-xs text-gray-400">
+          Connection or graphics issue? Open diagnostics.
+        </span>
+        <button
+          type="button"
+          class="lp-mono text-xs rounded-lg border border-white/15 px-3 py-1.5 text-gray-200 hover:border-[#c6ff3d]/60 hover:text-white cursor-pointer transition-colors"
+          @click=${() => this.openTroubleshooting()}
+        >
+          Troubleshooting
+        </button>
+      </div>
+    </div>`;
+  }
 
-            <p class="mb-6 text-white/70 text-sm">
-              ${translateText("help_modal.icon_desc")}
-            </p>
-
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
-              <!-- Crown -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-4 flex flex-col items-center gap-3 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src=${assetUrl("images/helpModal/crown.webp")}
-                  alt="Rank 1"
-                  class="rounded shadow-lg border border-white/10 h-24 w-auto object-contain"
-                  loading="lazy"
-                />
-                <span
-                  class="text-xs font-bold uppercase tracking-wider text-white text-center"
-                >
-                  ${translateText("help_modal.icon_crown")}
-                </span>
-              </div>
-
-              <!-- Traitor -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-4 flex flex-col items-center gap-3 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src=${assetUrl("images/helpModal/traitor2.webp")}
-                  alt="Traitor"
-                  class="rounded shadow-lg border border-white/10 h-24 w-auto object-contain"
-                  loading="lazy"
-                />
-                <span
-                  class="text-xs font-bold uppercase tracking-wider text-white text-center"
-                >
-                  ${translateText("help_modal.icon_traitor")}
-                </span>
-              </div>
-
-              <!-- Ally -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-4 flex flex-col items-center gap-3 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src=${assetUrl("images/helpModal/ally2.webp")}
-                  alt="Ally"
-                  class="rounded shadow-lg border border-white/10 h-24 w-auto object-contain"
-                  loading="lazy"
-                />
-                <span
-                  class="text-xs font-bold uppercase tracking-wider text-white text-center"
-                >
-                  ${translateText("help_modal.icon_ally")}
-                </span>
-              </div>
-
-              <!-- Embargo -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-4 flex flex-col items-center gap-3 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src=${assetUrl("images/helpModal/embargo.webp")}
-                  alt="Embargo"
-                  class="rounded shadow-lg border border-white/10 h-24 w-auto object-contain"
-                  loading="lazy"
-                />
-                <span
-                  class="text-xs font-bold uppercase tracking-wider text-white text-center"
-                >
-                  ${translateText("help_modal.icon_embargo")}
-                </span>
-              </div>
-
-              <!-- Alliance Request -->
-              <div
-                class="bg-black/20 rounded-xl border border-white/10 p-4 flex flex-col items-center gap-3 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src=${assetUrl("images/helpModal/allianceRequest.webp")}
-                  alt="Request"
-                  class="rounded shadow-lg border border-white/10 h-24 w-auto object-contain"
-                  loading="lazy"
-                />
-                <span
-                  class="text-xs font-bold uppercase tracking-wider text-white text-center"
-                >
-                  ${translateText("help_modal.icon_request")}
-                </span>
-              </div>
-            </div>
-          </section>
+  protected renderBody() {
+    return html`
+      <div class="flex flex-col min-h-0" data-testid="landpot-help-guide">
+        ${this.renderTabs()}
+        <div class="px-5 sm:px-6 py-5">
+          ${this.tab === "overview" ? this.renderOverview() : nothing}
+          ${this.tab === "caldera" ? this.renderCaldera() : nothing}
+          ${this.tab === "warfare" ? this.renderWarfare() : nothing}
+          ${this.tab === "economy" ? this.renderEconomy() : nothing}
+          ${this.tab === "controls" ? this.renderControls() : nothing}
         </div>
       </div>
     `;
@@ -1360,19 +820,7 @@ export class HelpModal extends BaseModal {
 
   protected onOpen(): void {
     this.keybinds = this.getKeybinds();
-    // Restore the video src when modal opens
-    if (this.videoIframe) {
-      this.videoIframe.src = TUTORIAL_VIDEO_URL;
-    }
   }
 
-  protected onClose(): void {
-    // Clear the iframe src to stop video playback
-    if (this.videoIframe) {
-      this.videoIframe.src = "";
-    }
-    // The desktop <video> keeps its src -- the file is local, so unlike the
-    // YouTube iframe there is nothing to unload; pausing is enough.
-    this.videoPlayer?.pause();
-  }
+  protected onClose(): void {}
 }

@@ -31,6 +31,7 @@ import {
   FxShockwavePass,
 } from "./FxShockwavePass";
 import { FxSpritePass } from "./FxSpritePass";
+import { FxTorpedoPass, type TorpedoTrack } from "./FxTorpedoPass";
 
 export type { AttackRingInput } from "../../../types";
 export { calculateExplosionDurationMs };
@@ -74,6 +75,10 @@ type MushroomPass = Pick<
 type AttackRingPass = Pick<
   FxAttackRingPass,
   "update" | "tick" | "draw" | "clear" | "dispose"
+>;
+type TorpedoPass = Pick<
+  FxTorpedoPass,
+  "setTorpedoes" | "pushSplash" | "tick" | "draw" | "setTimeFn" | "clear" | "dispose"
 >;
 
 const noop = () => {};
@@ -120,6 +125,15 @@ const NOOP_ATTACK_RING_PASS: AttackRingPass = {
   clear: noop,
   dispose: noop,
 };
+const NOOP_TORPEDO_PASS: TorpedoPass = {
+  setTorpedoes: noop,
+  pushSplash: noop,
+  tick: noop,
+  draw: noop,
+  setTimeFn: noop,
+  clear: noop,
+  dispose: noop,
+};
 
 /**
  * Build a cosmetic sub-pass, or fall back to a no-op when its shader program
@@ -144,6 +158,7 @@ export class FxPass {
   private shockwavePass: ShockwavePass;
   private attackRingPass: AttackRingPass;
   private mushroomPass: MushroomPass;
+  private torpedoPass: TorpedoPass;
   private mapW: number;
   private settings: RenderSettings;
   private timeFn: () => number = () => performance.now();
@@ -171,6 +186,10 @@ export class FxPass {
     this.mushroomPass = buildOptional(
       () => new FxMushroomPass(gl, settings),
       NOOP_MUSHROOM_PASS,
+    );
+    this.torpedoPass = buildOptional(
+      () => new FxTorpedoPass(gl),
+      NOOP_TORPEDO_PASS,
     );
   }
 
@@ -220,6 +239,23 @@ export class FxPass {
     const t = unit.unitType;
     if (t === UT_SHELL) {
       if (unit.reachedTarget) {
+        // Massive torpedo water plume + double expanding water shockwave rings + flash.
+        this.torpedoPass.pushSplash(x, y, true, this.timeFn());
+        this.shockwavePass.pushRing(
+          x,
+          y,
+          n.hitRadius * 1.5,
+          n.splashMs,
+          n.waterColor,
+        );
+        this.shockwavePass.pushRing(
+          x,
+          y,
+          n.hitRadius * 0.9,
+          n.splashMs,
+          n.waterColor,
+          140,
+        );
         this.shockwavePass.pushRing(
           x,
           y,
@@ -228,6 +264,7 @@ export class FxPass {
           n.flashColor,
         );
       } else if (this.spritePass.isOpenWater(unit.pos)) {
+        this.torpedoPass.pushSplash(x, y, false, this.timeFn());
         this.shockwavePass.pushRing(
           x,
           y,
@@ -328,6 +365,10 @@ export class FxPass {
     this.attackRingPass.update(rings);
   }
 
+  setTorpedoes(tracks: TorpedoTrack[]): void {
+    this.torpedoPass.setTorpedoes(tracks);
+  }
+
   // -------------------------------------------------------------------------
   // Per-frame
   // -------------------------------------------------------------------------
@@ -337,11 +378,13 @@ export class FxPass {
     this.shockwavePass.tick();
     this.attackRingPass.tick();
     this.mushroomPass.tick();
+    this.torpedoPass.tick();
   }
 
   draw(cameraMatrix: Float32Array, zoom: number): void {
     this.spritePass.draw(cameraMatrix);
     this.shockwavePass.draw(cameraMatrix);
+    this.torpedoPass.draw(cameraMatrix, zoom);
     this.attackRingPass.draw(cameraMatrix, zoom);
     // The cloud rises over everything else the blast drew.
     this.mushroomPass.draw(cameraMatrix);
@@ -356,6 +399,7 @@ export class FxPass {
     this.spritePass.setTimeFn(fn);
     this.shockwavePass.setTimeFn(fn);
     this.mushroomPass.setTimeFn(fn);
+    this.torpedoPass.setTimeFn(fn);
   }
 
   clear(): void {
@@ -363,6 +407,7 @@ export class FxPass {
     this.shockwavePass.clear();
     this.attackRingPass.clear();
     this.mushroomPass.clear();
+    this.torpedoPass.clear();
   }
 
   dispose(): void {
@@ -370,5 +415,6 @@ export class FxPass {
     this.shockwavePass.dispose();
     this.attackRingPass.dispose();
     this.mushroomPass.dispose();
+    this.torpedoPass.dispose();
   }
 }
