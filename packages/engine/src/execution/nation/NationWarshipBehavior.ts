@@ -79,18 +79,37 @@ export class NationWarshipBehavior {
     if (this.game.config().isUnitDisabled(UnitType.Warship)) {
       return false;
     }
-    if (!this.random.chance(50)) {
+    const { difficulty } = this.game.config().gameConfig();
+    const chance =
+      difficulty === Difficulty.Easy
+        ? 40
+        : difficulty === Difficulty.Medium
+          ? 24
+          : difficulty === Difficulty.Hard
+            ? 16
+            : 12;
+    if (!this.random.chance(chance)) {
       return false;
     }
     const ports = this.player.units(UnitType.Port);
+    if (ports.length === 0) {
+      return false;
+    }
     const ships = this.player.units(UnitType.Warship);
+    const maxFleet =
+      difficulty === Difficulty.Easy
+        ? 1
+        : difficulty === Difficulty.Medium
+          ? Math.min(3, ports.length)
+          : difficulty === Difficulty.Hard
+            ? Math.min(4, Math.max(2, ports.length))
+            : Math.min(5, Math.max(2, ports.length));
     if (
-      ports.length > 0 &&
-      ships.length === 0 &&
+      ships.length < maxFleet &&
       this.spareGold() > this.cost(UnitType.Warship)
     ) {
       const port = this.random.randElement(ports);
-      const targetTile = this.warshipSpawnTile(port.tile(), 250);
+      const targetTile = this.warshipSpawnTile(port.tile(), 260);
       if (targetTile === null) {
         return false;
       }

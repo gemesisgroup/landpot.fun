@@ -468,27 +468,33 @@ export class NationStructurePlacement {
     const { borderSpacing, structureSpacing } = this.spacingConstants();
 
     const { difficulty } = game.config().gameConfig();
-    const weightByLevel =
-      difficulty === Difficulty.Hard || difficulty === Difficulty.Impossible;
+    const weightByLevel = difficulty !== Difficulty.Easy;
 
     const protectEntries: { tile: TileRef; weight: number }[] = [];
     for (const unit of player.units()) {
       switch (unit.type()) {
+        case UnitType.MissileSilo:
+          protectEntries.push({
+            tile: unit.tile(),
+            weight: (weightByLevel ? unit.level() : 1) * 2,
+          });
+          break;
         case UnitType.City:
         case UnitType.Factory:
-        case UnitType.MissileSilo:
         case UnitType.Port:
           protectEntries.push({
             tile: unit.tile(),
             weight: weightByLevel ? unit.level() : 1,
           });
+          break;
       }
     }
     const range = game.config().defaultSamRange();
     const rangeSquared = range * range;
 
-    const useCoverageWeighting =
-      difficulty !== Difficulty.Easy && this.random.nextInt(0, 100) < 25;
+    // Always prioritize uncovered high-value structures on Medium+ so SAMs form
+    // an effective dome instead of stacking redundantly.
+    const useCoverageWeighting = difficulty !== Difficulty.Easy;
 
     // Pre-compute existing SAM coverage for each protectable structure
     let structureCoverage: Map<TileRef, number> | null = null;

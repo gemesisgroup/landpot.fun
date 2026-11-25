@@ -42,10 +42,10 @@ interface StructureRatioConfig {
 
 /** SAM launcher ratio per city, keyed by difficulty */
 const SAM_RATIO_BY_DIFFICULTY: Record<Difficulty, number> = {
-  [Difficulty.Easy]: 0.15,
-  [Difficulty.Medium]: 0.2,
-  [Difficulty.Hard]: 0.25,
-  [Difficulty.Impossible]: 0.3,
+  [Difficulty.Easy]: 0.25,
+  [Difficulty.Medium]: 0.38,
+  [Difficulty.Hard]: 0.5,
+  [Difficulty.Impossible]: 0.6,
 };
 
 /** Port ratio per city in team games (not on Easy), where teammates are safe trade partners */
@@ -653,18 +653,34 @@ export class NationStructureBehavior {
       return true;
     }
 
-    // Build order for non-city structures (priority order)
-    const buildOrder: UnitType[] = [
-      UnitType.Port,
-      UnitType.Factory,
-      UnitType.SAMLauncher,
-      UnitType.MissileSilo,
-    ];
-
     const nukesEnabled =
       !config.isUnitDisabled(UnitType.AtomBomb) ||
       !config.isUnitDisabled(UnitType.HydrogenBomb) ||
       !config.isUnitDisabled(UnitType.MIRV);
+
+    // Prioritize air defense ahead of economy once nuclear silos are in play
+    // and this nation still has no SAM umbrella.
+    const urgentSam =
+      nukesEnabled &&
+      missileSilosEnabled &&
+      !config.isUnitDisabled(UnitType.SAMLauncher) &&
+      this.player.unitsOwned(UnitType.SAMLauncher) === 0 &&
+      this.hasNuclearThreat();
+
+    // Build order for non-city structures (priority order)
+    const buildOrder: UnitType[] = urgentSam
+      ? [
+          UnitType.SAMLauncher,
+          UnitType.Port,
+          UnitType.Factory,
+          UnitType.MissileSilo,
+        ]
+      : [
+          UnitType.Port,
+          UnitType.Factory,
+          UnitType.SAMLauncher,
+          UnitType.MissileSilo,
+        ];
 
     for (const structureType of buildOrder) {
       // Skip disabled structure types
@@ -780,6 +796,23 @@ export class NationStructureBehavior {
       targetCount = Math.min(Math.floor(cityCount * ratio), MAX_MISSILE_SILOS);
     } else {
       targetCount = Math.floor(cityCount * ratio);
+      if (type === UnitType.SAMLauncher) {
+        const threat = this.hasNuclearThreat();
+        const minCitiesForFirstSam =
+          threat && difficulty !== Difficulty.Easy
+            ? 1
+            : threat
+              ? 2
+              : difficulty === Difficulty.Easy
+                ? 4
+                : 2;
+        if (cityCount >= minCitiesForFirstSam) {
+          targetCount = Math.max(1, targetCount);
+        }
+        if (threat && cityCount >= 3) {
+          targetCount = Math.max(2, Math.ceil(cityCount * ratio));
+        }
+      }
       if (
         cityCount >= 1 &&
         difficulty !== Difficulty.Easy &&
@@ -875,6 +908,16 @@ export class NationStructureBehavior {
    */
   private getPerceivedCost(type: UnitType): Gold {
     const realCost = this.cost(type);
+
+    // Never inflate SAM Launcher perceived cost while nuclear threat is active
+    // or before at least 2 SAMs are protecting the nation.
+    if (
+      type === UnitType.SAMLauncher &&
+      (this.player.unitsOwned(UnitType.SAMLauncher) < 2 ||
+        this.hasNuclearThreat())
+    ) {
+      return realCost;
+    }
 
     const saveUpTarget = this.getSaveUpTarget();
     if (
@@ -1008,6 +1051,27 @@ export class NationStructureBehavior {
       amount++;
     }
     return Math.max(1, amount);
+  }
+
+  /** True when any living rival (or this nation itself) already owns a Missile Silo. */
+  private hasNuclearThreat(): boolean {
+    if (this.player.unitsOwned(UnitType.MissileSilo) > 0) {
+      return true;
+    }
+    if (typeof this.game.players !== "function") {
+      return false;
+    }
+    for (const other of this.game.players()) {
+      if (
+        other !== this.player &&
+        other.isAlive() &&
+        !this.player.isFriendly(other) &&
+        other.unitsOwned(UnitType.MissileSilo) > 0
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Whether to upgrade a SAM instead of building one, because SAMs already cover every structure. */

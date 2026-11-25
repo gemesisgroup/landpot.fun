@@ -1061,9 +1061,10 @@ export class NationNukeBehavior {
       if (hasSam) return -1;
     }
 
-    // On Impossible difficulty and a hydrogen bomb, add value for SAMs that can be outranged
+    // On Hard & Impossible difficulty with a hydrogen bomb, add value for SAMs that can be outranged
     if (
-      difficulty === Difficulty.Impossible &&
+      (difficulty === Difficulty.Hard ||
+        difficulty === Difficulty.Impossible) &&
       nukeType === UnitType.HydrogenBomb
     ) {
       const hydroMagnitude = this.game
@@ -1086,8 +1087,9 @@ export class NationNukeBehavior {
 
         // Check if we can outrange this SAM
         if (distToSam > samRange) {
-          // Add significant value for destroying a SAM that we can outrange
-          tileValue += 100_000 * samLevel;
+          const bonus =
+            difficulty === Difficulty.Impossible ? 140_000 : 100_000;
+          tileValue += bonus * samLevel;
         }
       }
     }

@@ -380,6 +380,15 @@ export class NationAttackBehavior extends AiAttackBehavior {
     // Medium: answer attacks without saving up to the trigger ratio first
     if (difficulty === Difficulty.Medium && this.retaliate()) return;
 
+    // Punish an exposed neighbor who drained their troops attacking someone else,
+    // or press a runaway leader directly without idling on triggerRatio.
+    if (
+      difficulty !== Difficulty.Easy &&
+      this.tryOpportunisticFlank(borderingEnemies)
+    ) {
+      return;
+    }
+
     // Maybe save up troops until we reach the trigger ratio
     if (!this.hasTriggerRatioTroops() && !this.random.chance(10)) return;
 
@@ -394,6 +403,52 @@ export class NationAttackBehavior extends AiAttackBehavior {
     for (const strategy of strategies) {
       if (strategy()) return;
     }
+  }
+
+  /** Punish a bordering enemy whose flank is exposed or gang up on a runaway leader. */
+  private tryOpportunisticFlank(enemies: Player[]): boolean {
+    if (enemies.length === 0) return false;
+    const home = this.homeTroops();
+    if (home < 2500) return false;
+
+    let incoming = 0;
+    for (const a of this.player.incomingAttacks()) {
+      if (!a.retreating()) incoming += a.troops();
+    }
+    if (incoming > home * 0.25) return false;
+
+    const { difficulty } = this.game.config().gameConfig();
+    if (
+      this.isFFA() &&
+      (difficulty === Difficulty.Hard || difficulty === Difficulty.Impossible)
+    ) {
+      const leader = findRunawayLeader(this.game);
+      if (
+        leader &&
+        enemies.includes(leader) &&
+        this.bordersByLand(leader) &&
+        leader.troops() < home * 0.85 &&
+        this.sendAttack(leader)
+      ) {
+        return true;
+      }
+    }
+
+    const threshold =
+      difficulty === Difficulty.Impossible
+        ? 0.45
+        : difficulty === Difficulty.Hard
+          ? 0.4
+          : 0.32;
+    for (const enemy of enemies) {
+      if (enemy.type() === PlayerType.Bot) continue;
+      if (!this.bordersByLand(enemy)) continue;
+      if (enemy.outgoingAttacks().length === 0) continue;
+      if (enemy.troops() <= home * threshold && this.sendAttack(enemy)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Prefer an equally viable opening over dividing the spoils with another attacker. */
