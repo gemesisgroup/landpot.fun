@@ -4,9 +4,9 @@
  * place as "Coming soon" and activate automatically once a URL is filled in.
  */
 
-export const LAUNCHPAD_URL = "https://blockx.gg";
+export const GMGN_BSC_URL = "https://gmgn.ai/?chain=bsc";
 /** Legacy export name kept for existing callers. */
-export const PUMP_FUN_URL = LAUNCHPAD_URL;
+export const PUMP_FUN_URL = GMGN_BSC_URL;
 
 export const SOCIAL_LINKS = {
   twitter: "https://x.com/landpot_bnb",
@@ -15,5 +15,5 @@ export const SOCIAL_LINKS = {
 } as const;
 
 export function pumpFunUrl(mint?: string | null): string {
-  return mint ? `${LAUNCHPAD_URL}/token/${mint}` : LAUNCHPAD_URL;
+  return mint ? `https://gmgn.ai/bsc/token/${mint}` : GMGN_BSC_URL;
 }

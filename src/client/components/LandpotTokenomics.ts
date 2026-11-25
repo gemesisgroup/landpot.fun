@@ -125,7 +125,7 @@ export class LandpotTokenomics extends LitElement {
               data-testid="buy-pumpfun-section"
               class="lp-pump-btn inline-flex items-center gap-2 rounded-xl px-5 py-3 lp-display text-sm font-bold text-[#0b0d10]"
             >
-              <span>Buy $LANDPOT on BlockX</span>
+              <span>Buy $LANDPOT on GMGN</span>
               <span aria-hidden="true">↗</span>
             </a>
             ${
