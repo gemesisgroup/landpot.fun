@@ -27,6 +27,8 @@ export interface PotConfig {
   token: { address: string; symbol: string; decimals: number };
   /** Entry, token base units. */
   stake: string;
+  /** Allowed entry tiers for selectable-stake duels, token base units. */
+  stakes?: string[];
   /** The escrow's cuts of the pot at settlement, basis points. */
   burnBps: number;
   treasuryBps: number;

@@ -364,4 +364,61 @@ describe("Caldera duel host", () => {
       fs.rmSync(file, { force: true });
     }
   });
+
+  it("separates matchmaking queues by stake tier and forwards stake to escrow", async () => {
+    const openedStakes: Array<number | undefined> = [];
+    const pot: PotApi = {
+      open: async () => ({ fundingEnds: 2_000, minPlayers: 2, maxPlayers: 2 }),
+      openDuel: async (_id, _players, stakeTokens) => {
+        openedStakes.push(stakeTokens);
+        return {
+          duel: true,
+          fundingEnds: 2_000,
+          minPlayers: 2,
+          maxPlayers: 2,
+        };
+      },
+      lobby: async (gameId) => ({
+        gameId,
+        phase: 1,
+        minPlayers: 2,
+        maxPlayers: 2,
+        fundingEnds: 2_000,
+        deposited: 0,
+        depositors: [],
+      }),
+      seat: async () => true,
+      start: async () => ["alice", "carol"],
+      cancel: async () => {},
+    };
+
+    const { h } = host(pot);
+    // Alice queues at 100K, Bob queues at 500K: they must NOT match.
+    expect(h.joinQueue("alice", "Alice", 100_000)).toBeNull();
+    expect(h.joinQueue("bob", "Bob", 500_000)).toBeNull();
+    expect(h.queuedStake("alice")).toBe(100_000);
+    expect(h.queuedStake("bob")).toBe(500_000);
+
+    // Carol queues at 100K: matches Alice, while Bob stays queued at 500K.
+    const matched = h.joinQueue("carol", "Carol", 100_000);
+    expect(matched).not.toBeNull();
+    expect(matched!.stakeTokens).toBe(100_000);
+    expect(duelView(matched!, "alice").stakeTokens).toBe(100_000);
+    expect(h.inQueue("bob")).toBe(true);
+    expect(h.queuedStake("bob")).toBe(500_000);
+
+    // Confirming opens escrow with 100_000 stakeTokens.
+    await h.confirm(matched!.id, "alice");
+    await h.confirm(matched!.id, "carol");
+    expect(openedStakes).toEqual([100_000]);
+
+    // Friend invite preserves stakeTokens in readInvite and rematch.
+    h.leaveQueue("bob");
+    const inv = h.invite("bob", "Bob", 500_000);
+    expect(h.readInvite(inv.id, null)).toEqual({
+      state: "open",
+      inviter: "Bob",
+      stakeTokens: 500_000,
+    });
+  });
 });

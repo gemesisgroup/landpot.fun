@@ -8,6 +8,7 @@ import type { GameConfig } from "@openfront/engine-api/Schemas";
 import {
   DUEL_CALDERA,
   DUEL_MINUTES,
+  DUEL_PREVIEW_ENTRY,
   PAID_MATCH_DISABLED_UNITS,
   PAID_MATCH_MAP,
 } from "@openfront/shared/PaidMatch";
@@ -69,7 +70,9 @@ export interface Duel {
   kind: "friend" | "queue";
   sides: DuelSide[];
   phase: DuelPhase;
-  /** True when backed by a 2-player Solana escrow round. */
+  /** Entry stake in whole tokens chosen for this duel (defaults to server default). */
+  stakeTokens?: number;
+  /** True when backed by a 2-player escrow round. */
   paid?: boolean;
   /** Chain timestamp (seconds) when deposits close (paid duels). */
   fundingEnds?: number;
@@ -158,6 +161,7 @@ export class DuelError extends Error {
 interface QueueEntry {
   pid: string;
   name: string;
+  stakeTokens: number;
   since: number;
   seen: number;
 }
@@ -167,7 +171,8 @@ export class DuelHost {
   private readonly byGame = new Map<string, Duel>();
   private readonly opening = new Map<string, Promise<void>>();
   private ticking = false;
-  private queue: QueueEntry | null = null;
+  /** One waiting slot per stake tier (whole tokens) so players only match on equal stakes. */
+  private readonly queues = new Map<number, QueueEntry>();
   /** Players who left the queue unmatched, for the stats. */
   private queueAbandoned = 0;
 
@@ -244,16 +249,20 @@ export class DuelHost {
   // ── finding an opponent ──
 
   /** A challenge link for a friend. One open link per player. */
-  invite(pid: string, name: string): Duel {
+  invite(pid: string, name: string, stakeTokens?: number): Duel {
     this.leaveQueue(pid);
     const open = this.active(pid);
-    if (open?.phase === "invite") return open;
+    if (open?.phase === "invite") {
+      if (stakeTokens !== undefined) open.stakeTokens = stakeTokens;
+      return open;
+    }
     if (open) throw new DuelError(409, "already_in_duel");
     const duel: Duel = {
       id: this.newId(),
       kind: "friend",
       sides: [{ pid, name, ready: false }],
       phase: "invite",
+      ...(stakeTokens !== undefined ? { stakeTokens } : {}),
       createdAt: this.now(),
     };
     this.duels.set(duel.id, duel);
@@ -268,22 +277,28 @@ export class DuelHost {
   readInvite(
     id: string,
     pid: string | null,
-  ): { state: string; inviter?: string } {
+  ): { state: string; inviter?: string; stakeTokens?: number } {
     const duel = this.duels.get(id);
     if (!duel || duel.kind !== "friend") return { state: "expired" };
     const inviter = duel.sides[0].name;
+    const stake =
+      duel.stakeTokens !== undefined ? { stakeTokens: duel.stakeTokens } : {};
     if (pid !== null && duel.sides[0].pid === pid) {
-      return { state: "self", inviter };
+      return { state: "self", inviter, ...stake };
     }
     if (duel.phase === "invite") {
       return this.now() - duel.createdAt > INVITE_TTL_MS
-        ? { state: "expired", inviter }
-        : { state: "open", inviter };
+        ? { state: "expired", inviter, ...stake }
+        : { state: "open", inviter, ...stake };
     }
     if (pid !== null && duel.sides[1]?.pid === pid) {
-      return { state: "joined", inviter };
+      return { state: "joined", inviter, ...stake };
     }
-    return { state: duel.phase === "cancelled" ? "expired" : "taken", inviter };
+    return {
+      state: duel.phase === "cancelled" ? "expired" : "taken",
+      inviter,
+      ...stake,
+    };
   }
 
   acceptInvite(id: string, pid: string, name: string): Duel {
@@ -304,54 +319,82 @@ export class DuelHost {
   }
 
   /**
-   * Join or stay in the open queue. Returns the duel once matched, else
-   * null (keep polling). One fixed format, one queue: no split by stake.
+   * Join or stay in the open queue for a stake tier. Returns the duel once
+   * matched with another player in the same tier, else null (keep polling).
    */
-  joinQueue(pid: string, name: string): Duel | null {
+  joinQueue(pid: string, name: string, stakeTokens?: number): Duel | null {
     const now = this.now();
     const mine = this.active(pid);
     if (mine && mine.phase !== "invite") return mine;
-    if (this.queue && now - this.queue.seen > QUEUE_STALE_MS) {
-      this.queueAbandoned++;
-      this.queue = null;
+    const tier = stakeTokens ?? DUEL_PREVIEW_ENTRY;
+    this.sweepQueues(now);
+
+    // If the player is already waiting in a different stake tier, move them.
+    for (const [k, entry] of this.queues) {
+      if (entry.pid === pid && k !== tier) {
+        this.queues.delete(k);
+      }
     }
-    if (this.queue?.pid === pid) {
-      this.queue.seen = now;
-      this.queue.name = name;
+
+    const existing = this.queues.get(tier);
+    if (existing?.pid === pid) {
+      existing.seen = now;
+      existing.name = name;
       return null;
     }
-    if (this.queue === null) {
-      this.queue = { pid, name, since: now, seen: now };
+    if (!existing) {
+      this.queues.set(tier, { pid, name, stakeTokens: tier, since: now, seen: now });
       return null;
     }
-    const other = this.queue;
-    this.queue = null;
+    this.queues.delete(tier);
     if (mine?.phase === "invite") this.cancel(mine, "replaced");
     const duel: Duel = {
       id: this.newId(),
       kind: "queue",
       sides: [
-        { pid: other.pid, name: other.name, ready: false },
+        { pid: existing.pid, name: existing.name, ready: false },
         { pid, name, ready: false },
       ],
       phase: "confirm",
+      ...(stakeTokens !== undefined ? { stakeTokens } : {}),
       createdAt: now,
       matchedAt: now,
-      queuedAt: other.since,
+      queuedAt: existing.since,
     };
     this.duels.set(duel.id, duel);
     return duel;
   }
 
+  private sweepQueues(now: number): void {
+    for (const [tier, entry] of this.queues) {
+      if (now - entry.seen > QUEUE_STALE_MS) {
+        this.queues.delete(tier);
+        this.queueAbandoned++;
+      }
+    }
+  }
+
   leaveQueue(pid: string): void {
-    if (this.queue?.pid === pid) {
-      this.queue = null;
-      this.queueAbandoned++;
+    for (const [tier, entry] of this.queues) {
+      if (entry.pid === pid) {
+        this.queues.delete(tier);
+        this.queueAbandoned++;
+      }
     }
   }
 
   inQueue(pid: string): boolean {
-    return this.queue?.pid === pid;
+    for (const entry of this.queues.values()) {
+      if (entry.pid === pid) return true;
+    }
+    return false;
+  }
+
+  queuedStake(pid: string): number | null {
+    for (const entry of this.queues.values()) {
+      if (entry.pid === pid) return entry.stakeTokens;
+    }
+    return null;
   }
 
   // ── confirming and starting ──
@@ -431,7 +474,9 @@ export class DuelHost {
     const gameId = this.deps.newGameId();
     if (gameId === null) throw new DuelError(503, "no_game_id");
     const pids = duel.sides.map((s) => s.pid);
-    const openFn = pot.openDuel ? pot.openDuel(gameId, pids) : pot.open(gameId);
+    const openFn = pot.openDuel
+      ? pot.openDuel(gameId, pids, duel.stakeTokens)
+      : pot.open(gameId);
     const opened = await openFn;
     duel.gameId = gameId;
     duel.paid = true;
@@ -477,10 +522,7 @@ export class DuelHost {
     this.ticking = true;
     try {
       const now = this.now();
-      if (this.queue && now - this.queue.seen > QUEUE_STALE_MS) {
-        this.queue = null;
-        this.queueAbandoned++;
-      }
+      this.sweepQueues(now);
       for (const duel of this.duels.values()) {
         if (duel.phase === "invite" && now - duel.createdAt > INVITE_TTL_MS) {
           this.cancel(duel, "expired");
@@ -610,6 +652,9 @@ export class DuelHost {
           ready: false,
         })),
         phase: "confirm",
+        ...(duel.stakeTokens !== undefined
+          ? { stakeTokens: duel.stakeTokens }
+          : {}),
         createdAt: this.now(),
         matchedAt: this.now(),
         rematchOf: duel.id,
@@ -705,6 +750,9 @@ export function duelView(duel: Duel, pid: string) {
     id: duel.id,
     kind: duel.kind,
     phase: duel.phase,
+    ...(duel.stakeTokens !== undefined
+      ? { stakeTokens: duel.stakeTokens }
+      : {}),
     paid: Boolean(duel.paid),
     fundingEnds: duel.fundingEnds,
     reason: duel.reason,
@@ -732,6 +780,10 @@ export function duelView(duel: Duel, pid: string) {
 // ── routes ──
 
 const NameSchema = z.object({ name: z.string().trim().min(1).max(32) });
+const StakeNameSchema = z.object({
+  name: z.string().trim().min(1).max(32),
+  stakeTokens: z.number().int().positive().max(1_000_000_000).optional(),
+});
 
 export function registerDuelRoutes(
   app: Express,
@@ -766,12 +818,16 @@ export function registerDuelRoutes(
       }
     };
   const name = (req: Request) => NameSchema.parse(req.body ?? {}).name;
+  const stakeAndName = (req: Request) => StakeNameSchema.parse(req.body ?? {});
   const view = (d: Duel | null | undefined, pid: string) =>
     d ? duelView(d, pid) : null;
 
   app.post(
     "/api/duel/invite",
-    handle((req, pid) => view(host.invite(pid, name(req)), pid)),
+    handle((req, pid) => {
+      const { name: n, stakeTokens } = stakeAndName(req);
+      return view(host.invite(pid, n, stakeTokens), pid);
+    }),
   );
   app.get(
     "/api/duel/invite/:id",
@@ -787,16 +843,20 @@ export function registerDuelRoutes(
   );
   app.post(
     "/api/duel/queue",
-    handle((req, pid) => ({
-      duel: view(host.joinQueue(pid, name(req)), pid),
-      queued: host.inQueue(pid),
-    })),
+    handle((req, pid) => {
+      const { name: n, stakeTokens } = stakeAndName(req);
+      return {
+        duel: view(host.joinQueue(pid, n, stakeTokens), pid),
+        queued: host.inQueue(pid),
+        queuedStake: host.queuedStake(pid),
+      };
+    }),
   );
   app.delete(
     "/api/duel/queue",
     handle((_req, pid) => {
       host.leaveQueue(pid);
-      return { queued: false };
+      return { queued: false, queuedStake: null };
     }),
   );
   app.get(
@@ -804,6 +864,7 @@ export function registerDuelRoutes(
     handle((_req, pid) => ({
       duel: view(host.active(pid), pid),
       queued: host.inQueue(pid),
+      queuedStake: host.queuedStake(pid),
     })),
   );
   app.get(

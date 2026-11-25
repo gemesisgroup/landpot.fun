@@ -35,6 +35,8 @@ export interface PotRules {
   /** Entry per player, in whole tokens. */
   cupHourUTC?: number;
   stakeTokens: bigint;
+  /** Allowed entry tiers in whole tokens (sorted ascending); defaults to [stakeTokens]. */
+  stakeTiersTokens?: readonly bigint[];
   minPlayers: number;
   maxPlayers: number;
   /** How long a lobby takes deposits, at most a day (contract bound). */
@@ -191,9 +193,20 @@ export class PotService {
     return this.chain.fees();
   }
 
-  async stakeUnits(): Promise<bigint> {
+  async stakeUnits(stakeTokens = this.deps.rules.stakeTokens): Promise<bigint> {
     const { decimals } = await this.chain.token();
-    return this.deps.rules.stakeTokens * 10n ** BigInt(decimals);
+    return stakeTokens * 10n ** BigInt(decimals);
+  }
+
+  allowedStakeTiersTokens(): readonly bigint[] {
+    const tiers = this.deps.rules.stakeTiersTokens;
+    return tiers && tiers.length > 0 ? tiers : [this.deps.rules.stakeTokens];
+  }
+
+  async stakeTiersUnits(): Promise<bigint[]> {
+    const { decimals } = await this.chain.token();
+    const factor = 10n ** BigInt(decimals);
+    return this.allowedStakeTiersTokens().map((t) => t * factor);
   }
 
   // ── lobby lifecycle, asked by the game server ──
@@ -218,9 +231,17 @@ export class PotService {
   }
 
   /** Open a 2-player paid Caldera duel round (minPlayers = maxPlayers = 2). */
-  openDuel(gameId: string, playerIds?: string[]): Promise<PotRoundRow> {
+  openDuel(
+    gameId: string,
+    playerIds?: string[],
+    stakeTokens?: bigint,
+  ): Promise<PotRoundRow> {
     const existing = this.store.getRound(gameId);
     if (existing) return Promise.resolve(existing);
+    const chosenStake = stakeTokens ?? this.deps.rules.stakeTokens;
+    if (!this.allowedStakeTiersTokens().includes(chosenStake)) {
+      throw new PotError(400, "invalid stake tier");
+    }
     let duelWallets: string[] | undefined;
     if (playerIds && playerIds.length > 0) {
       if (playerIds.length !== 2 || new Set(playerIds).size !== 2) {
@@ -234,9 +255,13 @@ export class PotService {
     }
     let p = this.opening.get(gameId);
     if (!p) {
-      p = this.openRound(gameId, "duel", this.now(), duelWallets).finally(() =>
-        this.opening.delete(gameId),
-      );
+      p = this.openRound(
+        gameId,
+        "duel",
+        this.now(),
+        duelWallets,
+        chosenStake,
+      ).finally(() => this.opening.delete(gameId));
       this.opening.set(gameId, p);
     }
     return p;
@@ -266,6 +291,7 @@ export class PotService {
     mode: "ffa" | "cup" | "duel",
     createdAt: number,
     duelWallets?: string[],
+    stakeTokens?: bigint,
   ): Promise<PotRoundRow> {
     const rules = this.deps.rules;
     const cup = mode === "cup";
@@ -274,7 +300,7 @@ export class PotService {
     const maxPlayers = duel ? 2 : cup ? 8 : rules.maxPlayers;
     const fundingSeconds = rules.fundingSeconds;
     const roundId = roundIdOf(gameId);
-    const stake = await this.stakeUnits();
+    const stake = await this.stakeUnits(stakeTokens);
     // The round keeps the terms it opened with, so its card stays right
     // after the settings for the next one change.
     const { burnBps, treasuryBps } = await this.chain.fees();

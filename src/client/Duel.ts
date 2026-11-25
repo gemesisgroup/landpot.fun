@@ -19,6 +19,8 @@ export interface DuelView {
   id: string;
   kind: "friend" | "queue";
   phase: DuelPhase;
+  /** Entry stake in whole tokens chosen for this duel. */
+  stakeTokens?: number;
   paid?: boolean;
   fundingEnds?: number;
   reason?: string;
@@ -35,6 +37,7 @@ export interface DuelInvite {
   /** open, self, taken, joined or expired. */
   state: string;
   inviter?: string;
+  stakeTokens?: number;
 }
 
 export interface DuelReport {
@@ -77,19 +80,33 @@ async function call<T>(
 }
 
 export const duelApi = {
-  me: () => call<{ duel: DuelView | null; queued: boolean }>("GET", "/me"),
-  invite: (name: string) => call<DuelView>("POST", "/invite", { name }),
+  me: () =>
+    call<{ duel: DuelView | null; queued: boolean; queuedStake?: number | null }>(
+      "GET",
+      "/me",
+    ),
+  invite: (name: string, stakeTokens?: number) =>
+    call<DuelView>("POST", "/invite", {
+      name,
+      ...(stakeTokens !== undefined ? { stakeTokens } : {}),
+    }),
   readInvite: (id: string) =>
     call<DuelInvite>("GET", `/invite/${encodeURIComponent(id)}`),
   accept: (id: string, name: string) =>
     call<DuelView>("POST", `/invite/${encodeURIComponent(id)}/accept`, {
       name,
     }),
-  queue: (name: string) =>
-    call<{ duel: DuelView | null; queued: boolean }>("POST", "/queue", {
-      name,
-    }),
-  leaveQueue: () => call<{ queued: false }>("DELETE", "/queue"),
+  queue: (name: string, stakeTokens?: number) =>
+    call<{ duel: DuelView | null; queued: boolean; queuedStake?: number | null }>(
+      "POST",
+      "/queue",
+      {
+        name,
+        ...(stakeTokens !== undefined ? { stakeTokens } : {}),
+      },
+    ),
+  leaveQueue: () =>
+    call<{ queued: false; queuedStake?: null }>("DELETE", "/queue"),
   get: (id: string) => call<DuelView>("GET", `/${encodeURIComponent(id)}`),
   confirm: (id: string) =>
     call<DuelView>("POST", `/${encodeURIComponent(id)}/confirm`),

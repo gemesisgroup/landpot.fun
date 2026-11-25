@@ -51,6 +51,8 @@ export interface PotConfig {
   /** Entry per player, whole tokens. */
   readonly cupHourUTC?: number;
   readonly stakeTokens: bigint;
+  /** Allowed entry tiers for selectable-stake modes (e.g. 1v1 duels), sorted ascending. */
+  readonly stakeTiersTokens: readonly bigint[];
   readonly minPlayers: number;
   readonly maxPlayers: number;
   readonly fundingSeconds: number;
@@ -147,6 +149,22 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     }
     return n;
   };
+  const parseStakeTiers = (defaultStake: bigint): readonly bigint[] => {
+    const raw = v("LANDPOT_POT_STAKES");
+    if (raw === "") return [defaultStake];
+    const set = new Set<bigint>([defaultStake]);
+    for (const part of raw.split(",")) {
+      const s = part.trim();
+      if (s === "") continue;
+      if (!/^[1-9]\d*$/.test(s)) {
+        throw new Error(
+          "LANDPOT_POT_STAKES must be comma-separated whole numbers of tokens",
+        );
+      }
+      set.add(BigInt(s));
+    }
+    return [...set].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  };
 
   if (mode === "bsc") {
     const set = BSC_REQUIRED.filter((k) => v(k) !== "").length;
@@ -193,6 +211,7 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
       ),
       cupHourUTC,
       stakeTokens: BigInt(stake),
+      stakeTiersTokens: parseStakeTiers(BigInt(stake)),
       minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
       maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
       fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,
@@ -251,6 +270,7 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
       reviewDelay: nonNegInt("LANDPOT_POT_REVIEW_DELAY", 15),
       cupHourUTC,
       stakeTokens: BigInt(stake),
+      stakeTiersTokens: parseStakeTiers(BigInt(stake)),
       minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
       maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
       fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,
@@ -299,6 +319,7 @@ function loadPotConfig(env: NodeJS.ProcessEnv): PotConfig | null {
     ),
     cupHourUTC,
     stakeTokens: BigInt(stake),
+    stakeTiersTokens: parseStakeTiers(BigInt(stake)),
     minPlayers: int("LANDPOT_POT_MIN_PLAYERS", 8),
     maxPlayers: int("LANDPOT_POT_MAX_PLAYERS", 16),
     fundingSeconds: int("LANDPOT_POT_FUNDING_MINUTES", 20) * 60,

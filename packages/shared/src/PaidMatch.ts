@@ -67,6 +67,19 @@ export const DUEL_CALDERA: CalderaConfig = {
 export const DUEL_PREVIEW_ENTRY = 10_000;
 export const DUEL_PREVIEW_FEE_BPS = 500;
 
+/**
+ * Default selectable entry tiers (whole LANDPOT) for 1v1 Caldera duels.
+ * Overridable in production via LANDPOT_POT_STAKES so stakes scale cleanly
+ * with token price without redeploying the escrow contract.
+ */
+export const DUEL_STAKE_TIERS: readonly number[] = [
+  10_000,
+  50_000,
+  100_000,
+  500_000,
+  1_000_000,
+];
+
 /** The winner's payout and gain on a 1v1 pot of two entries. */
 export function duelPrize(entry: number, feeBps: number) {
   const pot = 2 * entry;

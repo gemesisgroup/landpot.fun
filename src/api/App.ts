@@ -627,7 +627,9 @@ export function createApp(deps: AppDeps): express.Express {
 
   // Game server: run a paid lobby (or a 1v1 duel round when body.mode === "duel").
   app.post("/pot/open/:id", requireApiKey, json, async (req, res) => {
-    const body = req.body as { mode?: unknown; players?: unknown } | undefined;
+    const body = req.body as
+      | { mode?: unknown; players?: unknown; stakeTokens?: unknown }
+      | undefined;
     const mode = body?.mode;
     if (mode !== undefined && mode !== "duel") {
       throw new HttpError(400, "invalid mode");
@@ -642,11 +644,26 @@ export function createApp(deps: AppDeps): express.Express {
       }
       players = body.players;
     }
+    let stakeTokens: bigint | undefined;
+    if (body?.stakeTokens !== undefined) {
+      const raw = body.stakeTokens;
+      if (
+        typeof raw === "number" &&
+        Number.isSafeInteger(raw) &&
+        raw > 0
+      ) {
+        stakeTokens = BigInt(raw);
+      } else if (typeof raw === "string" && /^[1-9]\d*$/.test(raw)) {
+        stakeTokens = BigInt(raw);
+      } else {
+        throw new HttpError(400, "invalid stakeTokens");
+      }
+    }
     const id = req.params.id as string;
     sendJson(
       res,
       mode === "duel"
-        ? await needPot().openDuel(id, players)
+        ? await needPot().openDuel(id, players, stakeTokens)
         : await needPot().open(id),
     );
   });
@@ -699,6 +716,7 @@ export function createApp(deps: AppDeps): express.Express {
       program: config.pot!.programId,
       token,
       stake: (await pot.stakeUnits()).toString(),
+      stakes: (await pot.stakeTiersUnits()).map((s) => s.toString()),
       ...(await pot.fees()),
       minPlayers: pot.rules.minPlayers,
       maxPlayers: pot.rules.maxPlayers,
@@ -827,7 +845,7 @@ export function createApp(deps: AppDeps): express.Express {
     rateLimit("pot", 120, 60_000),
     async (req, res) => {
       const sig = req.params.signature as string;
-      if (!/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(sig)) {
+      if (!/^([1-9A-HJ-NP-Za-km-z]{64,90}|0x[0-9a-fA-F]{64})$/.test(sig)) {
         throw new HttpError(400, "bad signature");
       }
       res.setHeader("Cache-Control", "no-store");

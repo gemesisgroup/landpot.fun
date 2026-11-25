@@ -59,8 +59,8 @@ async function main() {
   const reviewDelay = BigInt(process.env.BSC_REVIEW_DELAY ?? 60);
   const decimals = BigInt(process.env.BSC_TOKEN_DECIMALS ?? 18);
   const unit = 10n ** decimals;
-  const maxBank = BigInt(process.env.BSC_MAX_BANK ?? 10_000_000) * unit;
-  const dailyCap = BigInt(process.env.BSC_DAILY_CAP ?? 2_000_000) * unit;
+  const maxBank = BigInt(process.env.BSC_MAX_BANK ?? 20_000_000) * unit;
+  const dailyCap = BigInt(process.env.BSC_DAILY_CAP ?? 20_000_000) * unit;
 
   const artifact = JSON.parse(
     readFileSync(path.resolve("bsc/artifacts/LandpotEscrow.json"), "utf8"),

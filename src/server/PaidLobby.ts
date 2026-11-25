@@ -57,6 +57,7 @@ export interface PotApi {
   openDuel?(
     gameID: string,
     players?: string[],
+    stakeTokens?: number,
   ): Promise<z.infer<typeof OpenedSchema>>;
   lobby(gameID: string): Promise<PaidLobbyStatus>;
   seat(gameID: string, persistentID: string): Promise<boolean>;
@@ -101,12 +102,16 @@ export const httpPotApi: PotApi = {
     OpenedSchema.parse(
       await call("POST", `/pot/open/${id}`, undefined, 60_000),
     ),
-  openDuel: async (id, players) =>
+  openDuel: async (id, players, stakeTokens) =>
     OpenedSchema.parse(
       await call(
         "POST",
         `/pot/open/${id}`,
-        { mode: "duel", ...(players ? { players } : {}) },
+        {
+          mode: "duel",
+          ...(players ? { players } : {}),
+          ...(stakeTokens !== undefined ? { stakeTokens } : {}),
+        },
         60_000,
       ),
     ),

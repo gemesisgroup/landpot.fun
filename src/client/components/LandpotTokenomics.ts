@@ -197,9 +197,10 @@ export class LandpotTokenomics extends LitElement {
               <span class="lp-mono text-[11px] text-[#c6ff3d]">6 MIN</span>
             </div>
             <p class="lp-mono text-xs text-gray-300 leading-relaxed">
-              Challenge a friend by link or queue into a mirrored 1v1. Two
-              10,000 entries pay <b class="text-white">19,000 $LANDPOT</b> (+9,000
-              profit) to the winner. One-click rematch.
+              Challenge a friend by link or queue into a mirrored 1v1 across
+              selectable stakes (<b class="text-white">10K–1M $LANDPOT</b>).
+              Winner takes <b class="text-white">95%</b> of the pot. One-click
+              rematch.
             </p>
           </div>
 
