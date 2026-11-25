@@ -1,163 +1,147 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="proprietary/images/OpenFrontLogoDark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="proprietary/images/OpenFrontLogo.svg">
-    <img src="proprietary/images/OpenFrontLogo.svg" alt="OpenFrontIO Logo" width="300">
-  </picture>
-</p>
+<div align="center">
 
-[OpenFront.io](https://openfront.io/) is an online real-time strategy game focused on territorial control and alliance building. Players compete to expand their territory, build structures, and form strategic alliances in various maps based on real-world geography.
+# LANDPOT (`$LANDPOT`)
 
-This is a fork/rewrite of WarFront.io. Credit to https://github.com/WarFrontIO.
+**Real-Time Territory Warfare with Non-Custodial BNB Smart Chain Escrow**
 
-![CI](https://github.com/openfrontio/OpenFrontIO/actions/workflows/ci.yml/badge.svg)
-[![Crowdin](https://badges.crowdin.net/openfront-mls/localized.svg)](https://crowdin.com/project/openfront-mls)
-[![CLA assistant](https://cla-assistant.io/readme/badge/openfrontio/OpenFrontIO)](https://cla-assistant.io/openfrontio/OpenFrontIO)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Assets: CC BY-SA 4.0](https://img.shields.io/badge/Assets-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
+[![Live Site](https://img.shields.io/badge/Play_Now-landpot.fun-c6ff3d?style=for-the-badge&labelColor=0b0d10)](https://landpot.fun)
+[![BNB Smart Chain](https://img.shields.io/badge/Network-BNB_Smart_Chain_(BEP--20)-F3BA2F?style=for-the-badge&labelColor=0b0d10)](https://bscscan.com)
+[![X / Twitter](https://img.shields.io/badge/Follow-@landpot__bnb-ffffff?style=for-the-badge&labelColor=0b0d10)](https://x.com/landpot_bnb)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-3b82f6?style=for-the-badge&labelColor=0b0d10)](LICENSE)
 
-## License
+*Conquer the map. Hold the crater. Every settled match burns 2% of the pot on-chain.*
 
-OpenFront source code is licensed under the **GNU Affero General Public License v3.0**
+</div>
 
-Current copyright notices appear in:
+---
 
-- Footer: "© OpenFront and Contributors"
-- Loading screen: "© OpenFront and Contributors"
+## Overview
 
-Modified versions must preserve these notices in reasonably visible locations.
+**Landpot** is a browser-based, real-time territorial strategy game where players expand empires, command armies, build defenses, and compete for **`$LANDPOT`** pots settled through a **non-custodial Solidity escrow contract** on **BNB Smart Chain (BSC)**.
 
-See the [LICENSE](LICENSE) for complete requirements.
+- **Play free** immediately in Classic Multiplayer or Singleplayer against upgraded tactical AI — no wallet required.
+- **Play for `$LANDPOT`** in deterministic, mirrored competitive formats where deposits lock directly into [`LandpotEscrow.sol`](bsc/contracts/LandpotEscrow.sol), replay hashes are committed on-chain via `keccak256`, **2%** of every settled pot is burned permanently to `0x000000000000000000000000000000000000dEaD`, and winners claim directly from their own wallet.
 
-For asset licensing, see [LICENSE-ASSETS](LICENSE-ASSETS).  
-For license history, see [LICENSING.md](LICENSING.md).
+---
 
-## 🌟 Features
+## Game Modes
 
-- **Real-time Strategy Gameplay**: Expand your territory and engage in strategic battles
-- **Alliance System**: Form alliances with other players for mutual defense
-- **Multiple Maps**: Play across various geographical regions including Europe, Asia, Africa, and more
-- **Resource Management**: Balance your expansion with defensive capabilities
-- **Cross-platform**: Play in any modern web browser
+| Mode | Format | Duration | Stake / Payout |
+| :--- | :--- | :--- | :--- |
+| **1v1 Caldera Arena** | Mirrored 1v1 (Queue or Friend Link) | 6 min | Selectable tiers: `10K` · `50K` · `100K` · `500K` · `1M` `$LANDPOT`. Winner takes **95%** of the pot. One-click rematch. |
+| **Caldera FFA Pot** | 8–16 players Free-for-All | 12 min | Crater land counts **×3**; final 3-minute eruption burns the rim. Net pot splits proportionally by final weighted territory. |
+| **Weekly Caldera Cup** | 4 locked pairs (`2v2v2v2`) | 14 min | Invite a partner by link. The winning duo splits **95%** of the entire 8-seat pot 50/50. |
+| **Classic & Singleplayer** | Open multiplayer & AI battles | Flexible | Free-to-play across classic world and regional maps with upgraded tactical AI (anti-air SAM defense, naval fleets, flanking, and leader focus). |
 
-## 📋 Prerequisites
+---
 
-- [Node.js](https://nodejs.org/) v24.15.0 or newer in the Node 24 release line
-- [npm](https://www.npmjs.com/) v12.1.0 or newer in the npm 12 release line
-- A modern web browser (Chrome, Firefox, Edge, etc.)
+## Non-Custodial Escrow & Tokenomics
 
-Node.js may bundle an older npm version. Upgrade it before installing project dependencies:
+Landpot never holds player funds in a custodial wallet. All paid match flows are enforced on-chain by [`bsc/contracts/LandpotEscrow.sol`](bsc/contracts/LandpotEscrow.sol):
 
-```bash
-npm install --global --ignore-scripts npm@12.1.0
+- **95% Player Payouts** — Claimable directly by winners via `claim(roundId)` from their own EVM wallet (MetaMask, Rabby, Trust Wallet, OKX, Binance Web3 via EIP-6963).
+- **2% Deflationary Burn** — Permanently transferred to `0x000000000000000000000000000000000000dEaD` on every finalized match.
+- **3% Protocol Treasury** — Funds infrastructure, server hosting, and ongoing development.
+- **100% Refunds on Ties & Cancellations** — Unfilled lobbies, declined/timed-out duels, or exact ties refund every deposit in full with zero fee.
+- **Verifiable Settlement** — Every finished match archive is replayed deterministically, hashed with `keccak256`, co-signed by an independent oracle (`ecrecover`), and protected by a guardian review window before finalization.
+
+---
+
+## Repository Structure
+
+```text
+├── bsc/
+│   ├── contracts/LandpotEscrow.sol   # Non-custodial BSC BEP-20 escrow contract (Solidity 0.8.24)
+│   └── artifacts/LandpotEscrow.json  # Compiled ABI & bytecode
+├── packages/
+│   ├── engine/                       # Deterministic game simulation & upgraded AI behaviors
+│   ├── engine-api/                   # Engine types & wire schemas
+│   └── shared/                       # Shared match rules (Caldera config, stake tiers, payouts)
+├── src/
+│   ├── api/                          # Landpot API (SIWE/EIP-4361 wallet auth, PotService, BscEscrow)
+│   ├── server/                       # Real-time game server, 1v1 DuelHost, PaidLobby manager
+│   └── client/                       # Lit + Vite web client, EIP-6963 wallet connector, Arena UI
+├── scripts/landpot/
+│   ├── bscCompile.ts                 # Compiles LandpotEscrow.sol via solc
+│   └── bscDeploy.ts                  # Deploys LandpotEscrow.sol to BSC Mainnet / Testnet
+└── tests/                            # Vitest unit & integration test suites
 ```
 
-## 🚀 Installation
+---
 
-1. **Clone the repository**
+## Local Development
 
-   ```bash
-   git clone https://github.com/openfrontio/OpenFrontIO.git
-   cd OpenFrontIO
-   ```
+### Prerequisites
 
-2. **Install dependencies**
+- **Node.js** `24.x`
+- **npm** `11+` / `12.x`
 
-   ```bash
-   npm run inst
-   ```
-
-   Do NOT use `npm install` nor `npm i` for project dependencies. Use `npm run inst`; it runs the safer `npm ci --ignore-scripts` to install exactly the versions in `package-lock.json` without running lifecycle scripts.
-
-   The repository also rejects dependency releases less than seven days old and dependencies sourced from Git, remote URLs, local tarballs, or directories. Wait until a new release passes the seven-day window before updating it; security exceptions require explicit maintainer review.
-
-## 🎮 Running the Game
-
-### Development Mode
-
-Run both the client and server in development mode with live reloading:
+### Install & Run
 
 ```bash
+# Install dependencies (reproducible lockfile install)
+npm ci --ignore-scripts
+
+# Start client + game server in development mode
 npm run dev
 ```
 
-This will:
-
-- Start the webpack dev server for the client
-- Launch the game server with development settings
-- Open the game in your default browser (to disable this behavior, set `SKIP_BROWSER_OPEN=true` in your environment)
-
-### Client Only
-
-To run just the client with hot reloading:
+### Typecheck, Tests & Production Build
 
 ```bash
-npm run start:client
+# TypeScript check across the workspace
+npx tsc --noEmit
+
+# Run escrow, payout, duel, and AI test suites
+npx vitest run tests/server/Duel.test.ts tests/api/pot/BscEscrow.test.ts tests/api/pot/Payouts.test.ts tests/api/pot/StakeTiers.test.ts
+
+# Build production client bundle
+npx vite build
 ```
 
-### Server Only
+---
 
-To run just the server with development settings:
+## Smart Contract Compilation & Deployment (BSC)
+
+All keys and addresses are supplied exclusively via environment variables — never committed to the repository.
 
 ```bash
-npm run start:server-dev
+# Compile LandpotEscrow.sol -> bsc/artifacts/LandpotEscrow.json
+npx tsx scripts/landpot/bscCompile.ts
+
+# Deploy to BNB Smart Chain (Mainnet or Testnet)
+BSC_CLUSTER=bsc \
+BSC_RPC_URL=https://bsc-dataseed.binance.org \
+BSC_DEPLOYER_KEY=0x<deployer_private_key> \
+BSC_TOKEN=0x<landpot_bep20_address> \
+BSC_TREASURY=0x<treasury_address> \
+BSC_GUARDIAN=0x<guardian_address> \
+BSC_OPERATOR=0x<operator_address> \
+BSC_ORACLE=0x<oracle_address> \
+npx tsx scripts/landpot/bscDeploy.ts
 ```
 
-### Connecting to staging or production backends
+### API Escrow Configuration
 
-Sometimes it's useful to connect to production servers when replaying a game, testing user profiles, purchases, or login flow.
+To enable paid matches on the Landpot API, configure the following environment variables (e.g. in `.env.landpot`, which is gitignored):
 
-> To replay a production game, make sure you're on the same commit that the game you want to replay was executed on, you can find the `gitCommit` value via `https://api.openfront.io/game/[gameId]`.
-> Unfinished games cannot be replayed on localhost.
-
-To connect to staging api servers:
-
-```bash
-npm run dev:staging
+```env
+LANDPOT_POT_MODE=bsc
+LANDPOT_POT_CLUSTER=bsc
+LANDPOT_POT_RPC_URL=https://bsc-dataseed.binance.org
+LANDPOT_POT_CONTRACT=0x<deployed_escrow_contract>
+LANDPOT_POT_OPERATOR_KEY=0x<operator_private_key>
+LANDPOT_POT_ORACLE_KEY=0x<oracle_private_key>
+LANDPOT_POT_STAKE=10000
+LANDPOT_POT_STAKES=10000,50000,100000,500000,1000000
 ```
 
-To connect to production api servers:
+---
 
-```bash
-npm run dev:prod
-```
+## License & Attribution
 
-## 🛠️ Development Tools
+Landpot is built on top of [OpenFront.io](https://openfront.io/) (originally forked from WarFront.io).
 
-- **Format code**:
-
-  ```bash
-  npm run format
-  ```
-
-- **Lint code with Oxlint**:
-
-  ```bash
-  npm run lint
-  ```
-
-- **Lint and fix code with Oxlint**:
-
-  ```bash
-  npm run lint:fix
-  ```
-
-- **Testing**
-  ```bash
-  npm test
-  ```
-
-## 🏗️ Project Structure
-
-- `/src/client` - Frontend game client
-- `/src/server` - Backend game server
-- `/packages/engine` - Deterministic game simulation (`@openfront/engine`)
-- `/packages/engine-api` - The engine's contract: types, schemas, game updates and the worker protocol (`@openfront/engine-api`)
-- `/packages/engine-lib` - Engine code also used outside the engine: map grid, rules, helpers (`@openfront/engine-lib`)
-- `/packages/shared` - Code shared by client and server: wire schemas, env, asset URLs (`@openfront/shared`)
-- `/packages/zbin` - Compact binary wire format for zod schemas (self-contained, zod-only)
-- `/resources` - Static assets (images, maps, etc.)
-
-## 🤝 Contributing
-
-Contributions and translations are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, the approved-issue process, project governance, and translation info.
+- Source code is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
+- Assets are licensed under **CC BY-SA 4.0** — see [LICENSE-ASSETS](LICENSE-ASSETS).
+- Original OpenFront copyright notices (`© OpenFront and Contributors`) are preserved in accordance with AGPL-3.0.

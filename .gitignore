@@ -40,8 +40,15 @@ map-generator/map-generator.exe
 records/*
 !records/demoGame1.json
 
-# Landpot: regenerable screenshots
+# Landpot: regenerable screenshots and local media kits
 design/shots/
+design/torpedo/
+brand/
+video/
+video-studio/
 
-# Landpot API local data (sqlite, dev signing key)
+# Landpot API local data (sqlite, dev signing keys, wallets)
 .data/
+wallets.json
+*.pem
+*.key
