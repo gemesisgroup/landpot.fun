@@ -4,6 +4,7 @@ import {
   DUEL_PREVIEW_ENTRY,
   DUEL_PREVIEW_FEE_BPS,
   DUEL_STAKE_TIERS,
+  PAID_MATCH_MAP,
   duelPrize,
 } from "@openfront/shared/PaidMatch";
 import { LitElement, html, nothing } from "lit";
@@ -27,6 +28,7 @@ import {
   PotTxError,
   type PotConfig,
 } from "../Pot";
+import { terrainMapFileLoader } from "../TerrainMapFileLoader";
 import { lastUserMeResponse } from "../UserMeBroadcast";
 import { translateText } from "../Utils";
 import { CONNECT_WALLET_EVENT } from "../Wallet";
@@ -358,43 +360,80 @@ export class DuelCard extends LitElement {
     const tiers = this.availableTiers();
     if (tiers.length <= 1) return nothing;
     const sym = this.stakeSymbol();
-    const feeBps = this.pot
-      ? this.pot.burnBps + this.pot.treasuryBps
-      : DUEL_PREVIEW_FEE_BPS;
-    const { prize, profit } = duelPrize(this.selectedStake, feeBps);
     return html`<div class="flex flex-col gap-2" data-testid="duel-stakes">
-      <div class="flex flex-wrap items-center gap-1.5">
-        <span class="lp-mono text-[11px] uppercase tracking-wider text-gray-400 mr-1"
-          >Stake</span
+      <div class="flex items-center justify-between gap-2">
+        <span
+          class="lp-mono text-[11px] uppercase tracking-widest text-gray-400"
         >
+          Select Entry Stake
+        </span>
+        <span class="lp-mono text-[11px] text-gray-500">
+          ${sym} · 1v1 Escrow
+        </span>
+      </div>
+      <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
         ${tiers.map((tier) => {
           const active = tier === this.selectedStake;
           return html`<button
             type="button"
             data-testid=${`duel-stake-${tier}`}
-            class="lp-mono text-xs rounded-lg px-2.5 py-1 transition-colors cursor-pointer ${
+            class="group relative flex flex-col items-center justify-center rounded-xl px-2 py-2.5 transition-all duration-150 cursor-pointer border ${
               active
-                ? "bg-[#c6ff3d] text-[#0b0d10] font-bold"
-                : "border border-white/15 bg-white/[0.03] text-gray-300 hover:border-[#c6ff3d]/60 hover:text-white"
+                ? "border-[#c6ff3d] bg-[#c6ff3d]/15 text-[#c6ff3d] shadow-[0_0_18px_-4px_rgba(198,255,61,0.5)] scale-[1.02]"
+                : "border-white/10 bg-[#0b0d10]/80 text-gray-300 hover:border-[#c6ff3d]/50 hover:bg-white/[0.05] hover:text-white"
             }"
             @click=${() => {
               this.selectedStake = tier;
             }}
           >
-            ${formatTierLabel(tier)}
+            <span class="lp-display text-sm sm:text-base font-bold leading-none">
+              ${formatTierLabel(tier)}
+            </span>
+            <span
+              class="lp-mono text-[10px] mt-1 leading-none ${
+                active ? "text-[#c6ff3d]/90" : "text-gray-500 group-hover:text-gray-400"
+              }"
+            >
+              ${sym}
+            </span>
           </button>`;
         })}
-        <span class="lp-mono text-[11px] text-gray-400 ml-1">${sym}</span>
       </div>
-      <p class="lp-mono text-[11px] text-gray-300">
-        Winner gets
-        <span class="text-white font-semibold"
-          >${prize.toLocaleString("en-US")} ${sym}</span
+    </div>`;
+  }
+
+  private payoutSpotlight() {
+    const sym = this.stakeSymbol();
+    const feeBps = this.pot
+      ? this.pot.burnBps + this.pot.treasuryBps
+      : DUEL_PREVIEW_FEE_BPS;
+    const burnPct = this.pot ? this.pot.burnBps / 100 : 2;
+    const payoutPct = (10_000 - feeBps) / 100;
+    const { prize, profit } = duelPrize(this.selectedStake, feeBps);
+    return html`<div
+      class="rounded-xl border border-white/10 bg-[#080a0e]/90 px-4 py-3 flex flex-col gap-1"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <span
+          class="lp-mono text-[10px] uppercase tracking-widest text-gray-400"
         >
-        <span class="text-[#c6ff3d]"
-          >(+${profit.toLocaleString("en-US")})</span
+          Winner Takes (${payoutPct}%)
+        </span>
+        <span class="lp-mono text-[10px] text-gray-500">
+          ${burnPct}% burned
+        </span>
+      </div>
+      <div class="flex items-baseline gap-2 flex-wrap">
+        <span
+          class="lp-display text-2xl sm:text-[26px] font-bold tracking-tight text-white leading-none"
         >
-      </p>
+          ${prize.toLocaleString("en-US")}
+        </span>
+        <span class="lp-mono text-xs font-semibold text-gray-400">${sym}</span>
+      </div>
+      <span class="lp-mono text-[11px] font-medium text-[#c6ff3d]">
+        +${profit.toLocaleString("en-US")} ${sym} profit
+      </span>
     </div>`;
   }
 
@@ -403,13 +442,16 @@ export class DuelCard extends LitElement {
     onClick: () => unknown,
     primary = false,
     testid = "",
+    fullWidth = false,
   ) {
     return html`<button
       type="button"
-      class="lp-mono text-[13px] rounded-[10px] px-4 py-2 cursor-pointer disabled:opacity-60 ${
+      class="lp-mono text-[13px] font-semibold rounded-xl px-4 py-2.5 transition-all duration-150 cursor-pointer disabled:opacity-60 ${
+        fullWidth ? "w-full justify-center inline-flex items-center gap-2" : ""
+      } ${
         primary
-          ? "bg-malibu-blue hover:bg-aquarius text-white"
-          : "border border-white/15 text-gray-300 hover:text-white"
+          ? "bg-[#c6ff3d] hover:bg-[#d6ff70] text-[#0b0d10] shadow-[0_4px_22px_-4px_rgba(198,255,61,0.5)] hover:shadow-[0_6px_28px_-4px_rgba(198,255,61,0.7)]"
+          : "border border-white/15 bg-white/[0.04] text-gray-200 hover:border-[#c6ff3d]/60 hover:bg-white/[0.08] hover:text-white"
       }"
       data-testid=${testid || nothing}
       ?disabled=${this.busy}
@@ -571,42 +613,107 @@ export class DuelCard extends LitElement {
         ${this.button(translateText("duel.cancel"), this.leaveQueue)}
       </div>`;
     }
-    return html`<div class="flex flex-col gap-3">
-      ${this.stakePicker()}
-      <div class="flex flex-wrap gap-2">
-        ${this.button(translateText("duel.find"), this.findOpponent, true, "duel-find")}
-        ${this.button(translateText("duel.challenge"), this.challenge, false, "duel-challenge")}
+    return html`<div
+      class="grid grid-cols-1 lg:grid-cols-[1fr_290px] gap-4 items-stretch"
+    >
+      <div class="flex flex-col justify-between gap-3">
+        ${this.stakePicker()}
+        <p class="lp-mono text-[11px] text-gray-400 leading-relaxed">
+          ${translateText("duel.rules", { minutes: DUEL_MINUTES })}
+          ${
+            this.pot
+              ? nothing
+              : html` <span class="text-[#ffd37a]">· Free test mode</span>`
+          }
+        </p>
+      </div>
+      <div class="flex flex-col justify-between gap-2.5">
+        ${this.payoutSpotlight()}
+        <div class="grid grid-cols-2 lg:grid-cols-1 gap-2">
+          ${this.button(translateText("duel.find"), this.findOpponent, true, "duel-find", true)}
+          ${this.button(translateText("duel.challenge"), this.challenge, false, "duel-challenge", true)}
+        </div>
       </div>
     </div>`;
   }
 
   render() {
+    const mapUrl = terrainMapFileLoader.getMapData(PAID_MATCH_MAP).webpPath;
     return html`<section
-      class="lp-glass rounded-xl px-4 py-3 flex flex-col gap-3"
+      class="relative overflow-hidden rounded-2xl border border-[#c6ff3d]/35 bg-gradient-to-br from-[#131914]/95 via-[#0d1016]/95 to-[#0a0c10]/95 px-5 py-4 sm:px-6 sm:py-5 flex flex-col gap-4 shadow-[0_0_44px_-16px_rgba(198,255,61,0.3)]"
       aria-labelledby="landpot-duel-title"
       data-testid="duel-card"
     >
-      <div class="flex items-center gap-3">
-        <span
-          id="landpot-duel-title"
-          class="lp-mono rounded-md bg-white text-gray-900 px-2 py-1 text-[11px] font-medium tracking-widest"
-          >${translateText("duel.badge")}</span
-        >
-        <p class="lp-mono text-xs leading-snug text-gray-300">
-          ${translateText("duel.rules", { minutes: DUEL_MINUTES })}
-        </p>
+      <!-- Top lime accent line & ambient volcanic glow -->
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-[#c6ff3d] via-[#c6ff3d]/45 to-transparent"
+      ></div>
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-[#c6ff3d]/[0.08] blur-3xl"
+      ></div>
+
+      <!-- Arena Header -->
+      <div class="relative flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3.5">
+          <div
+            class="relative size-14 shrink-0 overflow-hidden rounded-xl border border-[#c6ff3d]/35 bg-[#090b0f] shadow-[0_0_20px_-6px_rgba(198,255,61,0.4)]"
+          >
+            <img
+              src=${mapUrl}
+              alt=""
+              draggable="false"
+              class="lp-map-thumb pointer-events-none absolute inset-0 size-full object-contain select-none p-1"
+            />
+            <div
+              aria-hidden="true"
+              class="lp-map-plates pointer-events-none absolute inset-0 size-full"
+              style="--lp-mask: url('${mapUrl}'); --lp-mask-fit: contain"
+            ></div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                id="landpot-duel-title"
+                class="lp-mono inline-flex items-center gap-1.5 rounded-md bg-[#c6ff3d] text-[#0b0d10] px-2 py-0.5 text-[11px] font-bold tracking-widest"
+              >
+                <span class="lp-burn-pulse" aria-hidden="true"></span>
+                ${translateText("duel.badge")}
+              </span>
+              <span
+                class="lp-mono rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-wider text-gray-300"
+              >
+                CALDERA · ${DUEL_MINUTES} MIN
+              </span>
+              <span
+                class="lp-mono rounded-md border border-[#ffd37a]/30 bg-[#ffd37a]/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#ffd37a]"
+              >
+                CRATER ×3
+              </span>
+            </div>
+            <h2
+              class="lp-display text-lg sm:text-xl font-bold tracking-tight text-white leading-tight"
+            >
+              1v1 Caldera Arena
+            </h2>
+          </div>
+        </div>
       </div>
-      ${this.linkId ? this.linkPanel() : nothing} ${this.body()}
+
+      <div class="relative flex flex-col gap-3">
+        ${this.linkId ? this.linkPanel() : nothing} ${this.body()}
+      </div>
       ${
         this.cancelled
-          ? html`<p class="lp-mono text-xs text-[#ffd37a]" role="status">
+          ? html`<p class="relative lp-mono text-xs text-[#ffd37a]" role="status">
               ${translateText(CANCEL_KEYS[this.cancelled] ?? "duel.cancelled.declined")}
             </p>`
           : nothing
       }
       ${
         this.notice
-          ? html`<p class="lp-mono text-xs text-[#ffd37a]" role="alert">
+          ? html`<p class="relative lp-mono text-xs text-[#ffd37a]" role="alert">
               ${translateText(LINK_KEYS[this.notice] ?? "duel.failed")}
             </p>`
           : nothing
