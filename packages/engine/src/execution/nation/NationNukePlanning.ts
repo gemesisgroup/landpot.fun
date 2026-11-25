@@ -35,13 +35,16 @@ export function isNukeAlreadyLandingNear(
 /**
  * Grid-sampled share of the blast that hits land of players not friendly to
  * player. Inner radius tiles count double, as the outer ring is only
- * partially destroyed.
+ * partially destroyed. When `primaryTarget` is provided, its land counts full
+ * weight while third-party hostile land counts 0.4x so bombs stay focused on
+ * the intended target.
  */
 export function enemyLandBlastCoverage(
   game: Game,
   player: Player,
   center: TileRef,
   nukeType: NukeType,
+  primaryTarget?: Player,
 ): number {
   const { inner, outer } = game.config().nukeMagnitudes(nukeType);
   const step = Math.max(1, Math.floor(outer / 10));
@@ -59,7 +62,9 @@ export function enemyLandBlastCoverage(
       // Water, fallout and unowned land have no player owner
       const owner = game.owner(game.ref(cx + dx, cy + dy));
       if (owner.isPlayer() && !player.isFriendly(owner, true)) {
-        enemyLand += weight;
+        const targetWeight =
+          primaryTarget === undefined || owner === primaryTarget ? 1 : 0.4;
+        enemyLand += weight * targetWeight;
       }
     }
   }

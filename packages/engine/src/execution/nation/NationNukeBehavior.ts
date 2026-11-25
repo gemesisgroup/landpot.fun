@@ -10,7 +10,6 @@ import {
   Tick,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
-import { euclDistFN } from "@openfront/engine-lib/game/GameMapImpl";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
   readVersioned,
@@ -68,8 +67,12 @@ const MIN_BLAST_COVERAGE: Record<NukeType, number> = {
   [UnitType.HydrogenBomb]: 0.4,
 };
 
-/** Tile score bonus for a blast that hits nothing but enemy land. */
-const FULL_BLAST_COVERAGE_VALUE = 50_000;
+/** Tile score bonus for a blast that hits nothing but enemy land (kept below a single City so structures always win over empty dirt). */
+const FULL_BLAST_COVERAGE_VALUE = 15_000;
+
+/** Structure value multiplier for targets inside the guaranteed-kill inner blast radius vs outer edge. */
+const INNER_BLAST_STRUCTURE_MULTIPLIER = 1.8;
+const OUTER_BLAST_STRUCTURE_MULTIPLIER = 0.65;
 
 /** A strike target has at least this share of our troops; weaker ones fall to plain attacks. */
 const STRIKE_MIN_TROOP_RATIO = 0.5;
@@ -220,8 +223,13 @@ export class NationNukeBehavior {
     )
       return;
     const difficulty = this.game.config().gameConfig().difficulty;
-    // Use more random tiles on Impossible difficulty to improve chances of finding a perfect SAM outranging spot
-    const numRandomTiles = difficulty === Difficulty.Impossible ? 30 : 10;
+    // Use more random tiles on Hard & Impossible to improve target coverage
+    const numRandomTiles =
+      difficulty === Difficulty.Impossible
+        ? 30
+        : difficulty === Difficulty.Hard
+          ? 20
+          : 12;
     const randomTiles = randTerritoryTileArray(
       this.random,
       this.game,
@@ -230,6 +238,12 @@ export class NationNukeBehavior {
     );
     const candidates = new Set(
       randomTiles.concat(structures.map((u) => u.tile())),
+    );
+    this.addClusterAndSamRingCandidates(
+      candidates,
+      structures,
+      nukeTarget,
+      nukeTypes,
     );
     this.removeOldNukeEvents();
 
@@ -311,7 +325,9 @@ export class NationNukeBehavior {
       1,
       this.game.config().nukeMagnitudes(UnitType.AtomBomb).outer,
     );
-    const relativeArea = (range / atomRadius) ** 2;
+    // Scale coverage bonus gently with radius (not quadratic area!) so a Hydrogen Bomb
+    // never prefers empty inland dirt over a coastal cluster of cities/silos/ports.
+    const coverageScale = Math.max(1, range / atomRadius);
     const scored: { tile: TileRef; score: number }[] = [];
 
     outer: for (const tile of candidates) {
@@ -336,6 +352,7 @@ export class NationNukeBehavior {
           this.player,
           tile,
           nukeType,
+          nukeTarget,
         );
         if (coverage < MIN_BLAST_COVERAGE[nukeType]) continue;
       }
@@ -358,7 +375,7 @@ export class NationNukeBehavior {
       }
       scored.push({
         tile,
-        score: value + coverage * FULL_BLAST_COVERAGE_VALUE * relativeArea,
+        score: value + coverage * FULL_BLAST_COVERAGE_VALUE * coverageScale,
       });
     }
     // Stable sort: on ties the earlier candidate wins
@@ -1018,6 +1035,84 @@ export class NationNukeBehavior {
     return false;
   }
 
+  /**
+   * Adds deterministic high-value candidate tiles:
+   * 1) Midpoints between nearby valuable structures so one blast catches whole clusters in its inner radius.
+   * 2) Ring points just outside enemy SAM interception range (Hard/Impossible + HydrogenBomb) so SAM outranging works reliably.
+   */
+  private addClusterAndSamRingCandidates(
+    candidates: Set<TileRef>,
+    structures: Unit[],
+    nukeTarget: Player,
+    nukeTypes: NukeType[],
+  ): void {
+    const config = this.game.config();
+    const difficulty = config.gameConfig().difficulty;
+
+    // 1. Structure cluster midpoints (top 20 valuable structures to keep O(N^2) tiny)
+    const maxOuter = Math.max(
+      ...nukeTypes.map((t) => config.nukeMagnitudes(t).outer),
+    );
+    const pairDistSq = (maxOuter * 1.5) ** 2;
+    const keyStructures = structures
+      .filter((u) => u.type() !== UnitType.DefensePost)
+      .slice(0, 20);
+    for (let i = 0; i < keyStructures.length; i++) {
+      const a = keyStructures[i].tile();
+      const ax = this.game.x(a);
+      const ay = this.game.y(a);
+      for (let j = i + 1; j < keyStructures.length; j++) {
+        const b = keyStructures[j].tile();
+        if (this.game.euclideanDistSquared(a, b) > pairDistSq) continue;
+        const mx = Math.round((ax + this.game.x(b)) / 2);
+        const my = Math.round((ay + this.game.y(b)) / 2);
+        if (!this.game.isValidCoord(mx, my)) continue;
+        const mid = this.game.ref(mx, my);
+        if (this.game.owner(mid) === nukeTarget) {
+          candidates.add(mid);
+        }
+      }
+    }
+
+    // 2. SAM-outranging ring points for Hydrogen Bombs on Hard & Impossible
+    if (
+      (difficulty === Difficulty.Hard ||
+        difficulty === Difficulty.Impossible) &&
+      nukeTypes.includes(UnitType.HydrogenBomb)
+    ) {
+      const hydroOuter = config.nukeMagnitudes(UnitType.HydrogenBomb).outer;
+      const sams = structures.filter(
+        (u) => u.type() === UnitType.SAMLauncher && u.level() < 5,
+      );
+      const dirs = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [0.7071, 0.7071],
+        [-0.7071, 0.7071],
+        [0.7071, -0.7071],
+        [-0.7071, -0.7071],
+      ];
+      for (const sam of sams.slice(0, 10)) {
+        const samRange = config.samRange(sam.level());
+        const ringRadius = samRange + 4;
+        if (ringRadius >= hydroOuter) continue;
+        const sx = this.game.x(sam.tile());
+        const sy = this.game.y(sam.tile());
+        for (const [dx, dy] of dirs) {
+          const tx = Math.round(sx + dx * ringRadius);
+          const ty = Math.round(sy + dy * ringRadius);
+          if (!this.game.isValidCoord(tx, ty)) continue;
+          const ref = this.game.ref(tx, ty);
+          if (this.game.owner(ref) === nukeTarget) {
+            candidates.add(ref);
+          }
+        }
+      }
+    }
+  }
+
   private nukeTileScore(
     tile: TileRef,
     silos: Unit[],
@@ -1025,39 +1120,60 @@ export class NationNukeBehavior {
     nukeType: UnitType.AtomBomb | UnitType.HydrogenBomb,
   ): number {
     const magnitude = this.game.config().nukeMagnitudes(nukeType);
-    const dist = euclDistFN(tile, magnitude.outer, false);
-    let tileValue = targets
-      .filter((unit) => dist(this.game, unit.tile()))
-      .map((unit): number => {
-        const level = unit.level();
-        switch (unit.type()) {
-          case UnitType.City:
-            return 25_000 * level;
-          case UnitType.DefensePost:
-            return 5_000 * level;
-          case UnitType.MissileSilo:
-            return 50_000 * level;
-          case UnitType.Port:
-            return 15_000 * level;
-          case UnitType.Factory:
-            return 15_000 * level;
-          default:
-            return 0;
-        }
-      })
-      .reduce((prev, cur) => prev + cur, 0);
+    const innerSq = magnitude.inner * magnitude.inner;
+    const outerSq = magnitude.outer * magnitude.outer;
+    let tileValue = 0;
+    for (const unit of targets) {
+      const dSq = this.game.euclideanDistSquared(tile, unit.tile());
+      if (dSq > outerSq) continue;
+      const level = unit.level();
+      let base: number;
+      switch (unit.type()) {
+        case UnitType.City:
+          base = 25_000 * level;
+          break;
+        case UnitType.DefensePost:
+          base = 5_000 * level;
+          break;
+        case UnitType.MissileSilo:
+          base = 50_000 * level;
+          break;
+        case UnitType.Port:
+          base = 15_000 * level;
+          break;
+        case UnitType.Factory:
+          base = 15_000 * level;
+          break;
+        default:
+          base = 0;
+      }
+      if (base === 0) continue;
+      // Structures inside the inner blast radius are guaranteed kills; outer ring hits are partial.
+      tileValue +=
+        base *
+        (dSq <= innerSq
+          ? INNER_BLAST_STRUCTURE_MULTIPLIER
+          : OUTER_BLAST_STRUCTURE_MULTIPLIER);
+    }
 
     const difficulty = this.game.config().gameConfig().difficulty;
     // On Easy, ignore SAMs entirely.
-    // On Medium, apply a simple local SAM penalty.
+    // On Medium, avoid tiles covered by any non-friendly SAM using its actual range.
     // On Hard & Impossible we rely on trajectory-based interception checks instead. See maybeSendNuke().
     if (difficulty === Difficulty.Medium) {
-      const dist50 = euclDistFN(tile, 50, false);
-      const hasSam = targets.some(
-        (unit) =>
-          unit.type() === UnitType.SAMLauncher &&
-          dist50(this.game, unit.tile()),
+      const nearbySams = this.game.nearbyUnits(
+        tile,
+        this.game.config().maxSamRange(),
+        UnitType.SAMLauncher,
       );
+      const hasSam = nearbySams.some((sam) => {
+        const owner = sam.unit.owner();
+        if (owner === this.player || this.player.isFriendly(owner)) {
+          return false;
+        }
+        const range = this.game.config().samRange(sam.unit.level());
+        return sam.distSquared <= range * range;
+      });
       if (hasSam) return -1;
     }
 
@@ -1094,16 +1210,16 @@ export class NationNukeBehavior {
       }
     }
 
-    // Prefer tiles that are closer to a silo (but preserve structure value)
+    // Gentle preference for tiles closer to a silo (tie-breaker only; never overrides real structures)
     const siloTiles = silos.map((u) => u.tile());
     const result = closestTwoTiles(this.game, siloTiles, [tile]);
     if (result === null) throw new Error("Missing result");
     const { x: closestSilo } = result;
     const distanceSquared = this.game.euclideanDistSquared(tile, closestSilo);
     const distanceToClosestSilo = Math.sqrt(distanceSquared);
-    const distancePenalty = distanceToClosestSilo * 30;
+    const distancePenalty = Math.min(5_000, distanceToClosestSilo * 3);
     const baseTileValue = tileValue;
-    tileValue = Math.max(baseTileValue * 0.2, tileValue - distancePenalty); // Keep at least 20% of structure value
+    tileValue = Math.max(baseTileValue * 0.85, tileValue - distancePenalty);
 
     // Don't target near recent targets
     tileValue -= this.recentlySentNukes

@@ -387,4 +387,43 @@ describe("Nuke tile scores around SAMs", () => {
       }
     },
   );
+
+  it("prefers a coastal city cluster over empty inland dirt", async () => {
+    const { game, nation, human } = await setupDuel();
+    // Large enemy territory: inland dirt on the left (40..130), coastal cities on the right (165..195)
+    conquerRect(game, human, 40, 40, 195, 195);
+    for (let x = 195; x < 200; x++) {
+      for (let y = 0; y < 200; y++) {
+        game.setWater(game.ref(x, y));
+      }
+    }
+    human.buildUnit(UnitType.City, game.ref(180, 120), {});
+    human.buildUnit(UnitType.City, game.ref(185, 125), {});
+    human.buildUnit(UnitType.MissileSilo, game.ref(182, 118), {});
+
+    const nukes = launchNukes(game, nation);
+    expect(nukes).toHaveLength(1);
+    const target = nukes[0].targetTile()!;
+    // Must land near the high-value coastal cluster, not on empty inland dirt
+    const distToCluster = Math.hypot(
+      game.x(target) - 182,
+      game.y(target) - 121,
+    );
+    expect(distToCluster).toBeLessThan(35);
+  });
+
+  it("centers a bomb on the midpoint between two nearby high-value structures", async () => {
+    const { game, nation, human } = await setupDuel();
+    conquerRect(game, human, 80, 80, 190, 190);
+    const s1 = game.ref(120, 140);
+    const s2 = game.ref(140, 140);
+    human.buildUnit(UnitType.MissileSilo, s1, {});
+    human.buildUnit(UnitType.MissileSilo, s2, {});
+
+    const nukes = launchNukes(game, nation);
+    expect(nukes).toHaveLength(1);
+    const target = nukes[0].targetTile()!;
+    const distToMid = Math.hypot(game.x(target) - 130, game.y(target) - 140);
+    expect(distToMid).toBeLessThanOrEqual(15);
+  });
 });
