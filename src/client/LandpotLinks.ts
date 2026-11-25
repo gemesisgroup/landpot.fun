@@ -4,7 +4,7 @@
  * place as "Coming soon" and activate automatically once a URL is filled in.
  */
 
-export const LAUNCHPAD_URL = "https://bscscan.com";
+export const LAUNCHPAD_URL = "https://blockx.gg";
 /** Legacy export name kept for existing callers. */
 export const PUMP_FUN_URL = LAUNCHPAD_URL;
 
@@ -15,5 +15,5 @@ export const SOCIAL_LINKS = {
 } as const;
 
 export function pumpFunUrl(mint?: string | null): string {
-  return mint ? `https://bscscan.com/token/${mint}` : LAUNCHPAD_URL;
+  return mint ? `${LAUNCHPAD_URL}/token/${mint}` : LAUNCHPAD_URL;
 }
