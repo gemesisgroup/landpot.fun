@@ -21,6 +21,7 @@ import {
   PlayerUpdate,
 } from "@openfront/engine-api/game/GameUpdates";
 import { PlayerLike } from "@openfront/engine-api/game/ReadViews";
+import type { PerkId } from "@openfront/engine-api/game/Perks";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { PatternDecoder } from "@openfront/shared/PatternDecoder";
 import { createRandomName } from "@openfront/shared/SharedUtil";
@@ -207,6 +208,14 @@ export class PlayerView implements PlayerLike {
   /** Recompute colors after the active theme changes (e.g. colorblind toggle). */
   refreshColors(): void {
     this.computeColors();
+  }
+
+  perks(): readonly PerkId[] {
+    return (this.state.perks ?? []) as PerkId[];
+  }
+
+  hasPerk(id: PerkId): boolean {
+    return (this.state.perks ?? []).includes(id);
   }
 
   /**

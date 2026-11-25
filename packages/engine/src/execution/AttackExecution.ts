@@ -343,11 +343,25 @@ export class AttackExecution implements Execution {
         continue;
       }
       this.addNeighbors(tileToConquer);
-      const { attackerTroopLoss, defenderTroopLoss, tickFraction } = this.mg
+      const logicInput = this.attackLogicInput(
+        troopCount,
+        tileToConquer,
+        borderSize,
+      );
+      let { attackerTroopLoss, defenderTroopLoss, tickFraction } = this.mg
         .config()
-        .attackLogic(
-          this.attackLogicInput(troopCount, tileToConquer, borderSize),
-        );
+        .attackLogic(logicInput);
+      // In-match doctrine perks
+      if (this._owner.hasPerk("warfare_1")) tickFraction *= 0.88;
+      if (this._owner.hasPerk("warfare_5")) tickFraction *= 0.85;
+      if (this._owner.hasPerk("warfare_4")) attackerTroopLoss *= 0.85;
+      if (
+        targetPlayer &&
+        logicInput.defenderHasDefensePost &&
+        targetPlayer.hasPerk("fortress_1")
+      ) {
+        attackerTroopLoss *= 1.2;
+      }
       tickBudget -= tickFraction;
       troopCount -= attackerTroopLoss;
       this.attack.setTroops(troopCount);

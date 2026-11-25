@@ -110,6 +110,9 @@ export class ShellExecution implements Execution {
         (damageMultiplier * (100 + veterancy * bonusPercent)) / 100,
       );
     }
+    if (this._owner.hasPerk("economy_5")) {
+      damageMultiplier = Math.floor((damageMultiplier * 130) / 100);
+    }
 
     return Math.round((baseDamage / 250) * damageMultiplier);
   }

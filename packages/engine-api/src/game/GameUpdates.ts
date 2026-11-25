@@ -8,6 +8,7 @@ import {
   Winner,
 } from "../Schemas";
 import { TileRef } from "./GameMap";
+import type { PerkId } from "./Perks";
 import {
   EmojiMessage,
   GameUpdates,
@@ -399,6 +400,8 @@ export interface PlayerUpdate {
   betrayals?: number;
   lastDeleteUnitTick?: Tick;
   isLobbyCreator?: boolean;
+  /** In-match doctrine perks unlocked by this player. */
+  perks?: PerkId[];
 }
 
 export interface AllianceView {

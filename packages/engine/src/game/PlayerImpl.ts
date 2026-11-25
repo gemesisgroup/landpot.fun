@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { PERK_IDS, type PerkId } from "@openfront/engine-api/game/Perks";
 import {
   AllianceInfo,
   AllPlayers,
@@ -188,6 +189,7 @@ export class PlayerImpl implements Player {
 
   private outgoingEmojis_: EmojiMessage[] = [];
   private outgoingQuickChats_ = new Map<number, Tick>();
+  private _perks = new Set<PerkId>();
 
   private sentDonations: Donation[] = [];
 
@@ -422,6 +424,10 @@ export class PlayerImpl implements Player {
       betrayals: this._betrayalCount,
       lastDeleteUnitTick: this.lastDeleteUnitTick,
       isLobbyCreator: this.isLobbyCreator(),
+      perks:
+        this._perks.size === 0
+          ? (EMPTY_STRING_ARRAY as PerkId[])
+          : Array.from(this._perks),
     };
   }
 
@@ -2100,7 +2106,20 @@ export class PlayerImpl implements Player {
       numUnitsConstructed: Object.entries(this.numUnitsConstructed).map(
         ([type, n]) => [type as UnitType, n],
       ),
+      perks: Array.from(this._perks),
     };
+  }
+
+  perks(): ReadonlySet<PerkId> {
+    return this._perks;
+  }
+
+  hasPerk(id: PerkId): boolean {
+    return this._perks.has(id);
+  }
+
+  addPerk(id: PerkId): void {
+    this._perks.add(id);
   }
 
   /** Fills a prototype-only shell; see RestorableExecution.restoreSnapshot. */
@@ -2173,6 +2192,7 @@ export class PlayerImpl implements Player {
         }
       : (box as null);
     this.numUnitsConstructed = Object.fromEntries(s.numUnitsConstructed);
+    this._perks = new Set(s.perks ?? []);
     this.nearbyMemo = null;
   }
 }
@@ -2243,6 +2263,7 @@ export const PlayerSnapshot = snapshotType({
       .nullable()
       .optional(),
     numUnitsConstructed: z.array(z.tuple([UnitTypeSchema, zInt()])),
+    perks: z.array(z.enum(PERK_IDS)).optional(),
   }),
 });
 export type PlayerState = z.infer<typeof PlayerSnapshot.schema>;

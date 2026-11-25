@@ -1,3 +1,4 @@
+import type { PerkId } from "./Perks";
 import { GameMap, TileRef } from "./GameMap";
 import {
   Gold,
@@ -27,6 +28,7 @@ export interface PlayerLike {
   troops(): number;
   gold(): Gold;
   units(type: UnitType): readonly UnitLike[];
+  hasPerk?(id: PerkId): boolean;
 }
 
 export interface UnitLike {

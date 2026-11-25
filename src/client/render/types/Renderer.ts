@@ -93,6 +93,7 @@ export interface PlayerState {
   outgoingAllianceRequests: string[];
   alliances: AllianceData[];
   outgoingEmojis: EmojiData[];
+  perks?: string[];
 }
 
 export interface UnitState {

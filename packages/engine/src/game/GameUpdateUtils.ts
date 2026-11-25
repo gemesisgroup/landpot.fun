@@ -73,7 +73,8 @@ export function diffPlayerUpdate(
     emojiArrayEqual(prev.outgoingEmojis, next.outgoingEmojis) &&
     attackArrayMembershipEqual(prev.outgoingAttacks, next.outgoingAttacks) &&
     attackArrayMembershipEqual(prev.incomingAttacks, next.incomingAttacks) &&
-    allianceArrayEqual(prev.alliances, next.alliances)
+    allianceArrayEqual(prev.alliances, next.alliances) &&
+    stringArrayEqual(prev.perks, next.perks)
   ) {
     return null;
   }
@@ -160,6 +161,7 @@ export function diffPlayerUpdate(
     "alliances",
     allianceArrayEqual(prev.alliances, next.alliances),
   );
+  setIfDifferent("perks", stringArrayEqual(prev.perks, next.perks));
 
   return changed ? diff : null;
 }

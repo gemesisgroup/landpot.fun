@@ -280,9 +280,13 @@ export class TransportShipExecution implements Execution {
         if (this.target.isPlayer() && this.attacker.isFriendly(this.target)) {
           this.attacker.addTroops(this.boat.troops());
         } else {
+          let landingTroops = this.boat.troops();
+          if (this.target.isPlayer() && this.target.hasPerk("fortress_2")) {
+            landingTroops = Math.max(1, Math.floor(landingTroops * 0.75));
+          }
           this.mg.addExecution(
             new AttackExecution(
-              this.boat.troops(),
+              landingTroops,
               this.attacker,
               this.target.id(),
               this.dst,

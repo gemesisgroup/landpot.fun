@@ -282,7 +282,10 @@ export class UnitImpl implements Unit {
   }
 
   maxHealth(): number {
-    const base = this.info().maxHealth ?? 1;
+    let base = this.info().maxHealth ?? 1;
+    if (this._type === UnitType.Warship && this._owner.hasPerk("economy_2")) {
+      base = Math.floor((base * 125) / 100);
+    }
     // veterancy() is 0 for non-warships, so this returns base for them.
     return maxHealthWithVeterancy(
       base,
@@ -562,7 +565,11 @@ export class UnitImpl implements Unit {
   }
 
   launch(): void {
-    this._missileTimerQueue.push(this.mg.ticks());
+    const reduction =
+      this._type === UnitType.MissileSilo && this._owner.hasPerk("fortress_4")
+        ? Math.floor(this.mg.config().SiloCooldown() * 0.25)
+        : 0;
+    this._missileTimerQueue.push(Math.max(0, this.mg.ticks() - reduction));
     this.mg.addUpdate(this.toUpdate());
   }
 

@@ -42,6 +42,7 @@ import { MainRadialMenu } from "./layers/MainRadialMenu";
 import { Minimap } from "./layers/Minimap";
 import { MultiTabModal } from "./layers/MultiTabModal";
 import { NewEraPanel } from "./layers/NewEraPanel";
+import { PerkTreePanel } from "./layers/PerkTreePanel";
 import { NewLobbyPrompt } from "./layers/NewLobbyPrompt";
 import { OnboardingOverlay } from "./layers/OnboardingOverlay";
 import { PerformanceOverlay } from "./layers/PerformanceOverlay";
@@ -381,6 +382,13 @@ export function createRenderer(
   newEra.game = game;
   newEra.eventBus = eventBus;
 
+  const perkTree = document.querySelector("landpot-perks") as PerkTreePanel;
+  if (!(perkTree instanceof PerkTreePanel)) {
+    console.error("perk tree panel not found");
+  }
+  perkTree.game = game;
+  perkTree.eventBus = eventBus;
+
   const deposits = document.querySelector("landpot-deposits") as DepositLayer;
   if (!(deposits instanceof DepositLayer)) {
     console.error("deposit layer not found");
@@ -421,6 +429,7 @@ export function createRenderer(
     showtime,
     minimap,
     newEra,
+    perkTree,
     deposits,
     raids,
     chatDisplay,

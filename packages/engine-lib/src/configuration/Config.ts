@@ -381,26 +381,33 @@ export class Config {
       return maxTroops * 0.1;
     }
 
+    let cap: number;
     if (player.type() === PlayerType.Bot) {
-      return maxTroops / 3;
+      cap = maxTroops / 3;
+    } else if (player.type() === PlayerType.Human) {
+      cap = maxTroops;
+    } else {
+      switch (this._gameConfig.difficulty) {
+        case Difficulty.Easy:
+          cap = maxTroops * 0.5;
+          break;
+        case Difficulty.Medium:
+          cap = maxTroops * 0.75;
+          break;
+        case Difficulty.Hard:
+          cap = maxTroops * 1; // Like humans
+          break;
+        case Difficulty.Impossible:
+          cap = maxTroops * 1.25;
+          break;
+        default:
+          assertNever(this._gameConfig.difficulty);
+      }
     }
-
-    if (player.type() === PlayerType.Human) {
-      return maxTroops;
+    if (player.hasPerk?.("warfare_3")) {
+      cap *= 1.15;
     }
-
-    switch (this._gameConfig.difficulty) {
-      case Difficulty.Easy:
-        return maxTroops * 0.5;
-      case Difficulty.Medium:
-        return maxTroops * 0.75;
-      case Difficulty.Hard:
-        return maxTroops * 1; // Like humans
-      case Difficulty.Impossible:
-        return maxTroops * 1.25;
-      default:
-        assertNever(this._gameConfig.difficulty);
-    }
+    return cap;
   }
 
   troopIncreaseRate(player: PlayerLike): number {
@@ -432,6 +439,13 @@ export class Config {
         default:
           assertNever(this._gameConfig.difficulty);
       }
+    }
+
+    if (player.hasPerk?.("warfare_2")) {
+      toAdd *= 1.12;
+    }
+    if (player.hasPerk?.("warfare_5")) {
+      toAdd *= 1.15;
     }
 
     return Math.min(player.troops() + toAdd, max) - player.troops();

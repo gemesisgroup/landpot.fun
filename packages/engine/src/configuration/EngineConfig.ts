@@ -262,7 +262,9 @@ export class EngineConfig extends Config {
         break;
     }
     const distPenalty = citiesVisited * 5_000;
-    const gold = Math.max(5000, baseGold - distPenalty);
+    let gold = Math.max(5000, baseGold - distPenalty);
+    if (player.hasPerk?.("economy_1")) gold *= 1.15;
+    if (player.hasPerk?.("economy_5")) gold *= 1.25;
     return toInt(gold * this.goldMultiplierFor(player));
   }
 
@@ -276,7 +278,9 @@ export class EngineConfig extends Config {
   tradeShipGold(dist: number, player: PlayerLike): Gold {
     // Sigmoid: concave start, sharp S-curve middle, linear end - heavily punishes trades under range debuff.
     const debuff = this.tradeShipShortRangeDebuff();
-    const baseGold = 75_000 / (1 + exp(-0.03 * (dist - debuff))) + 50 * dist;
+    let baseGold = 75_000 / (1 + exp(-0.03 * (dist - debuff))) + 50 * dist;
+    if (player.hasPerk?.("economy_1")) baseGold *= 1.15;
+    if (player.hasPerk?.("economy_5")) baseGold *= 1.25;
     return BigInt(Math.floor(baseGold * this.goldMultiplierFor(player)));
   }
 
@@ -369,7 +373,8 @@ export class EngineConfig extends Config {
           ) {
             return 0n;
           }
-          return 25_000_000n + BigInt(game.mirvsLaunched()) * 15_000_000n;
+          const base = 25_000_000n + BigInt(game.mirvsLaunched()) * 15_000_000n;
+          return player.hasPerk("fortress_5") ? (base * 80n) / 100n : base;
         };
       case UnitType.MissileSilo:
         return this.costWrapper(() => 1_000_000, UnitType.MissileSilo);
@@ -430,12 +435,15 @@ export class EngineConfig extends Config {
   }
 
   private goldMultiplierFor(player: PlayerLike): number {
-    const base = this.goldMultiplier();
+    let mult = this.goldMultiplier();
     const hc = this._gameConfig.hostCheats;
     if (hc?.goldMultiplier && player.isLobbyCreator()) {
-      return hc.goldMultiplier;
+      mult = hc.goldMultiplier;
     }
-    return base;
+    if (player.hasPerk?.("economy_4")) {
+      mult *= 1.3;
+    }
+    return mult;
   }
 
   public conquerGoldAmount(captured: PlayerLike): Gold {
@@ -475,12 +483,27 @@ export class EngineConfig extends Config {
           Math.min(player.unitsOwned(type), player.unitsConstructed(type)),
         0,
       );
-      const cost = BigInt(costFn(numUnits + extraUnits));
+      let cost = BigInt(costFn(numUnits + extraUnits));
+      const primary = types[0];
+      if (
+        player.hasPerk("economy_3") &&
+        (primary === UnitType.City ||
+          primary === UnitType.Port ||
+          primary === UnitType.Factory)
+      ) {
+        cost = (cost * 85n) / 100n;
+      }
+      if (
+        player.hasPerk("fortress_5") &&
+        (primary === UnitType.AtomBomb || primary === UnitType.HydrogenBomb)
+      ) {
+        cost = (cost * 80n) / 100n;
+      }
       // New Era: metallurgy makes industrial structures cheaper.
       const newEra = game.newEra();
       return newEra === null
         ? cost
-        : newEra.discountedCost(game, player, types[0], cost);
+        : newEra.discountedCost(game, player, primary, cost);
     };
   }
 
@@ -734,17 +757,18 @@ export class EngineConfig extends Config {
 
   dynamicSamRange(sam: Unit, currentTick: number): number {
     const state = sam.samLauncherState();
+    const perkMult = sam.owner().hasPerk?.("fortress_3") ? 1.2 : 1;
     if (state === undefined || state.upgradeStartTick === undefined) {
-      return this.samRange(sam.level());
+      return this.samRange(sam.level()) * perkMult;
     }
     const duration = state.duration ?? this.samUpgradeDuration();
     const elapsed = currentTick - state.upgradeStartTick;
     if (elapsed >= duration) {
-      return this.samRange(state.targetLevel);
+      return this.samRange(state.targetLevel) * perkMult;
     }
     const targetRange = this.samRange(state.targetLevel);
     const diff = targetRange - state.startRange;
-    return state.startRange + (diff * elapsed) / duration;
+    return (state.startRange + (diff * elapsed) / duration) * perkMult;
   }
 
   defaultSamMissileSpeed(): number {

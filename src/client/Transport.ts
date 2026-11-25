@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import type { PerkId } from "@openfront/engine-api/game/Perks";
 import {
   AllPlayers,
   GameType,
@@ -88,6 +89,10 @@ export class SendUpgradeStructureIntentEvent implements GameEvent {
     public readonly unitType: UnitType,
     public readonly amount: number = 1,
   ) {}
+}
+
+export class SendBuyPerkIntentEvent implements GameEvent {
+  constructor(public readonly perkId: PerkId) {}
 }
 
 export class SendAllianceRejectIntentEvent implements GameEvent {
@@ -339,6 +344,9 @@ export class Transport {
     this.subscribe(SendAttackIntentEvent, (e) => this.onSendAttackIntent(e));
     this.subscribe(SendUpgradeStructureIntentEvent, (e) =>
       this.onSendUpgradeStructureIntent(e),
+    );
+    this.subscribe(SendBuyPerkIntentEvent, (e) =>
+      this.onSendBuyPerkIntent(e),
     );
     this.subscribe(SendBoatAttackIntentEvent, (e) =>
       this.onSendBoatAttackIntent(e),
@@ -810,6 +818,13 @@ export class Transport {
     this.sendIntent({
       type: "allianceRequest",
       recipient: event.recipient.id(),
+    });
+  }
+
+  private onSendBuyPerkIntent(event: SendBuyPerkIntentEvent) {
+    this.sendIntent({
+      type: "buy_perk",
+      perkId: event.perkId,
     });
   }
 

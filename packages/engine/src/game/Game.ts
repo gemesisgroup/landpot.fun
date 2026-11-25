@@ -1,4 +1,5 @@
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
+import type { PerkId } from "@openfront/engine-api/game/Perks";
 import {
   AllianceInfo,
   AllPlayers,
@@ -373,6 +374,9 @@ export interface Player extends PlayerLike {
   gold(): Gold;
   addGold(toAdd: Gold, tile?: TileRef): void;
   removeGold(toRemove: Gold): Gold;
+  perks(): ReadonlySet<PerkId>;
+  hasPerk(id: PerkId): boolean;
+  addPerk(id: PerkId): void;
 
   // Cumulative trade revenue, surfaced on the live PlayerUpdate so clients can
   // compute per-source gold rates (leaderboard "Ship/Train Trade Gold/min").

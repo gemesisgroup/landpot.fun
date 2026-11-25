@@ -34,6 +34,13 @@ import type {
 } from "../snapshot/SnapshotContext";
 import { NationAllianceBehavior } from "./nation/NationAllianceBehavior";
 import { NationAttackBehavior } from "./nation/NationAttackBehavior";
+import {
+  canBuyPerk,
+  PERKS,
+  perksEnabledForConfig,
+  type PerkBranch,
+} from "@openfront/engine-api/game/Perks";
+import { BuyPerkExecution } from "./BuyPerkExecution";
 import { NationEmojiBehavior } from "./nation/NationEmojiBehavior";
 import { NationMIRVBehavior } from "./nation/NationMIRVBehavior";
 import { NationNukeBehavior } from "./nation/NationNukeBehavior";
@@ -263,9 +270,34 @@ export class NationExecution implements Execution {
     this.structureBehavior.handleStructures();
     this.warshipBehavior.maybeSpawnWarship();
     this.handleEmbargoesToHostileNations();
+    this.maybeBuyPerk();
     this.attackBehavior.maybeAttack();
     this.warshipBehavior.counterWarshipInfestation();
     if (!launchedMirv) this.nukeBehavior.maybeSendNuke();
+  }
+
+  private maybeBuyPerk(): void {
+    if (this.player === null) return;
+    const enabled = perksEnabledForConfig(this.mg.config().gameConfig());
+    if (!enabled) return;
+    const branches: readonly PerkBranch[] = ["warfare", "economy", "fortress"];
+    const primary = branches[this.player.smallID() % branches.length];
+    const matchTicks = Math.max(
+      0,
+      this.mg.ticks() - this.mg.config().numSpawnPhaseTurns(),
+    );
+    const gold = this.player.gold();
+    // Buy next unlocked perk in primary branch once we have a 30% gold buffer
+    for (const def of PERKS) {
+      if (def.branch !== primary) continue;
+      if (
+        gold >= (def.cost * 130n) / 100n &&
+        canBuyPerk(this.player.perks(), gold, matchTicks, def.id, enabled)
+      ) {
+        this.mg.addExecution(new BuyPerkExecution(this.player, def.id));
+        return;
+      }
+    }
   }
 
   private initializeBehaviors(): void {

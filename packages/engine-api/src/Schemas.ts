@@ -16,6 +16,7 @@ import {
   Trios,
   UnitType,
 } from "./game/GameTypes";
+import { PERK_IDS } from "./game/Perks";
 import { PlayerStatsSchema } from "./StatsSchemas";
 
 export type GameID = string;
@@ -48,7 +49,8 @@ export type Intent =
   | UpdateGameConfigIntent
   | SetFactorySpecIntent
   | NewEraCommandIntent
-  | ToggleGameStartTimer;
+  | ToggleGameStartTimer
+  | BuyPerkIntent;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
 export type CancelAttackIntent = z.infer<typeof CancelAttackIntentSchema>;
@@ -88,6 +90,7 @@ export type UpdateGameConfigIntent = z.infer<
 export type ToggleGameStartTimer = z.infer<
   typeof ToggleGameStartTimerIntentSchema
 >;
+export type BuyPerkIntent = z.infer<typeof BuyPerkIntentSchema>;
 
 export type Turn = z.infer<typeof TurnSchema>;
 export type GameConfig = z.infer<typeof GameConfigSchema>;
@@ -725,6 +728,11 @@ export const ToggleGameStartTimerIntentSchema = z.object({
   type: z.literal("toggle_game_start_timer"),
 });
 
+export const BuyPerkIntentSchema = z.object({
+  type: z.literal("buy_perk"),
+  perkId: z.enum(PERK_IDS),
+});
+
 export const IntentSchema = z.discriminatedUnion("type", [
   AttackIntentSchema,
   CancelAttackIntentSchema,
@@ -753,6 +761,7 @@ export const IntentSchema = z.discriminatedUnion("type", [
   ToggleGameStartTimerIntentSchema,
   SetFactorySpecIntentSchema,
   NewEraCommandIntentSchema,
+  BuyPerkIntentSchema,
 ]);
 
 // StampedIntent = Intent with server-stamped clientID (used in turns and execution)
