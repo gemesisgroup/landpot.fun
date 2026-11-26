@@ -4,7 +4,8 @@
  * place as "Coming soon" and activate automatically once a URL is filled in.
  */
 
-export const GMGN_BSC_URL = "https://gmgn.ai/?chain=bsc";
+export const LANDPOT_CA = "0xfcae15e8b750f86ad526f0e2ac4b0f3a430f7777";
+export const GMGN_BSC_URL = `https://gmgn.ai/bsc/token/${LANDPOT_CA}`;
 /** Legacy export name kept for existing callers. */
 export const PUMP_FUN_URL = GMGN_BSC_URL;
 
@@ -15,5 +16,5 @@ export const SOCIAL_LINKS = {
 } as const;
 
 export function pumpFunUrl(mint?: string | null): string {
-  return mint ? `https://gmgn.ai/bsc/token/${mint}` : GMGN_BSC_URL;
+  return `https://gmgn.ai/bsc/token/${mint || LANDPOT_CA}`;
 }
