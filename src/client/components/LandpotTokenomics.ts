@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import { LANDPOT_CA, pumpFunUrl, SOCIAL_LINKS } from "../LandpotLinks";
+import { pumpFunUrl, SOCIAL_LINKS } from "../LandpotLinks";
 import { potConfig, type PotConfig } from "../Pot";
 
 function socialButton(
@@ -59,7 +59,7 @@ export class LandpotTokenomics extends LitElement {
   }
 
   private copyMint = async () => {
-    const addr = this.config?.token.address ?? LANDPOT_CA;
+    const addr = this.config?.token.address;
     if (!addr) return;
     try {
       await navigator.clipboard.writeText(addr);
@@ -76,7 +76,7 @@ export class LandpotTokenomics extends LitElement {
     const mint =
       this.config?.cluster === "bsc" || this.config?.cluster === "mainnet-beta"
         ? this.config.token.address
-        : LANDPOT_CA;
+        : null;
     const buyHref = pumpFunUrl(mint);
     const shortMint = mint ? `${mint.slice(0, 6)}…${mint.slice(-6)}` : null;
 
