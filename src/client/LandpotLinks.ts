@@ -11,7 +11,7 @@ export const PUMP_FUN_URL = GMGN_BSC_URL;
 export const SOCIAL_LINKS = {
   twitter: "https://x.com/landpot_bnb",
   discord: "",
-  telegram: "",
+  telegram: "https://t.me/landpot_bnb",
 } as const;
 
 export function pumpFunUrl(mint?: string | null): string {
