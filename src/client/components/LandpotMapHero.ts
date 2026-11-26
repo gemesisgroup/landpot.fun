@@ -298,26 +298,6 @@ export class LandpotMapHero extends LitElement {
             </button>
           </div>
         </div>
-        <div
-          class="lp-mh-chips relative z-10"
-          style=${this.overlay ? "" : `top: ${this.mapTop - 46}px`}
-        >
-          <span class="lp-mh-chip">
-            <span class="lp-mh-coin" aria-hidden="true"></span>
-            ${translateText("landpot.map_hero.pot")}
-            <b>${translateText("landpot.map_hero.soon")}</b>
-          </span>
-          <span class="lp-mh-chip">
-            <span class="lp-mh-dot" aria-hidden="true"></span>
-            ${translateText("landpot.map_hero.demo")}
-            <b>${this.clock}</b>
-          </span>
-          <span class="lp-mh-chip lp-mh-chip-wide">
-            ${translateText("landpot.map_hero.empires", {
-              n: this.empires.toString(),
-            })}
-          </span>
-        </div>
       </section>
     `;
   }
